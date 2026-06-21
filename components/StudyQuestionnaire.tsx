@@ -313,14 +313,14 @@ function DropdownQuestionField({
   }, [questionId]);
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
+    function handlePointerDown(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
 
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
   const currentValue = typeof value === 'string' ? value : '';
@@ -330,22 +330,22 @@ function DropdownQuestionField({
   return (
     <div ref={rootRef} className="space-y-3">
       {selectedOption ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
-            Sélectionné: {selectedOption.label}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              onChange('');
-              setIsOpen(false);
-              setQuery('');
-            }}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80 transition hover:border-white/20 hover:bg-white/10"
-          >
-            Effacer
-          </button>
-        </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+        <span className="max-w-full break-words rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
+          Sélectionné: {selectedOption.label}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            onChange('');
+            setIsOpen(false);
+            setQuery('');
+          }}
+          className="min-h-11 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-white/80 transition hover:border-white/20 hover:bg-white/10 touch-manipulation"
+        >
+          Effacer
+        </button>
+      </div>
       ) : null}
 
       <div className="rounded-[22px] border border-white/10 bg-white/5 shadow-[0_18px_50px_rgba(2,6,23,0.18)]">
@@ -353,9 +353,11 @@ function DropdownQuestionField({
           type="button"
           onClick={() => setIsOpen((previous) => !previous)}
           aria-expanded={isOpen}
-          className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm text-white transition hover:bg-white/5"
+          className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm text-white transition hover:bg-white/5 touch-manipulation"
         >
-          <span className={selectedOption ? 'text-white' : 'text-slate-400'}>{selectedOption?.label ?? placeholder}</span>
+          <span className={'min-w-0 flex-1 break-words ' + (selectedOption ? 'text-white' : 'text-slate-400')}>
+            {selectedOption?.label ?? placeholder}
+          </span>
           <span className="text-xs text-slate-400">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
         </button>
 
@@ -369,7 +371,7 @@ function DropdownQuestionField({
               className="w-full rounded-[16px] border border-white/10 bg-[#050d1f] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-500/20"
             />
 
-            <div className="mt-3 max-h-[18rem] space-y-2 overflow-y-auto pr-1">
+            <div className="mt-3 max-h-[45vh] space-y-2 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] sm:max-h-[18rem]">
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((option) => {
                   const active = currentValue === option.value;
@@ -383,13 +385,13 @@ function DropdownQuestionField({
                         setQuery('');
                       }}
                       className={
-                        'flex w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 ' +
+                        'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                         (active
                           ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                           : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                       }
                     >
-                      <span className="block text-sm font-medium leading-6">{option.label}</span>
+                      <span className="block min-w-0 break-words text-sm font-medium leading-6">{option.label}</span>
                       {active ? <span className="text-xs text-white/70">Sélectionné</span> : null}
                     </button>
                   );
@@ -433,14 +435,14 @@ function SearchableSingleSelectField({
   return (
     <div className="space-y-3">
       {selectedOption ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <span className="max-w-full break-words rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
             Sélectionné: {selectedOption.label}
           </span>
           <button
             type="button"
             onClick={() => onChange('')}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80 transition hover:border-white/20 hover:bg-white/10"
+            className="min-h-11 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-white/80 transition hover:border-white/20 hover:bg-white/10 touch-manipulation"
           >
             Effacer
           </button>
@@ -458,7 +460,7 @@ function SearchableSingleSelectField({
         />
       </label>
 
-      <div className="max-h-[21rem] space-y-2 overflow-y-auto rounded-[22px] border border-white/10 bg-[#050d1f]/80 p-2 shadow-[0_18px_50px_rgba(2,6,23,0.18)]">
+      <div className="max-h-[45vh] space-y-2 overflow-y-auto rounded-[22px] border border-white/10 bg-[#050d1f]/80 p-2 shadow-[0_18px_50px_rgba(2,6,23,0.18)] overscroll-contain [-webkit-overflow-scrolling:touch] sm:max-h-[21rem]">
         {filteredOptions.length > 0 ? (
           filteredOptions.map((option) => {
             const active = currentValue === option.value;
@@ -471,13 +473,13 @@ function SearchableSingleSelectField({
                   setQuery('');
                 }}
                 className={
-                  'flex w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 ' +
+                  'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                   (active
                     ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                 }
               >
-                <span className="block text-sm font-medium leading-6">{option.label}</span>
+                <span className="block min-w-0 break-words text-sm font-medium leading-6">{option.label}</span>
                 {active ? <span className="text-xs text-white/70">Sélectionné</span> : null}
               </button>
             );
@@ -522,16 +524,16 @@ export function SearchableMultiSelectField({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 flex-wrap gap-2">
         {selectedLabels.length > 0 ? (
           selectedLabels.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => onToggle(option.value)}
-              className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 transition hover:border-blue-300/50 hover:bg-blue-500/15"
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 transition hover:border-blue-300/50 hover:bg-blue-500/15 touch-manipulation"
             >
-              <span>{option.label}</span>
+              <span className="max-w-full break-words">{option.label}</span>
               <span className="text-xs text-blue-100/70">Retirer</span>
             </button>
           ))
@@ -541,7 +543,7 @@ export function SearchableMultiSelectField({
       </div>
 
       <div className="flex items-center justify-between gap-4 text-sm text-slate-400">
-        <span>{placeholder}</span>
+        <span className="min-w-0 break-words">{placeholder}</span>
         {typeof maxSelections === 'number' ? (
           <span>
             {selectedValues.length}/{maxSelections}
@@ -557,7 +559,7 @@ export function SearchableMultiSelectField({
         className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-500/20"
       />
 
-      <div className="max-h-[21rem] space-y-2 overflow-y-auto rounded-[22px] border border-white/10 bg-[#050d1f]/80 p-2 shadow-[0_18px_50px_rgba(2,6,23,0.18)]">
+      <div className="max-h-[45vh] space-y-2 overflow-y-auto rounded-[22px] border border-white/10 bg-[#050d1f]/80 p-2 shadow-[0_18px_50px_rgba(2,6,23,0.18)] overscroll-contain [-webkit-overflow-scrolling:touch] sm:max-h-[21rem]">
         {filteredOptions.length > 0 ? (
           filteredOptions.map((option) => {
             const active = selectedValues.includes(option.value);
@@ -573,14 +575,14 @@ export function SearchableMultiSelectField({
                 }}
                 disabled={disabled}
                 className={
-                  'flex w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 ' +
+                  'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                   (active
                     ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10') +
                   (disabled ? ' cursor-not-allowed opacity-40 hover:translate-y-0 hover:shadow-none' : '')
                 }
               >
-                <span className="block text-sm font-medium leading-6">{option.label}</span>
+                <span className="block min-w-0 break-words text-sm font-medium leading-6">{option.label}</span>
                 <span className="text-xs text-white/60">{active ? 'Sélectionné' : 'Ajouter'}</span>
               </button>
             );
@@ -618,14 +620,14 @@ export function MultiSelectQuestionField({
   }, [questionId]);
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
+    function handlePointerDown(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
 
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
   const selectedValues = Array.isArray(value)
@@ -639,16 +641,16 @@ export function MultiSelectQuestionField({
 
   return (
     <div ref={rootRef} className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 flex-wrap gap-2">
         {selectedLabels.length > 0 ? (
           selectedLabels.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => onToggle(option.value)}
-              className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 transition hover:border-blue-300/50 hover:bg-blue-500/15"
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 transition hover:border-blue-300/50 hover:bg-blue-500/15 touch-manipulation"
             >
-              <span>{option.label}</span>
+              <span className="max-w-full break-words">{option.label}</span>
               <span className="text-xs text-blue-100/70">Retirer</span>
             </button>
           ))
@@ -658,7 +660,7 @@ export function MultiSelectQuestionField({
       </div>
 
       <div className="flex items-center justify-between gap-4 text-sm text-slate-400">
-        <span>{placeholder}</span>
+        <span className="min-w-0 break-words">{placeholder}</span>
         <div className="flex items-center gap-3">
           {typeof maxSelections === 'number' ? (
             <span>
@@ -669,7 +671,7 @@ export function MultiSelectQuestionField({
             type="button"
             onClick={() => setIsOpen((previous) => !previous)}
             aria-expanded={isOpen}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80 transition hover:border-white/20 hover:bg-white/10"
+            className="min-h-10 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:border-white/20 hover:bg-white/10 touch-manipulation"
           >
             {isOpen ? 'Fermer la liste' : 'Ouvrir la liste'}
           </button>
@@ -686,7 +688,7 @@ export function MultiSelectQuestionField({
             className="w-full rounded-[16px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-500/20"
           />
 
-          <div className="max-h-[21rem] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1 overscroll-contain [-webkit-overflow-scrolling:touch] sm:max-h-[21rem]">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => {
                 const active = selectedValues.includes(option.value);
@@ -699,14 +701,14 @@ export function MultiSelectQuestionField({
                     onClick={() => onToggle(option.value)}
                     disabled={disabled}
                     className={
-                      'flex w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 ' +
+                      'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                       (active
                         ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                         : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10') +
                       (disabled ? ' cursor-not-allowed opacity-40 hover:translate-y-0 hover:shadow-none' : '')
                     }
                   >
-                    <span className="block text-sm font-medium leading-6">{option.label}</span>
+                    <span className="block min-w-0 break-words text-sm font-medium leading-6">{option.label}</span>
                     <span className="text-xs text-white/60">{active ? 'Sélectionné' : 'Ajouter'}</span>
                   </button>
                 );
@@ -1108,13 +1110,13 @@ export function StudyQuestionnaire() {
                 type="button"
                 onClick={() => updateAnswer(question, option.value)}
                 className={
-                  'rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] ' +
+                  'min-h-14 rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                   (active
                     ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                 }
               >
-                <span className="block text-base font-medium leading-6">{option.label}</span>
+                <span className="block min-w-0 break-words text-base font-medium leading-6">{option.label}</span>
               </button>
             );
           })}
@@ -1133,7 +1135,7 @@ export function StudyQuestionnaire() {
                 type="button"
                 onClick={() => updateAnswer(question, option.value)}
                 className={
-                  'inline-flex items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition duration-200 ' +
+                  'inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition duration-200 touch-manipulation ' +
                   (active
                     ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
@@ -1205,8 +1207,8 @@ export function StudyQuestionnaire() {
 
   if (shouldBlockRepeat) {
     return (
-      <main className="min-h-screen bg-[#020817] text-white">
-        <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+      <main className="min-h-screen overflow-x-hidden bg-[#020817] text-white">
+        <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col overflow-x-hidden px-4 py-4 sm:px-6 lg:px-8">
           <header className="flex items-center justify-between border-b border-white/10 pb-4">
             <Link href="/" className="flex items-center gap-3">
               <Image
@@ -1244,7 +1246,7 @@ export function StudyQuestionnaire() {
                   <button
                     type="button"
                     onClick={resetAll}
-                    className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 sm:w-auto"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 touch-manipulation sm:w-auto"
                   >
                     Répondre à nouveau
                   </button>
@@ -1264,8 +1266,8 @@ export function StudyQuestionnaire() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+    <main className="min-h-screen overflow-x-hidden bg-[#020817] text-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col overflow-x-hidden px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between border-b border-white/10 pb-4">
           <Link href="/" className="flex items-center gap-3">
             <Image
@@ -1293,7 +1295,7 @@ export function StudyQuestionnaire() {
           className="hidden"
         />
 
-        <section className="flex-1 py-6 sm:py-8">
+        <section className="flex-1 py-6 pb-8 sm:py-8 sm:pb-12">
           <div className="mb-6 rounded-[24px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_70px_rgba(2,6,23,0.45)] backdrop-blur sm:p-5">
             <div className="flex items-center justify-between gap-4 text-sm text-slate-300">
               <span>
@@ -1321,14 +1323,14 @@ export function StudyQuestionnaire() {
                   <button
                     type="button"
                     onClick={resetAll}
-                    className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 sm:w-auto"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 touch-manipulation sm:w-auto"
                   >
                     Répondre à nouveau
                   </button>
                 ) : null}
                 <Link
                   href="/"
-                  className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 sm:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 touch-manipulation sm:w-auto"
                 >
                   Retour à l&apos;accueil
                 </Link>
@@ -1370,7 +1372,7 @@ export function StudyQuestionnaire() {
                             setRespondentType(option.value);
                           }}
                           className={
-                            'rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] ' +
+                            'min-h-14 rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                             (active
                               ? 'border-blue-400/60 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                               : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
@@ -1491,7 +1493,7 @@ export function StudyQuestionnaire() {
                                 }))
                               }
                               className={
-                                'inline-flex flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition ' +
+                                'inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition touch-manipulation ' +
                                 (finalState.wantsProjectUpdates
                                   ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                   : 'border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10')
@@ -1508,7 +1510,7 @@ export function StudyQuestionnaire() {
                                 }))
                               }
                               className={
-                                'inline-flex flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition ' +
+                                'inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition touch-manipulation ' +
                                 (!finalState.wantsProjectUpdates
                                   ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                   : 'border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10')
@@ -1541,13 +1543,13 @@ export function StudyQuestionnaire() {
                                     }))
                                   }
                                   className={
-                                    'rounded-[18px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] ' +
+                                    'min-h-14 rounded-[18px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                                     (active
                                       ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                       : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                                   }
                                 >
-                                  <span className="block text-sm font-medium leading-6">{option.label}</span>
+                                  <span className="block min-w-0 break-words text-sm font-medium leading-6">{option.label}</span>
                                 </button>
                               );
                             })}
@@ -1652,7 +1654,7 @@ export function StudyQuestionnaire() {
                   type="button"
                   onClick={goBack}
                   disabled={currentStepId === null}
-                  className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 touch-manipulation disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   Retour
                 </button>
