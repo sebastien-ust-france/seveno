@@ -6,7 +6,12 @@ import {
   getIntentCounts,
   type StudyStats,
 } from '@/lib/study-analytics';
-import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
+import {
+  adminDb,
+  getFirebaseAdminDebugStatus,
+  getFirebaseAdminInitError,
+  isFirebaseAdminConfigured,
+} from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -313,6 +318,9 @@ export async function GET(request: NextRequest) {
   const expectedCode = process.env.NEXT_PUBLIC_ADMIN_CODE?.trim();
   const providedCode = getAdminCode(request);
 
+  console.info('[Seveno admin] firebase admin debug', getFirebaseAdminDebugStatus());
+  console.info('[Seveno admin] admin code received', Boolean(providedCode));
+
   if (!expectedCode) {
     return NextResponse.json(
       {
@@ -324,6 +332,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!providedCode || providedCode !== expectedCode) {
+    console.info('[Seveno admin] admin code valid', false);
     return NextResponse.json(
       {
         error: 'forbidden',
@@ -333,7 +342,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  console.info('[Seveno admin] admin code valid', true);
+
   if (!isFirebaseAdminConfigured || !adminDb) {
+    console.info('[Seveno admin] firestore admin available', false);
+    console.info('[Seveno admin] firestore admin init error', Boolean(getFirebaseAdminInitError()));
     return NextResponse.json(
       {
         error: 'firebase_admin_missing',
@@ -344,8 +357,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  console.info('[Seveno admin] firestore admin available', true);
+  console.info('[Seveno admin] beginning collection read', 'study_responses');
+
+  let snapshot;
+
   try {
-    const snapshot = await adminDb.collection('study_responses').get();
+    snapshot = await adminDb.collection('study_responses').get();
+  } catch (error) {
+    console.error('[Seveno admin] collection read failed', error);
+    return NextResponse.json(
+      {
+        error: 'fetch_failed',
+        message: error instanceof Error ? error.message : 'Impossible de lire les reponses.',
+      },
+      { status: 500 },
+    );
+  }
+
+  console.info('[Seveno admin] documents recovered', snapshot.size);
+
+  try {
     const responses = snapshot.docs.map((doc) => toSerializedResponse(doc.id, doc.data() as Record<string, unknown>));
     const analyticsResponses: StudyResponseRecord[] = responses.map((response) => ({
       id: response.id,
@@ -415,6 +447,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(payload);
   } catch (error) {
+    console.error('[Seveno admin] response processing failed', error);
     return NextResponse.json(
       {
         error: 'fetch_failed',
