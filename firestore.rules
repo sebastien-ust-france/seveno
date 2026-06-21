@@ -1,0 +1,215 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowedRespondentType(value) {
+      return value in [
+        'professional_available',
+        'professional_employed',
+        'company',
+        'agency'
+      ];
+    }
+
+    function isAllowedStudyAnswerKeys(data) {
+      return data.keys().hasOnly([
+        'sectorCode',
+        'activeZoneCode',
+        'activeZoneOther',
+        'familyCode',
+        'currentRoleCode',
+        'targetRoleCode',
+        'targetRoleCodes',
+        'secondaryRoleCodes',
+        'currentRecruitmentRoleCode',
+        'currentRecruitmentRoleCodes',
+        'hardestRecruitmentRoleCode',
+        'hardestRecruitmentRoleCodes',
+        'mostFrequentRecruitmentRoleCodes',
+        'agencyFrequentRoleCode',
+        'agencyFrequentRoleCodes',
+        'agencyHardestRoleCodes',
+        'contractTypeCodes',
+        'workModePreferenceCodes',
+        'searchDurationCode',
+        'desiredCompensationRangeCode',
+        'languagesCodes',
+        'languagesOther',
+        'europeMobilityCode',
+        'europeTargetCountryCodes',
+        'relocationCode',
+        'jobPlatformCodes',
+        'searchBlockerCodes',
+        'applicationsBeforeInterviewCode',
+        'dailyAvailabilityConfirmation',
+        'marketMissingCodes',
+        'marketMissingOther',
+        'improvementNote',
+        'valueExpectationCodes',
+        'changeReasonCodes',
+        'salaryRangeCode',
+        'hiringChannelCodes',
+        'agencySourcingChannelCodes',
+        'atsUsed',
+        'hiringBlockerCodes',
+        'sourcingBlockerCodes',
+        'roleToRecruitCode',
+        'agencyPrimaryRoleCode',
+        'contractTypeCode',
+        'experienceLevelCode',
+        'startDelayCode',
+        'availabilityBlockerCode',
+        'openToOpportunity',
+        'openReason',
+        'changeHorizonCode',
+        'careerBlockerCode',
+        'hiringVolumeCode',
+        'needOpenSinceCode',
+        'hiringBlockerCode',
+        'sourcingStackCode',
+        'monthlyVolumeCode',
+        'candidatePoolSizeCode',
+        'sourcingBlockerCode',
+        'valueExpectationCode',
+        'availabilityNow',
+        'availabilityReason',
+        'availabilityHorizon',
+        'preferredFormat',
+        'coreDomain',
+        'availabilitySearchChannel',
+        'availabilityFrustration',
+        'availabilityValueExpectation',
+        'openToOpportunity',
+        'openReason',
+        'changeHorizon',
+        'employedSolutions',
+        'employedFrustration',
+        'opportunityType',
+        'employedValueExpectation',
+        'activeHiringNeed',
+        'hiringNeedReason',
+        'hardProfiles',
+        'hiringUrgency',
+        'hiringSolutions',
+        'hiringFrustration',
+        'hiringValueExpectation',
+        'workTensionProfiles',
+        'workTensionReason',
+        'candidateBase',
+        'sourcingUrgency',
+        'sourcingSolutions',
+        'sourcingFrustration',
+        'sourcingValueExpectation',
+        'preferredContactChannel',
+        'feedbackNote'
+      ]);
+    }
+
+    function isYesNoAnswer(data, key) {
+      return !data.keys().hasAny([key]) || data[key] in ['yes', 'no'];
+    }
+
+    function isChoiceAnswer(data, key, values) {
+      return !data.keys().hasAny([key]) || (data[key] is string && data[key] in values);
+    }
+
+    function isSlugAnswer(data, key, maxLength) {
+      return !data.keys().hasAny([key]) ||
+        (data[key] is string &&
+          data[key].size() > 0 &&
+          data[key].size() <= maxLength &&
+          data[key].matches('^[a-z0-9_-]+$'));
+    }
+
+    function isSlugListAnswer(data, key, maxItems, maxLength) {
+      return !data.keys().hasAny([key]) ||
+        (data[key] is list &&
+          data[key].size() > 0 &&
+          data[key].size() <= maxItems);
+    }
+
+    function isTextAnswer(data, key, maxLength) {
+      return !data.keys().hasAny([key]) ||
+        (data[key] is string && data[key].size() > 0 && data[key].size() <= maxLength);
+    }
+
+    function isValidStudyAnswers(data) {
+      return isAllowedStudyAnswerKeys(data)
+        && data.size() <= 35
+        && isSlugAnswer(data, 'sectorCode', 120)
+        && isChoiceAnswer(data, 'activeZoneCode', [
+          'france',
+          'belgium',
+          'luxembourg',
+          'switzerland',
+          'spain',
+          'europe',
+          'other'
+        ])
+        && isChoiceAnswer(data, 'preferredContactChannel', [
+          'email',
+          'phone',
+          'both',
+          'no_preference'
+        ])
+        && isChoiceAnswer(data, 'dailyAvailabilityConfirmation', [
+          'yes_without_problem',
+          'yes_if_under_10_seconds',
+          'yes_when_actively_searching',
+          'weekly_maximum',
+          'no'
+        ])
+        && isTextAnswer(data, 'activeZoneOther', 100)
+        && isTextAnswer(data, 'languagesOther', 100)
+        && isTextAnswer(data, 'marketMissingOther', 200)
+        && isTextAnswer(data, 'openReason', 300)
+        && isTextAnswer(data, 'improvementNote', 500)
+        && isTextAnswer(data, 'feedbackNote', 500)
+        && isSlugAnswer(data, 'familyCode', 160)
+        && isSlugAnswer(data, 'currentRoleCode', 200);
+    }
+
+    function isValidStudyResponse(data) {
+      return data.keys().hasOnly([
+        'respondentType',
+        'answers',
+        'wantsLaunchNotification',
+        'wantsBetaAccess',
+        'email',
+        'phone',
+        'source',
+        'utmSource',
+        'utmMedium',
+        'utmCampaign',
+        'discoverySource',
+        'logoFeedback',
+        'createdAt'
+      ])
+      && isAllowedRespondentType(data.respondentType)
+      && data.answers is map
+      && isValidStudyAnswers(data.answers)
+      && data.wantsLaunchNotification is bool
+      && data.wantsBetaAccess is bool
+      && data.email is string
+      && data.email.size() <= 254
+      && data.phone is string
+      && data.phone.size() <= 32
+      && (!data.keys().hasAny(['source']) || (data.source is string && data.source.size() > 0 && data.source.size() <= 80))
+      && (!data.keys().hasAny(['utmSource']) || (data.utmSource is string && data.utmSource.size() > 0 && data.utmSource.size() <= 80))
+      && (!data.keys().hasAny(['utmMedium']) || (data.utmMedium is string && data.utmMedium.size() > 0 && data.utmMedium.size() <= 80))
+      && (!data.keys().hasAny(['utmCampaign']) || (data.utmCampaign is string && data.utmCampaign.size() > 0 && data.utmCampaign.size() <= 160))
+      && (!data.keys().hasAny(['discoverySource']) || data.discoverySource in ['linkedin', 'facebook', 'google', 'ust_workflow', 'recommendation', 'direct', 'other'])
+      && (!data.keys().hasAny(['logoFeedback']) || data.logoFeedback in ['yes', 'no'])
+      && data.createdAt is timestamp;
+    }
+
+    match /study_responses/{document} {
+      allow create: if isValidStudyResponse(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
