@@ -50,6 +50,10 @@ interface AdminStudyMetrics {
   projectUpdatesNoCount: number;
   projectUpdatesRate: number;
   projectUpdatesBaseCount: number;
+  logoFeedbackYesCount: number;
+  logoFeedbackNoCount: number;
+  logoFeedbackBaseCount: number;
+  logoFeedbackRate: number;
 }
 
 interface AdminStudyQualityStats {
@@ -339,11 +343,15 @@ function BreakdownTable({
   title,
   items,
   total,
+  highlightThreshold,
+  highlightLabel = 'À intégrer à la taxonomie',
 }: {
   tone: Tone;
   title: string;
   items: StudyBreakdownItem[];
   total: number;
+  highlightThreshold?: number;
+  highlightLabel?: string;
 }) {
   const styles = toneStyles[tone];
 
@@ -370,7 +378,16 @@ function BreakdownTable({
             {items.length > 0 ? (
               items.map((item) => (
                 <tr key={item.value} className={styles.tableRow}>
-                  <td className="px-4 py-3 text-slate-100">{item.label}</td>
+                  <td className="px-4 py-3 text-slate-100">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{item.label}</span>
+                      {highlightThreshold !== undefined && item.count >= highlightThreshold ? (
+                        <span className="inline-flex rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-100 ring-1 ring-inset ring-emerald-400/25">
+                          {highlightLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right text-slate-100">{item.count}</td>
                   <td className="px-4 py-3 text-right text-slate-300">{formatShare(item.count, total)}</td>
                 </tr>
@@ -617,6 +634,11 @@ export function AdminDashboard() {
   const studyStats = data?.studyStats;
   const qualityStats = data?.qualityStats;
   const totalResponses = studyStats?.totalResponses ?? metrics?.totalResponses ?? 0;
+  const nonListedRoleBreakdown = studyStats?.currentRoleOtherBreakdown ?? [];
+  const nonListedRoleTop10 = nonListedRoleBreakdown.slice(0, 10);
+  const nonListedRoleDistinctCount = studyStats?.currentRoleOtherDistinctCount ?? 0;
+  const nonListedRoleResponseCount = studyStats?.currentRoleOtherResponseCount ?? 0;
+  const taxonomyIntegrationCount = nonListedRoleBreakdown.filter((item) => item.count >= 3).length;
 
   const profileBreakdown = useMemo(
     () =>
@@ -704,7 +726,7 @@ export function AdminDashboard() {
               title="Vue d’ensemble des réponses"
               description="Agrégation réalisée uniquement côté admin, sans exposer les contacts dans les statistiques."
             >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                 <KpiCard
                   tone="cyan"
                   label="Réponses collectées"
@@ -750,6 +772,20 @@ export function AdminDashboard() {
                       {metrics?.projectUpdatesYesCount ?? 0} oui / {metrics?.projectUpdatesNoCount ?? 0} non
                       {' · '}
                       base {metrics?.projectUpdatesBaseCount ?? 0}
+                    </span>
+                  }
+                />
+                <KpiCard
+                  tone="cyan"
+                  label="Avis sur le logo"
+                  value={metrics ? formatPercent(metrics.logoFeedbackRate) : '0 %'}
+                  detail={
+                    <span>
+                      {metrics?.logoFeedbackBaseCount
+                        ? `${formatPercent(metrics.logoFeedbackYesCount / metrics.logoFeedbackBaseCount)} oui / ${formatPercent(metrics.logoFeedbackNoCount / metrics.logoFeedbackBaseCount)} non`
+                        : '0 % oui / 0 % non'}
+                      {' · '}
+                      base {metrics?.logoFeedbackBaseCount ?? 0}
                     </span>
                   }
                 />
@@ -994,6 +1030,59 @@ export function AdminDashboard() {
                   <p className="text-sm text-slate-300">Rafales &lt; 10 min</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{qualityStats?.burstResponses ?? 0}</p>
                 </article>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              tone="amber"
+              eyebrow="Enrichissement de taxonomie"
+              title="Métiers non listés"
+              description="Métiers saisis librement par les répondants lorsqu'ils n'ont pas trouvé leur poste dans la taxonomie actuelle."
+            >
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <KpiCard
+                  tone="amber"
+                  label="Métiers libres distincts"
+                  value={nonListedRoleDistinctCount}
+                  detail="Libellés normalisés avant agrégation."
+                />
+                <KpiCard
+                  tone="amber"
+                  label="Réponses concernées"
+                  value={nonListedRoleResponseCount}
+                  detail="Réponses contenant currentRoleOther."
+                />
+                <KpiCard
+                  tone="amber"
+                  label="À intégrer"
+                  value={taxonomyIntegrationCount}
+                  detail="Occurrences ≥ 3."
+                />
+                <KpiCard
+                  tone="amber"
+                  label="Résumé"
+                  value="Top 10"
+                  detail="Métiers libres les plus fréquents."
+                />
+              </div>
+
+              <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_320px]">
+                <BreakdownTable
+                  tone="amber"
+                  title="Top 10 des métiers libres les plus fréquents"
+                  items={nonListedRoleTop10}
+                  total={nonListedRoleResponseCount}
+                  highlightThreshold={3}
+                />
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                  <p className="text-sm text-slate-300">Lecture rapide</p>
+                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
+                    <p>Les libellés sont normalisés par trim, espaces multiples et casse avant agrégation.</p>
+                    <p>Les entrées répétées signalées ici sont des candidates à une validation admin.</p>
+                    <p>Le seuil d&apos;alerte est fixé à 3 occurrences.</p>
+                  </div>
+                </div>
               </div>
             </SectionCard>
 

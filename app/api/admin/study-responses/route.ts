@@ -49,6 +49,10 @@ type AdminStudyMetrics = {
   projectUpdatesNoCount: number;
   projectUpdatesRate: number;
   projectUpdatesBaseCount: number;
+  logoFeedbackYesCount: number;
+  logoFeedbackNoCount: number;
+  logoFeedbackBaseCount: number;
+  logoFeedbackRate: number;
 };
 
 type AdminStudyQualityStats = {
@@ -64,6 +68,10 @@ type AdminStudyQualityStats = {
   projectUpdatesYesCount: number;
   projectUpdatesNoCount: number;
   projectUpdatesBaseCount: number;
+  logoFeedbackYesCount: number;
+  logoFeedbackNoCount: number;
+  logoFeedbackBaseCount: number;
+  logoFeedbackRate: number;
 };
 
 type AdminStudyPayload = {
@@ -228,6 +236,12 @@ function calculateQualityStats(responses: SerializedStudyResponse[]): AdminStudy
   const projectUpdatesYesCount = recruiterResponses.filter((response) => response.wantsProjectUpdates === true).length;
   const projectUpdatesNoCount = recruiterResponses.filter((response) => response.wantsProjectUpdates === false).length;
   const projectUpdatesBaseCount = recruiterResponses.length;
+  const logoFeedbackResponses = responses.filter(
+    (response) => response.logoFeedback === 'yes' || response.logoFeedback === 'no',
+  );
+  const logoFeedbackYesCount = logoFeedbackResponses.filter((response) => response.logoFeedback === 'yes').length;
+  const logoFeedbackNoCount = logoFeedbackResponses.filter((response) => response.logoFeedback === 'no').length;
+  const logoFeedbackBaseCount = logoFeedbackResponses.length;
 
   return {
     totalResponses: responses.length,
@@ -251,6 +265,10 @@ function calculateQualityStats(responses: SerializedStudyResponse[]): AdminStudy
     projectUpdatesYesCount,
     projectUpdatesNoCount,
     projectUpdatesBaseCount,
+    logoFeedbackYesCount,
+    logoFeedbackNoCount,
+    logoFeedbackBaseCount,
+    logoFeedbackRate: logoFeedbackBaseCount > 0 ? logoFeedbackYesCount / logoFeedbackBaseCount : 0,
   };
 }
 
@@ -409,6 +427,10 @@ export async function GET(request: NextRequest) {
         qualityStats.projectUpdatesBaseCount > 0
           ? qualityStats.projectUpdatesYesCount / qualityStats.projectUpdatesBaseCount
           : 0,
+      logoFeedbackYesCount: qualityStats.logoFeedbackYesCount,
+      logoFeedbackNoCount: qualityStats.logoFeedbackNoCount,
+      logoFeedbackBaseCount: qualityStats.logoFeedbackBaseCount,
+      logoFeedbackRate: qualityStats.logoFeedbackRate,
     };
 
     responses.sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));

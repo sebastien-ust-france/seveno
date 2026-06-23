@@ -1111,6 +1111,7 @@ export function buildStudyAnswersPayload(
     'activeZoneOther',
     'familyCode',
     'currentRoleCode',
+    'currentRoleOther',
     'targetRoleCode',
     'targetRoleCodes',
     'secondaryRoleCodes',

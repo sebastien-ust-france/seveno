@@ -69,6 +69,9 @@ export interface StudyStats {
   preferredContactChannel: StudyBreakdownItem[];
   wantsBetaAccess: BinaryCounts;
   wantsLaunchNotification: BinaryCounts;
+  currentRoleOtherBreakdown: StudyBreakdownItem[];
+  currentRoleOtherDistinctCount: number;
+  currentRoleOtherResponseCount: number;
 }
 
 const TOP_BREAKDOWN_LIMIT = 10;
@@ -308,6 +311,72 @@ function buildBreakdown(
     .slice(0, limit ?? Number.POSITIVE_INFINITY);
 }
 
+interface FreeTextBucket {
+  key: string;
+  label: string;
+  count: number;
+}
+
+function normalizeFreeTextValue(value: string) {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function aggregateFreeTextValues(values: Array<string | undefined>): FreeTextBucket[] {
+  const buckets = new Map<string, FreeTextBucket>();
+
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const normalized = normalizeFreeTextValue(value);
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+
+    buckets.set(key, {
+      key,
+      label: normalized,
+      count: 1,
+    });
+  }
+
+  return [...buckets.values()].sort((left, right) => {
+    if (right.count !== left.count) {
+      return right.count - left.count;
+    }
+
+    return left.label.localeCompare(right.label, 'fr');
+  });
+}
+
+function buildFreeTextBreakdown(values: Array<string | undefined>): {
+  breakdown: StudyBreakdownItem[];
+  distinctCount: number;
+  responseCount: number;
+} {
+  const buckets = aggregateFreeTextValues(values);
+  const responseCount = buckets.reduce((total, bucket) => total + bucket.count, 0);
+
+  return {
+    breakdown: buckets.map((bucket) => ({
+      value: bucket.key,
+      label: bucket.label,
+      count: bucket.count,
+      rate: responseCount > 0 ? bucket.count / responseCount : 0,
+    })),
+    distinctCount: buckets.length,
+    responseCount,
+  };
+}
+
 export function countByValue(values: Array<string | number | boolean | null | undefined>): Record<string, number> {
   const counts: Record<string, number> = {};
 
@@ -403,6 +472,9 @@ export function calculateStudyStats(responses: StudyResponseRecord[]): StudyStat
   const preferredContactCounts = countByValue(
     responses.map((response) => response.answers?.preferredContactChannel as string | undefined),
   );
+  const currentRoleOtherStats = buildFreeTextBreakdown(
+    responses.map((response) => response.answers?.currentRoleOther as string | undefined),
+  );
   const launchCounts = countByValue(responses.map((response) => response.wantsLaunchNotification));
   const betaCounts = countByValue(responses.map((response) => response.wantsBetaAccess));
   const dailyAvailabilityAcceptanceCount =
@@ -447,6 +519,9 @@ export function calculateStudyStats(responses: StudyResponseRecord[]): StudyStat
       true: launchCounts.true ?? 0,
       false: launchCounts.false ?? 0,
     },
+    currentRoleOtherBreakdown: currentRoleOtherStats.breakdown,
+    currentRoleOtherDistinctCount: currentRoleOtherStats.distinctCount,
+    currentRoleOtherResponseCount: currentRoleOtherStats.responseCount,
   };
 }
 

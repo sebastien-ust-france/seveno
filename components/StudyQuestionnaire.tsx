@@ -29,6 +29,7 @@ import type {
 
 const TEXT_FIELD_MAX_LENGTHS: Record<string, number> = {
   activeZoneOther: 100,
+  currentRoleOther: 120,
   languagesOther: 100,
   marketMissingOther: 200,
   openReason: 300,
@@ -130,6 +131,8 @@ const LEGACY_ROLE_KEYS_TO_CLEAR = [
 
 const FINAL_STEP_ID = '__final__';
 const HONEYPOT_FIELD_NAME = 'website';
+const CUSTOM_ROLE_OPTION_VALUE = 'other';
+const CUSTOM_ROLE_OPTION_LABEL = 'Métier non listé';
 const DROPDOWN_SELECT_KEYS = new Set(['sectorCode', 'familyCode']);
 const SEARCHABLE_SINGLE_SELECT_KEYS = new Set(['currentRoleCode']);
 const COMPOSITE_QUESTION_IDS = new Set([
@@ -146,6 +149,7 @@ function clearDependentAnswers(answers: StudyAnswers, firestoreKey: string): Stu
   if (firestoreKey === 'sectorCode') {
     const nextAnswers = { ...answers };
     delete nextAnswers.familyCode;
+    delete nextAnswers.currentRoleOther;
     for (const key of ROLE_KEYS_TO_CLEAR) {
       delete nextAnswers[key];
     }
@@ -157,6 +161,7 @@ function clearDependentAnswers(answers: StudyAnswers, firestoreKey: string): Stu
 
   if (firestoreKey === 'familyCode') {
     const nextAnswers = { ...answers };
+    delete nextAnswers.currentRoleOther;
     for (const key of ROLE_KEYS_TO_CLEAR) {
       delete nextAnswers[key];
     }
@@ -325,6 +330,8 @@ function DropdownQuestionField({
 
   const currentValue = typeof value === 'string' ? value : '';
   const selectedOption = options.find((option) => option.value === currentValue);
+  const selectedLabel =
+    currentValue === CUSTOM_ROLE_OPTION_VALUE ? CUSTOM_ROLE_OPTION_LABEL : selectedOption?.label ?? '';
   const filteredOptions = filterOptions(options, query);
 
   return (
@@ -355,8 +362,8 @@ function DropdownQuestionField({
           aria-expanded={isOpen}
           className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm text-white transition hover:bg-white/5 touch-manipulation"
         >
-          <span className={'min-w-0 flex-1 break-words ' + (selectedOption ? 'text-white' : 'text-slate-400')}>
-            {selectedOption?.label ?? placeholder}
+          <span className={'min-w-0 flex-1 break-words ' + (selectedLabel ? 'text-white' : 'text-slate-400')}>
+            {selectedLabel || placeholder}
           </span>
           <span className="text-xs text-slate-400">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
         </button>
@@ -415,37 +422,119 @@ function SearchableSingleSelectField({
   onChange,
   questionId,
   placeholder,
+  otherValue,
+  onOtherChange,
 }: {
   options: StudyQuestionOption[];
   value: StudyAnswers[string] | undefined;
   onChange: (nextValue: string) => void;
   questionId: string;
   placeholder: string;
+  otherValue?: string;
+  onOtherChange?: (nextValue: string) => void;
 }) {
   const [query, setQuery] = useState('');
+  const customInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setQuery('');
   }, [questionId]);
 
+  useEffect(() => {
+    if (typeof otherValue === 'string' && typeof onOtherChange === 'function' && value === CUSTOM_ROLE_OPTION_VALUE) {
+      customInputRef.current?.focus();
+    }
+  }, [onOtherChange, otherValue, value]);
+
   const currentValue = typeof value === 'string' ? value : '';
+  const currentOtherValue = typeof otherValue === 'string' ? otherValue : '';
   const selectedOption = options.find((option) => option.value === currentValue);
+  const selectedLabel =
+    currentValue === CUSTOM_ROLE_OPTION_VALUE ? CUSTOM_ROLE_OPTION_LABEL : selectedOption?.label ?? '';
   const filteredOptions = filterOptions(options, query);
+  const hasCustomValueField = typeof otherValue === 'string' && typeof onOtherChange === 'function';
+  const normalizedQuery = normalizeSearchText(query);
+  const canUseCustomSelection = hasCustomValueField && normalizedQuery.length > 0;
+
+  function clearSelection() {
+    onChange('');
+    if (hasCustomValueField) {
+      onOtherChange('');
+    }
+    setQuery('');
+  }
+
+  function selectOption(option: StudyQuestionOption) {
+    onChange(option.value);
+    if (hasCustomValueField) {
+      if (option.value !== CUSTOM_ROLE_OPTION_VALUE) {
+        onOtherChange('');
+      } else if (currentOtherValue.trim().length === 0 && normalizedQuery.length > 0) {
+        onOtherChange(query.trim());
+      }
+    }
+    setQuery('');
+  }
+
+  function selectCustomRole(customRoleText: string) {
+    if (!hasCustomValueField) {
+      return;
+    }
+
+    onChange(CUSTOM_ROLE_OPTION_VALUE);
+    onOtherChange(customRoleText.trim());
+    setQuery('');
+  }
+
+  function selectBestVisibleOption() {
+    const bestVisibleOption = filteredOptions[0];
+    if (bestVisibleOption) {
+      selectOption(bestVisibleOption);
+      return true;
+    }
+
+    if (canUseCustomSelection) {
+      selectCustomRole(query);
+      return true;
+    }
+
+    return false;
+  }
 
   return (
     <div className="space-y-3">
-      {selectedOption ? (
+      {selectedLabel ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span className="max-w-full break-words rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
-            Sélectionné: {selectedOption.label}
+            Sélectionné: {selectedLabel}
           </span>
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={clearSelection}
             className="min-h-11 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-white/80 transition hover:border-white/20 hover:bg-white/10 touch-manipulation"
           >
             Effacer
           </button>
+        </div>
+      ) : null}
+
+      {hasCustomValueField && currentValue === CUSTOM_ROLE_OPTION_VALUE ? (
+        <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 p-4">
+          <label className="block space-y-2">
+            <span className="text-sm text-amber-100">Précisez votre métier</span>
+            <input
+              ref={customInputRef}
+              type="text"
+              value={currentOtherValue}
+              onChange={(event) => onOtherChange(event.target.value)}
+              placeholder="Ex : technicien support"
+              maxLength={getTextFieldMaxLength('currentRoleOther')}
+              className="w-full rounded-[16px] border border-white/10 bg-[#050d1f] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/60 focus:ring-2 focus:ring-amber-500/20"
+            />
+          </label>
+          <p className="mt-2 text-xs text-amber-100/80">
+            Votre métier est enregistré comme option libre et débloquera la suite.
+          </p>
         </div>
       ) : null}
 
@@ -455,6 +544,22 @@ function SearchableSingleSelectField({
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              selectBestVisibleOption();
+            }
+          }}
+          onBlur={() => {
+            if (filteredOptions.length === 1) {
+              selectOption(filteredOptions[0]);
+              return;
+            }
+
+            if (filteredOptions.length === 0 && canUseCustomSelection) {
+              selectCustomRole(query);
+            }
+          }}
           placeholder="Rechercher un métier"
           className="w-full rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-500/20"
         />
@@ -469,8 +574,7 @@ function SearchableSingleSelectField({
                 key={option.value}
                 type="button"
                 onClick={() => {
-                  onChange(option.value);
-                  setQuery('');
+                  selectOption(option);
                 }}
                 className={
                   'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
@@ -487,7 +591,25 @@ function SearchableSingleSelectField({
         ) : (
           <p className="px-4 py-3 text-sm text-slate-400">Aucun résultat ne correspond à votre recherche.</p>
         )}
+
+        {hasCustomValueField ? (
+          <button
+            type="button"
+            onClick={() => selectCustomRole(query || currentOtherValue || '')}
+            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/60 hover:bg-amber-500/15 touch-manipulation"
+          >
+            <span className="block min-w-0 break-words text-sm font-medium leading-6 text-amber-50">
+              {CUSTOM_ROLE_OPTION_LABEL}
+            </span>
+            <span className="text-xs text-amber-100/70">Saisie libre</span>
+          </button>
+        ) : null}
       </div>
+
+      <p className="text-sm text-slate-400">
+        Tapez votre métier puis sélectionnez une proposition. Si votre métier n&apos;apparaît pas, choisissez{' '}
+        {CUSTOM_ROLE_OPTION_LABEL}.
+      </p>
     </div>
   );
 }
@@ -821,6 +943,7 @@ export function StudyQuestionnaire() {
         ? 'agencyFrequentRoleCodes'
         : 'currentRoleCode';
   const businessRoleValue = answers[businessRoleFirestoreKey];
+  const currentRoleOtherValue = typeof answers.currentRoleOther === 'string' ? answers.currentRoleOther : '';
   const businessFamilyOptions = useMemo(
     () => mapTaxonomyOptions(getFamiliesBySector(selectedSectorCode)),
     [selectedSectorCode],
@@ -832,17 +955,19 @@ export function StudyQuestionnaire() {
   const businessFamilyAnswered = selectedSectorCode.length > 0 && selectedFamilyCode.length > 0;
   const businessRoleAnswered =
     businessRoleFirestoreKey === 'currentRoleCode'
-      ? isQuestionAnswered(
-          {
-            id: businessRoleFirestoreKey,
-            label: '',
-            type: 'single',
-            required: true,
-            firestoreKey: businessRoleFirestoreKey,
-            category: 'qualification',
-          },
-          businessRoleValue ?? null,
-        )
+      ? typeof businessRoleValue === 'string' && businessRoleValue === CUSTOM_ROLE_OPTION_VALUE
+        ? currentRoleOtherValue.trim().length > 0
+        : isQuestionAnswered(
+            {
+              id: businessRoleFirestoreKey,
+              label: '',
+              type: 'single',
+              required: true,
+              firestoreKey: businessRoleFirestoreKey,
+              category: 'qualification',
+            },
+            businessRoleValue ?? null,
+          )
       : isQuestionAnswered(
           {
             id: businessRoleFirestoreKey,
@@ -1427,12 +1552,14 @@ export function StudyQuestionnaire() {
                             </p>
 
                             {respondentType === 'professional_available' ? (
-                              <SearchableSingleSelectField
+                            <SearchableSingleSelectField
                                 options={businessRoleOptions}
                                 value={businessRoleValue}
                                 onChange={(nextValue) => updateField('currentRoleCode', nextValue)}
                                 questionId={`currentRoleCode-${selectedFamilyCode}`}
                                 placeholder="Sélectionnez un métier"
+                                otherValue={currentRoleOtherValue}
+                                onOtherChange={(nextValue) => updateField('currentRoleOther', nextValue)}
                               />
                             ) : (
                               <SearchableMultiSelectField
