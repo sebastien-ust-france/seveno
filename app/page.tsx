@@ -221,6 +221,22 @@ export default async function HomePage() {
             Vos réponses restent confidentielles et sont utilisées uniquement dans le cadre de cette étude de marché.
           </div>
         </section>
+
+        <footer className="border-t border-white/10 py-5 text-sm leading-6 text-slate-400">
+          <p>Seveno collecte des signaux marché avant le lancement.</p>
+          <p className="mt-2">
+            Seveno fait partie de l&apos;écosystème{' '}
+            <a
+              href="https://ust-workflow.fr/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-slate-300 transition-colors hover:text-slate-100"
+            >
+              UST-Workflow
+            </a>
+            .
+          </p>
+        </footer>
       </div>
     </main>
   );
