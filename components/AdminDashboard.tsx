@@ -634,6 +634,7 @@ export function AdminDashboard() {
   const studyStats = data?.studyStats;
   const qualityStats = data?.qualityStats;
   const totalResponses = studyStats?.totalResponses ?? metrics?.totalResponses ?? 0;
+  const questionnaireInterestRate = totalResponses > 0 ? ((metrics?.intentCounts.high ?? 0) + (metrics?.intentCounts.medium ?? 0)) / totalResponses : 0;
   const nonListedRoleBreakdown = studyStats?.currentRoleOtherBreakdown ?? [];
   const nonListedRoleTop10 = nonListedRoleBreakdown.slice(0, 10);
   const nonListedRoleDistinctCount = studyStats?.currentRoleOtherDistinctCount ?? 0;
@@ -765,13 +766,14 @@ export function AdminDashboard() {
                 />
                 <KpiCard
                   tone="violet"
-                  label="Taux d'intérêt recruteurs"
-                  value={metrics ? formatPercent(metrics.projectUpdatesRate) : '0 %'}
+                  label="Taux d'intérêt questionnaire"
+                  value={metrics ? formatPercent(questionnaireInterestRate) : '0 %'}
                   detail={
                     <span>
-                      {metrics?.projectUpdatesYesCount ?? 0} oui / {metrics?.projectUpdatesNoCount ?? 0} non
+                      {metrics?.intentCounts.high ?? 0} High / {metrics?.intentCounts.medium ?? 0} Medium /{' '}
+                      {metrics?.intentCounts.low ?? 0} Low
                       {' · '}
-                      base {metrics?.projectUpdatesBaseCount ?? 0}
+                      base {totalResponses}
                     </span>
                   }
                 />
