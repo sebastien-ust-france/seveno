@@ -16,6 +16,8 @@ import {
   getVisibleQuestions,
   isQuestionAnswered,
   respondentOptions,
+  studyFinalQuestions,
+  studyQuestionnaires,
   resolveQuestionOptions,
   yesNoOptions,
 } from '@/lib/study-questionnaire';
@@ -895,6 +897,19 @@ export function StudyQuestionnaire() {
     [answers, respondentType],
   );
 
+  const counterQuestions = useMemo(() => {
+    if (!respondentType) {
+      return [];
+    }
+
+    const context = { respondentType, answers };
+    const branchQuestions = studyQuestionnaires[respondentType].filter((question) =>
+      question.visibleIf ? question.visibleIf(context) : true,
+    );
+
+    return [...branchQuestions, ...studyFinalQuestions];
+  }, [answers, respondentType]);
+
   const displayedQuestions = useMemo(
     () => visibleQuestions.filter((question) => !COMPOSITE_QUESTION_IDS.has(question.id)),
     [visibleQuestions],
@@ -987,19 +1002,22 @@ export function StudyQuestionnaire() {
       : false;
   const canContinueCurrentQuestion = !currentQuestion || !currentQuestion.required || currentQuestionAnswered;
 
-  const totalScreens = respondentType ? displayedQuestions.length + 2 : 2;
+  const totalScreens = respondentType ? counterQuestions.length + 2 : 2;
+  const currentCounterQuestionIndex = currentQuestion
+    ? counterQuestions.findIndex((question) => question.id === currentQuestion.id)
+    : -1;
   const progress =
     currentStepId === null
       ? 0
       : currentStepId === FINAL_STEP_ID
         ? 100
-        : ((currentQuestionIndex + 1) / (displayedQuestions.length + 1)) * 100;
+        : ((currentCounterQuestionIndex + 1) / (counterQuestions.length + 1)) * 100;
   const displayStep =
     currentStepId === null
       ? 1
       : currentStepId === FINAL_STEP_ID
         ? totalScreens
-        : currentQuestionIndex + 2;
+        : currentCounterQuestionIndex + 2;
 
   function updateField(firestoreKey: string, value: StudyAnswers[string]) {
     lastNavigationActionRef.current = 'answer';
@@ -1551,17 +1569,7 @@ export function StudyQuestionnaire() {
                                   : 'Quel est votre poste actuel ou votre dernier poste occupé ?'}
                             </p>
 
-                            {respondentType === 'professional_available' ? (
-                            <SearchableSingleSelectField
-                                options={businessRoleOptions}
-                                value={businessRoleValue}
-                                onChange={(nextValue) => updateField('currentRoleCode', nextValue)}
-                                questionId={`currentRoleCode-${selectedFamilyCode}`}
-                                placeholder="Sélectionnez un métier"
-                                otherValue={currentRoleOtherValue}
-                                onOtherChange={(nextValue) => updateField('currentRoleOther', nextValue)}
-                              />
-                            ) : (
+                            {respondentType === 'company' || respondentType === 'agency' ? (
                               <SearchableMultiSelectField
                                 options={businessRoleOptions}
                                 value={businessRoleValue}
@@ -1581,6 +1589,16 @@ export function StudyQuestionnaire() {
                                 }
                                 maxSelections={5}
                                 placeholder="Sélectionnez un ou plusieurs métiers"
+                              />
+                            ) : (
+                              <SearchableSingleSelectField
+                                options={businessRoleOptions}
+                                value={businessRoleValue}
+                                onChange={(nextValue) => updateField('currentRoleCode', nextValue)}
+                                questionId={`currentRoleCode-${selectedFamilyCode}`}
+                                placeholder="Sélectionnez un métier"
+                                otherValue={currentRoleOtherValue}
+                                onOtherChange={(nextValue) => updateField('currentRoleOther', nextValue)}
                               />
                             )}
                           </div>
