@@ -20,14 +20,19 @@ export type StudyAnswerValue =
 
 export type StudyAnswers = Record<string, StudyAnswerValue>;
 
-export type StudyAcquisitionSourceCode =
+export type StudyAcquisitionChannelCode =
   | 'linkedin'
   | 'facebook'
+  | 'instagram'
+  | 'message_prive'
+  | 'bouche_a_oreille'
   | 'google'
   | 'ust_workflow'
+  | 'autre'
   | 'recommendation'
-  | 'direct'
-  | 'other';
+  | 'direct';
+
+export type StudyAcquisitionSourceCode = StudyAcquisitionChannelCode;
 
 export interface StudyResponse {
   respondentType: RespondentType;
@@ -41,6 +46,8 @@ export interface StudyResponse {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  acquisitionChannel?: StudyAcquisitionChannelCode;
+  acquisitionChannelLabel?: string;
   discoverySource?: StudyAcquisitionSourceCode;
   logoFeedback?: LogoFeedbackValue;
   visitorFingerprint?: string;
@@ -62,6 +69,8 @@ export interface StudyResponseRecord {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  acquisitionChannel?: StudyAcquisitionChannelCode;
+  acquisitionChannelLabel?: string;
   discoverySource?: StudyAcquisitionSourceCode;
   logoFeedback?: LogoFeedbackValue;
   visitorFingerprint?: string;

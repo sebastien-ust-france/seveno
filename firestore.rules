@@ -181,6 +181,8 @@ service cloud.firestore {
         'utmSource',
         'utmMedium',
         'utmCampaign',
+        'acquisitionChannel',
+        'acquisitionChannelLabel',
         'discoverySource',
         'logoFeedback',
         'createdAt'
@@ -198,7 +200,9 @@ service cloud.firestore {
       && (!data.keys().hasAny(['utmSource']) || (data.utmSource is string && data.utmSource.size() > 0 && data.utmSource.size() <= 80))
       && (!data.keys().hasAny(['utmMedium']) || (data.utmMedium is string && data.utmMedium.size() > 0 && data.utmMedium.size() <= 80))
       && (!data.keys().hasAny(['utmCampaign']) || (data.utmCampaign is string && data.utmCampaign.size() > 0 && data.utmCampaign.size() <= 160))
-      && (!data.keys().hasAny(['discoverySource']) || data.discoverySource in ['linkedin', 'facebook', 'google', 'ust_workflow', 'recommendation', 'direct', 'other'])
+      && (!data.keys().hasAny(['acquisitionChannel']) || data.acquisitionChannel in ['linkedin', 'facebook', 'instagram', 'message_prive', 'bouche_a_oreille', 'google', 'ust_workflow', 'autre', 'recommendation', 'direct'])
+      && (!data.keys().hasAny(['acquisitionChannelLabel']) || (data.acquisitionChannelLabel is string && data.acquisitionChannelLabel.size() > 0 && data.acquisitionChannelLabel.size() <= 80))
+      && (!data.keys().hasAny(['discoverySource']) || data.discoverySource in ['linkedin', 'facebook', 'instagram', 'message_prive', 'bouche_a_oreille', 'google', 'ust_workflow', 'autre', 'recommendation', 'direct'])
       && (!data.keys().hasAny(['logoFeedback']) || data.logoFeedback in ['yes', 'no'])
       && data.createdAt is timestamp;
     }

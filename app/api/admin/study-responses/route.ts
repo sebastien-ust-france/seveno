@@ -6,6 +6,7 @@ import {
   getIntentCounts,
   type StudyStats,
 } from '@/lib/study-analytics';
+import { normalizeAcquisitionChannelCode } from '@/lib/study-acquisition';
 import {
   adminDb,
   getFirebaseAdminDebugStatus,
@@ -29,6 +30,8 @@ type SerializedStudyResponse = {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  acquisitionChannel?: string;
+  acquisitionChannelLabel?: string;
   discoverySource?: string;
   logoFeedback?: 'yes' | 'no';
   visitorFingerprint?: string;
@@ -140,6 +143,8 @@ function toSerializedResponse(id: string, data: Record<string, unknown>): Serial
     utmSource: typeof data.utmSource === 'string' ? data.utmSource : '',
     utmMedium: typeof data.utmMedium === 'string' ? data.utmMedium : '',
     utmCampaign: typeof data.utmCampaign === 'string' ? data.utmCampaign : '',
+    acquisitionChannel: typeof data.acquisitionChannel === 'string' ? data.acquisitionChannel : '',
+    acquisitionChannelLabel: typeof data.acquisitionChannelLabel === 'string' ? data.acquisitionChannelLabel : '',
     discoverySource: typeof data.discoverySource === 'string' ? data.discoverySource : '',
     logoFeedback: data.logoFeedback === 'yes' || data.logoFeedback === 'no' ? data.logoFeedback : undefined,
     visitorFingerprint: typeof data.visitorFingerprint === 'string' ? data.visitorFingerprint : '',
@@ -295,6 +300,8 @@ function responseMatchesSearch(response: SerializedStudyResponse, search: string
     response.utmSource ?? '',
     response.utmMedium ?? '',
     response.utmCampaign ?? '',
+    response.acquisitionChannel ?? '',
+    response.acquisitionChannelLabel ?? '',
     response.discoverySource ?? '',
     answerText,
   ]
@@ -407,6 +414,8 @@ export async function GET(request: NextRequest) {
       email: response.email,
       phone: response.phone,
       visitorFingerprint: response.visitorFingerprint,
+      acquisitionChannel: normalizeAcquisitionChannelCode(response.acquisitionChannel),
+      acquisitionChannelLabel: response.acquisitionChannelLabel || undefined,
       createdAt: null,
     }));
     const studyStats = calculateStudyStats(analyticsResponses);

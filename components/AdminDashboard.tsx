@@ -7,12 +7,12 @@ import {
   getAnsweredSummary,
   getProfileLabel,
 } from '@/lib/study-analytics';
-import { getAcquisitionSourceLabel } from '@/lib/study-acquisition';
+import { getAcquisitionChannelLabel } from '@/lib/study-acquisition';
 import type { IntentBand, StudyBreakdownItem, StudyStats } from '@/lib/study-analytics';
 import type {
   RespondentType,
   StudyAnswerValue,
-  StudyAcquisitionSourceCode,
+  StudyAcquisitionChannelCode,
   StudyResponseRecord,
 } from '@/types/study';
 
@@ -32,7 +32,9 @@ interface AdminStudyResponseItem {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
-  discoverySource?: StudyAcquisitionSourceCode;
+  acquisitionChannel?: StudyAcquisitionChannelCode;
+  acquisitionChannelLabel?: string;
+  discoverySource?: StudyAcquisitionChannelCode;
   logoFeedback?: 'yes' | 'no';
   visitorFingerprint?: string;
   createdAtMs: number | null;
@@ -232,7 +234,9 @@ function toStudyRecord(response: AdminStudyResponseItem): StudyResponseRecord {
     utmSource: response.utmSource,
     utmMedium: response.utmMedium,
     utmCampaign: response.utmCampaign,
-    discoverySource: response.discoverySource as StudyAcquisitionSourceCode | undefined,
+    acquisitionChannel: response.acquisitionChannel || undefined,
+    acquisitionChannelLabel: response.acquisitionChannelLabel || undefined,
+    discoverySource: response.discoverySource as StudyAcquisitionChannelCode | undefined,
     logoFeedback: response.logoFeedback,
     visitorFingerprint: response.visitorFingerprint,
     createdAt: null,
@@ -833,7 +837,7 @@ export function AdminDashboard() {
               <BreakdownTable
                 tone="cyan"
                 title="Canaux d'acquisition"
-                items={studyStats?.byAcquisitionSource ?? []}
+                items={studyStats?.byAcquisitionChannel ?? []}
                 total={totalResponses}
               />
             </SectionCard>
@@ -1263,10 +1267,14 @@ export function AdminDashboard() {
                                     </p>
                                   </div>
                                 <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-                                    {response.source ? (
+                                    {response.acquisitionChannel || response.acquisitionChannelLabel ? (
                                       <RespondentChip
-                                        label="Origine"
-                                        value={getAcquisitionSourceLabel(response.source)}
+                                        label="Canal"
+                                        value={
+                                          response.acquisitionChannelLabel ||
+                                          getAcquisitionChannelLabel(response.acquisitionChannel) ||
+                                          'Non renseigné'
+                                        }
                                         tone="cyan"
                                       />
                                     ) : null}

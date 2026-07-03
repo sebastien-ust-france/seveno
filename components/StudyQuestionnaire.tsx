@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   detectAcquisitionTracking,
-  normalizeAcquisitionSourceCode,
-  studyAcquisitionSourceOptions,
+  getAcquisitionChannelLabel,
+  normalizeAcquisitionChannelCode,
+  studyAcquisitionChannelOptions,
 } from '@/lib/study-acquisition';
 import { getFamiliesBySector, getRolesByFamily } from '@/lib/job-taxonomy';
 import { readLogoFeedbackFromStorage } from '@/lib/logo-feedback';
@@ -24,6 +25,7 @@ import {
 import type {
   RespondentType,
   StudyAnswers,
+  StudyAcquisitionChannelCode,
   StudyQuestion,
   StudyQuestionOption,
   StudyResponseInput,
@@ -48,7 +50,7 @@ function createFinalState() {
     wantsProjectUpdates: false,
     email: '',
     phone: '',
-    discoverySource: '',
+    acquisitionChannel: '',
   };
 }
 
@@ -853,8 +855,10 @@ export function StudyQuestionnaire() {
   const [answers, setAnswers] = useState<StudyAnswers>({});
   const [finalState, setFinalState] = useState(createFinalState());
   const [acquisitionTracking, setAcquisitionTracking] = useState<{
-    source?: string;
-    utmSource?: string;
+    acquisitionChannel?: StudyAcquisitionChannelCode;
+    acquisitionChannelLabel?: string;
+    source?: StudyAcquisitionChannelCode;
+    utmSource?: StudyAcquisitionChannelCode;
     utmMedium?: string;
     utmCampaign?: string;
     hasUtmSource: boolean;
@@ -1131,12 +1135,15 @@ export function StudyQuestionnaire() {
     const logoFeedback = readLogoFeedbackFromStorage();
     const resolvedFingerprint = visitorFingerprint || generateVisitorFingerprint();
     const isRecruiterProfile = respondentType === 'company' || respondentType === 'agency';
-    const normalizedDiscoverySource = normalizeAcquisitionSourceCode(finalState.discoverySource);
-    const resolvedSource =
-      acquisitionTracking.source ??
+    const normalizedAcquisitionChannel = normalizeAcquisitionChannelCode(finalState.acquisitionChannel);
+    const resolvedAcquisitionChannel =
+      acquisitionTracking.acquisitionChannel ??
       acquisitionTracking.utmSource ??
-      normalizedDiscoverySource ??
+      normalizedAcquisitionChannel ??
       undefined;
+    const acquisitionChannelLabel = resolvedAcquisitionChannel
+      ? getAcquisitionChannelLabel(resolvedAcquisitionChannel)
+      : '';
     if (!visitorFingerprint && resolvedFingerprint) {
       setVisitorFingerprint(resolvedFingerprint);
     }
@@ -1149,12 +1156,18 @@ export function StudyQuestionnaire() {
       ...(isRecruiterProfile ? { wantsProjectUpdates: finalState.wantsProjectUpdates } : {}),
       email: finalState.email.trim(),
       phone: finalState.phone.trim(),
-      ...(resolvedSource ? { source: resolvedSource } : {}),
+      ...(resolvedAcquisitionChannel ? { source: resolvedAcquisitionChannel } : {}),
       ...(acquisitionTracking.utmSource ? { utmSource: acquisitionTracking.utmSource } : {}),
       ...(acquisitionTracking.utmMedium ? { utmMedium: acquisitionTracking.utmMedium } : {}),
       ...(acquisitionTracking.utmCampaign ? { utmCampaign: acquisitionTracking.utmCampaign } : {}),
-      ...(!acquisitionTracking.hasUtmSource && normalizedDiscoverySource
-        ? { discoverySource: normalizedDiscoverySource }
+      ...(resolvedAcquisitionChannel
+        ? {
+            acquisitionChannel: resolvedAcquisitionChannel,
+            acquisitionChannelLabel,
+          }
+        : {}),
+      ...(!acquisitionTracking.hasUtmSource && normalizedAcquisitionChannel
+        ? { discoverySource: normalizedAcquisitionChannel }
         : {}),
       ...(logoFeedback ? { logoFeedback } : {}),
       visitorFingerprint: resolvedFingerprint,
@@ -1669,14 +1682,14 @@ export function StudyQuestionnaire() {
 
                       {!acquisitionTracking.hasUtmSource ? (
                         <div className="rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm text-white/90">
-                          <p className="text-base font-medium text-white">Comment avez-vous découvert cette étude ?</p>
+                          <p className="text-base font-medium text-white">Comment avez-vous découvert Seven’O ?</p>
                           <p className="mt-2 text-sm leading-6 text-slate-300">
                             Cette information nous aide à identifier les canaux d&apos;acquisition les plus efficaces.
                           </p>
 
                           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            {studyAcquisitionSourceOptions.map((option) => {
-                              const active = finalState.discoverySource === option.value;
+                            {studyAcquisitionChannelOptions.map((option) => {
+                              const active = finalState.acquisitionChannel === option.value;
                               return (
                                 <button
                                   key={option.value}
@@ -1684,7 +1697,7 @@ export function StudyQuestionnaire() {
                                   onClick={() =>
                                     setFinalState((previous) => ({
                                       ...previous,
-                                      discoverySource: option.value,
+                                      acquisitionChannel: option.value,
                                     }))
                                   }
                                   className={

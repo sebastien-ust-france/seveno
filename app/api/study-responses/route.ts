@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
-import { normalizeAcquisitionSourceCode } from '@/lib/study-acquisition';
+import {
+  getAcquisitionChannelLabel,
+  normalizeAcquisitionChannelCode,
+} from '@/lib/study-acquisition';
 import type { RespondentType, StudyResponseInput } from '@/types/study';
 
 export const runtime = 'nodejs';
@@ -26,6 +29,7 @@ const ACQUISITION_TEXT_LIMITS: Record<string, number> = {
   utmSource: 80,
   utmMedium: 80,
   utmCampaign: 160,
+  acquisitionChannelLabel: 80,
 };
 
 const allowedRespondentTypes: RespondentType[] = [
@@ -141,9 +145,12 @@ export async function POST(request: NextRequest) {
   const email = toStringValue(body.email);
   const phone = toStringValue(body.phone);
   const visitorFingerprint = toStringValue(body.visitorFingerprint);
-  const utmSource = normalizeAcquisitionSourceCode(body.utmSource);
-  const discoverySource = !utmSource ? normalizeAcquisitionSourceCode(body.discoverySource) : undefined;
-  const source = utmSource ?? discoverySource ?? normalizeAcquisitionSourceCode(body.source);
+  const normalizedAcquisitionChannel = normalizeAcquisitionChannelCode(body.acquisitionChannel);
+  const utmSource = normalizeAcquisitionChannelCode(body.utmSource);
+  const discoverySource = normalizeAcquisitionChannelCode(body.discoverySource);
+  const source = normalizedAcquisitionChannel ?? utmSource ?? discoverySource ?? normalizeAcquisitionChannelCode(body.source);
+  const acquisitionChannel = source;
+  const acquisitionChannelLabel = acquisitionChannel ? getAcquisitionChannelLabel(acquisitionChannel) : '';
   const utmMedium = toStringValue(body.utmMedium);
   const utmCampaign = toStringValue(body.utmCampaign);
   const wantsLaunchNotification = toBoolean(body.wantsLaunchNotification);
@@ -290,6 +297,8 @@ export async function POST(request: NextRequest) {
     ...(utmSource ? { utmSource } : {}),
     ...(utmMedium ? { utmMedium } : {}),
     ...(utmCampaign ? { utmCampaign } : {}),
+    ...(acquisitionChannel ? { acquisitionChannel } : {}),
+    ...(acquisitionChannelLabel ? { acquisitionChannelLabel } : {}),
     ...(discoverySource ? { discoverySource } : {}),
     ...(body.respondentType === 'company' || body.respondentType === 'agency'
       ? { wantsProjectUpdates: wantsProjectUpdates ?? false }

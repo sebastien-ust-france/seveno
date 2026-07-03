@@ -13,8 +13,8 @@ import {
   valueExpectationOptionsByCode,
 } from '@/lib/study-questionnaire';
 import {
-  getAcquisitionSourceLabel,
-  normalizeAcquisitionSourceCode,
+  getAcquisitionChannelLabel,
+  normalizeAcquisitionChannelCode,
 } from '@/lib/study-acquisition';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
 
@@ -55,6 +55,7 @@ export interface BinaryCounts {
 export interface StudyStats {
   totalResponses: number;
   byProfile: Record<RespondentType, number>;
+  byAcquisitionChannel: StudyBreakdownItem[];
   byAcquisitionSource: StudyBreakdownItem[];
   bySectorCode: StudyBreakdownItem[];
   byActiveZoneCode: StudyBreakdownItem[];
@@ -251,8 +252,20 @@ export function getConversionRates(responses: StudyResponseRecord[]) {
 }
 
 function getDisplayLabelForValue(key: string, value: string): string {
+  if (value === '__missing__') {
+    return key === 'acquisitionChannel' ? 'Non renseigné' : value;
+  }
+
+  if (key === 'acquisitionChannelLabel') {
+    return value;
+  }
+
+  if (key === 'acquisitionChannel') {
+    return getAcquisitionChannelLabel(value) || value;
+  }
+
   if (key === 'source' || key === 'utmSource' || key === 'discoverySource') {
-    return getAcquisitionSourceLabel(value) || value;
+    return getAcquisitionChannelLabel(value) || value;
   }
 
   if (key === 'sectorCode') {
@@ -280,12 +293,8 @@ function getDisplayLabelForValue(key: string, value: string): string {
   return optionLabel ?? value;
 }
 
-function getStudyAcquisitionSourceCode(response: StudyResponseRecord): string | undefined {
-  return (
-    normalizeAcquisitionSourceCode(response.utmSource) ??
-    normalizeAcquisitionSourceCode(response.discoverySource) ??
-    normalizeAcquisitionSourceCode(response.source)
-  );
+function getStudyAcquisitionChannelCode(response: StudyResponseRecord): string | undefined {
+  return normalizeAcquisitionChannelCode(response.acquisitionChannel);
 }
 
 function buildBreakdown(
@@ -455,7 +464,15 @@ export function calculateStudyStats(responses: StudyResponseRecord[]): StudyStat
   }
 
   const sectorCounts = countByValue(responses.map((response) => response.answers?.sectorCode as string | undefined));
-  const acquisitionSourceCounts = countByValue(responses.map((response) => getStudyAcquisitionSourceCode(response)));
+  const acquisitionChannelCounts = countByValue(
+    responses.map((response) => getStudyAcquisitionChannelCode(response)),
+  );
+  const acquisitionChannelMissingCount = responses.filter(
+    (response) => !getStudyAcquisitionChannelCode(response),
+  ).length;
+  if (acquisitionChannelMissingCount > 0) {
+    acquisitionChannelCounts.__missing__ = acquisitionChannelMissingCount;
+  }
   const activeZoneCounts = countByValue(responses.map((response) => response.answers?.activeZoneCode as string | undefined));
   const contractTypeCounts = countByArrayValues(responses.map((response) => response.answers?.contractTypeCodes));
   const workModePreferenceCounts = countByArrayValues(
@@ -485,7 +502,8 @@ export function calculateStudyStats(responses: StudyResponseRecord[]): StudyStat
   return {
     totalResponses,
     byProfile,
-    byAcquisitionSource: buildBreakdown('source', acquisitionSourceCounts, totalResponses),
+    byAcquisitionChannel: buildBreakdown('acquisitionChannel', acquisitionChannelCounts, totalResponses),
+    byAcquisitionSource: buildBreakdown('acquisitionChannel', acquisitionChannelCounts, totalResponses),
     bySectorCode: buildBreakdown('sectorCode', sectorCounts, totalResponses),
     byActiveZoneCode: buildBreakdown('activeZoneCode', activeZoneCounts, totalResponses),
     topContractTypeCodes: buildBreakdown('contractTypeCodes', contractTypeCounts, totalResponses, TOP_BREAKDOWN_LIMIT),
