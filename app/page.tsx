@@ -1,6 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { LogoFeedbackPrompt } from '@/components/LogoFeedbackPrompt';
+import {
+  SEVENO_LOGO_ALT,
+  SEVENO_LOGO_HEIGHT,
+  SEVENO_LOGO_SRC,
+  SEVENO_LOGO_WIDTH,
+} from '@/lib/branding';
 import { getPublicStudyResponseCount } from '@/lib/study-public';
 
 export const dynamic = 'force-dynamic';
@@ -129,10 +135,10 @@ export default async function HomePage() {
         <section className="flex flex-1 flex-col items-center py-10 sm:py-12 lg:py-14">
           <div className="w-[min(320px,78vw)] sm:w-[min(420px,72vw)] lg:w-[min(520px,52vw)]">
             <Image
-              src="/logo-seveno.png"
-              alt="Seveno"
-              width={1600}
-              height={480}
+              src={SEVENO_LOGO_SRC}
+              alt={SEVENO_LOGO_ALT}
+              width={SEVENO_LOGO_WIDTH}
+              height={SEVENO_LOGO_HEIGHT}
               priority
               sizes="(max-width: 640px) 78vw, (max-width: 1024px) 72vw, 520px"
               className="h-auto w-full"

@@ -9,6 +9,12 @@ import {
   normalizeAcquisitionChannelCode,
   studyAcquisitionChannelOptions,
 } from '@/lib/study-acquisition';
+import {
+  SEVENO_LOGO_ALT,
+  SEVENO_LOGO_HEIGHT,
+  SEVENO_LOGO_SRC,
+  SEVENO_LOGO_WIDTH,
+} from '@/lib/branding';
 import { getFamiliesBySector, getRolesByFamily } from '@/lib/job-taxonomy';
 import { readLogoFeedbackFromStorage } from '@/lib/logo-feedback';
 import {
@@ -1368,12 +1374,13 @@ export function StudyQuestionnaire() {
           <header className="flex items-center justify-between border-b border-white/10 pb-4">
             <Link href="/" className="flex items-center gap-3">
               <Image
-                src="/logo-seveno.png"
-                alt="Seveno"
-                width={160}
-                height={48}
+                src={SEVENO_LOGO_SRC}
+                alt={SEVENO_LOGO_ALT}
+                width={SEVENO_LOGO_WIDTH}
+                height={SEVENO_LOGO_HEIGHT}
                 priority
-                className="h-10 w-auto sm:h-11"
+                sizes="(max-width: 640px) 112px, 128px"
+                className="h-14 w-auto sm:h-16"
               />
             </Link>
             <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
@@ -1427,12 +1434,13 @@ export function StudyQuestionnaire() {
         <header className="flex items-center justify-between border-b border-white/10 pb-4">
           <Link href="/" className="flex items-center gap-3">
             <Image
-              src="/logo-seveno.png"
-              alt="Seveno"
-              width={160}
-              height={48}
+              src={SEVENO_LOGO_SRC}
+              alt={SEVENO_LOGO_ALT}
+              width={SEVENO_LOGO_WIDTH}
+              height={SEVENO_LOGO_HEIGHT}
               priority
-              className="h-10 w-auto sm:h-11"
+              sizes="(max-width: 640px) 112px, 128px"
+              className="h-14 w-auto sm:h-16"
             />
           </Link>
           <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
