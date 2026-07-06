@@ -1383,9 +1383,6 @@ export function StudyQuestionnaire() {
                 className="h-14 w-auto sm:h-16"
               />
             </Link>
-            <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
-              Étude privée sur invitation
-            </span>
           </header>
 
           <section className="flex flex-1 items-center justify-center py-10">
@@ -1443,9 +1440,6 @@ export function StudyQuestionnaire() {
               className="h-14 w-auto sm:h-16"
             />
           </Link>
-          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
-            Étude privée sur invitation
-          </span>
         </header>
 
         <input
