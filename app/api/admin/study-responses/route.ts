@@ -7,12 +7,14 @@ import {
   type StudyStats,
 } from '@/lib/study-analytics';
 import { normalizeAcquisitionChannelCode } from '@/lib/study-acquisition';
+import { requireSevenoAdminSessionFromRequest } from '@/lib/seveno-admin-auth';
 import {
   adminDb,
   getFirebaseAdminDebugStatus,
   getFirebaseAdminInitError,
   isFirebaseAdminConfigured,
 } from '@/lib/firebase-admin';
+import { toAdminApiErrorResponse } from '../_shared';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -335,39 +337,14 @@ function responseMatchesFilters(
   return responseMatchesSearch(response, filters.search);
 }
 
-function getAdminCode(request: NextRequest) {
-  return request.headers.get('x-admin-code')?.trim() ?? '';
-}
-
 export async function GET(request: NextRequest) {
-  const expectedCode = process.env.NEXT_PUBLIC_ADMIN_CODE?.trim();
-  const providedCode = getAdminCode(request);
+  try {
+    await requireSevenoAdminSessionFromRequest(request);
+  } catch (error) {
+    return toAdminApiErrorResponse(error);
+  }
 
   console.info('[Seveno admin] firebase admin debug', getFirebaseAdminDebugStatus());
-  console.info('[Seveno admin] admin code received', Boolean(providedCode));
-
-  if (!expectedCode) {
-    return NextResponse.json(
-      {
-        error: 'admin_code_missing',
-        message: 'NEXT_PUBLIC_ADMIN_CODE doit etre defini pour lire le dashboard admin.',
-      },
-      { status: 500 },
-    );
-  }
-
-  if (!providedCode || providedCode !== expectedCode) {
-    console.info('[Seveno admin] admin code valid', false);
-    return NextResponse.json(
-      {
-        error: 'forbidden',
-        message: 'Code admin invalide.',
-      },
-      { status: 401 },
-    );
-  }
-
-  console.info('[Seveno admin] admin code valid', true);
 
   if (!isFirebaseAdminConfigured || !adminDb) {
     console.info('[Seveno admin] firestore admin available', false);
@@ -482,7 +459,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'fetch_failed',
-        message: error instanceof Error ? error.message : 'Impossible de lire les réponses.',
+        message: error instanceof Error ? error.message : 'Impossible de lire les reponses.',
       },
       { status: 500 },
     );

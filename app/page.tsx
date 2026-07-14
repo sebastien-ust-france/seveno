@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { LogoFeedbackPrompt } from '@/components/LogoFeedbackPrompt';
+import { HomeAccountButton } from '@/components/navigation/HomeAccountButton';
 import {
   SEVENO_LOGO_ALT,
   SEVENO_LOGO_HEIGHT,
@@ -232,7 +233,9 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-[#020817] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 sm:px-8 lg:px-10">
-        <header className="border-b border-white/10 pb-5" />
+        <header className="flex items-center justify-end border-b border-white/10 pb-5">
+          <HomeAccountButton />
+        </header>
 
         <section className="flex flex-1 flex-col items-center py-10 sm:py-12 lg:py-14">
           <div className="w-[min(320px,78vw)] sm:w-[min(420px,72vw)] lg:w-[min(520px,52vw)]">

@@ -212,6 +212,941 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+
+    function isCandidate() {
+      return getUserRole() == 'candidate';
+    }
+
+    function isCompany() {
+      return getUserRole() == 'company';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdminForOtherUser(userId) {
+      return isSignedIn() && request.auth.uid != userId && isAdmin();
+    }
+
+    function isNonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function isOptionalString(data, key, maxLength) {
+      return !data.keys().hasAny([key]) || isNonEmptyString(data[key], maxLength);
+    }
+
+    function isOptionalStringOrNull(data, key, maxLength) {
+      return !data.keys().hasAny([key]) || data[key] == null || isNonEmptyString(data[key], maxLength);
+    }
+
+    function isOptionalTimestamp(data, key) {
+      return !data.keys().hasAny([key]) || data[key] is timestamp;
+    }
+
+    function isOptionalTimestampOrNull(data, key) {
+      return !data.keys().hasAny([key]) || data[key] == null || data[key] is timestamp;
+    }
+
+    function isValidUserRole(value) {
+      return value in ['candidate', 'company', 'admin'];
+    }
+
+    function isValidUserRoleOrNull(value) {
+      return value == null || isValidUserRole(value);
+    }
+
+    function isValidAuthProvider(value) {
+      return value in ['google', 'password'];
+    }
+
+    function authProviderMatchesCurrentSignIn(value) {
+      return request.auth != null
+        && request.auth.token.firebase != null
+        && (
+          (value == 'google' && request.auth.token.firebase.sign_in_provider == 'google.com')
+          || (value == 'password' && request.auth.token.firebase.sign_in_provider == 'password')
+        );
+    }
+
+    function isValidCandidateProfileStatus(value) {
+      return value in ['draft', 'active', 'paused'];
+    }
+
+    function isValidMatchRequestStatus(value) {
+      return value in ['pending_candidate', 'accepted', 'refused', 'cancelled', 'expired'];
+    }
+
+    function isValidMatchRequestContractType(value) {
+      return value in ['permanent', 'fixed_term', 'temporary', 'freelance', 'apprenticeship', 'internship', 'other'];
+    }
+
+    function isValidCandidateAvailability(value) {
+      return value in [
+        'immediate',
+        'less_than_1_month',
+        'one_to_three_months',
+        'listening',
+        'not_available'
+      ];
+    }
+
+    function isValidCandidateExperienceLevel(value) {
+      return value in ['beginner', 'intermediate', 'confirmed', 'senior', 'expert'];
+    }
+
+    function isValidPublicCandidateId(value) {
+      return isNonEmptyString(value, 32) && value.matches('^SEV-CAND-[A-Z2-9]{6}$');
+    }
+
+    function hasCandidatePrivateIdentityFields(data) {
+      return data.keys().hasAny([
+        'firstName',
+        'lastName',
+        'phone',
+        'addressLine1',
+        'addressLine2',
+        'postalCode',
+        'city',
+        'country'
+      ]);
+    }
+
+    function isValidCandidatePrivateIdentity(data) {
+      return isOptionalString(data, 'firstName', 80)
+        && isOptionalString(data, 'lastName', 80)
+        && (!data.keys().hasAny(['phone']) || (
+          isNonEmptyString(data.phone, 16)
+          && data.phone.matches('^[+][1-9][0-9]{7,14}$')
+        ))
+        && isOptionalString(data, 'addressLine1', 160)
+        && isOptionalString(data, 'addressLine2', 160)
+        && isOptionalString(data, 'postalCode', 12)
+        && isOptionalString(data, 'city', 100)
+        && isOptionalString(data, 'country', 80);
+    }
+
+    function hasCompleteCandidatePrivateIdentity(data) {
+      return isNonEmptyString(data.firstName, 80)
+        && isNonEmptyString(data.lastName, 80)
+        && isNonEmptyString(data.email, 254)
+        && isNonEmptyString(data.phone, 16)
+        && data.phone.matches('^[+][1-9][0-9]{7,14}$');
+    }
+
+    function isCandidatePrivateIdentityUpdateAllowed(uid) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'firstName',
+        'lastName',
+        'phone',
+        'addressLine1',
+        'addressLine2',
+        'postalCode',
+        'city',
+        'country'
+      ]) || (
+        resource.data.role == 'candidate'
+        && request.resource.data.role == 'candidate'
+        && (
+          !exists(/databases/$(database)/documents/candidate_profiles/$(uid))
+          || get(/databases/$(database)/documents/candidate_profiles/$(uid)).data.profileStatus != 'active'
+          || hasCompleteCandidatePrivateIdentity(request.resource.data)
+        )
+      );
+    }
+
+    function isValidUserData(data) {
+      return data.keys().hasOnly([
+        'uid',
+        'role',
+        'authProvider',
+        'email',
+        'emailVerified',
+        'displayName',
+        'photoURL',
+        'firstName',
+        'lastName',
+        'phone',
+        'addressLine1',
+        'addressLine2',
+        'postalCode',
+        'city',
+        'country',
+        'onboardingCompleted',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.uid, 120)
+      && isValidUserRoleOrNull(data.role)
+      && isValidAuthProvider(data.authProvider)
+      && isNonEmptyString(data.email, 254)
+      && (!data.keys().hasAny(['emailVerified']) || data.emailVerified is bool)
+      && isOptionalString(data, 'displayName', 120)
+      && isOptionalString(data, 'photoURL', 1000)
+      && isValidCandidatePrivateIdentity(data)
+      && (!hasCandidatePrivateIdentityFields(data) || data.role == 'candidate')
+      && data.onboardingCompleted is bool
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidCandidateProfileData(data) {
+      return data.keys().hasOnly([
+        'uid',
+        'publicCandidateId',
+        'role',
+        'targetJobRoleIds',
+        'targetJobs',
+        'jobRoleId',
+        'jobFamilyId',
+        'sectorId',
+        'availability',
+        'availabilityAvailableFromAt',
+        'availabilityConfirmedAt',
+        'availabilityValidUntil',
+        'dailyAvailabilityConfirmationEnabled',
+        'nextAvailabilityReminderAt',
+        'lastAvailabilityNotificationAt',
+        'availabilityTimezone',
+        'availabilityPushPermission',
+        'hasActiveAvailabilityPushSubscription',
+        'locationArea',
+        'experienceLevel',
+        'verifiedScore',
+        'testPassed',
+        'lastTestAt',
+        'verifiedTestResultId',
+        'verifiedTestSessionId',
+        'verifiedJobRoleId',
+        'verifiedQuestionBankCode',
+        'verifiedQuestionBankVersion',
+        'sevenoAssessmentStatus',
+        'sevenoAssessmentOverallScore',
+        'sevenoAssessmentDimensions',
+        'sevenoAssessmentVersion',
+        'sevenoAssessmentCompletedAt',
+        'sevenoAssessmentSessionId',
+        'sevenoAssessmentResultId',
+        'profileStatus',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasAll([
+        'uid',
+        'publicCandidateId',
+        'role',
+        'targetJobRoleIds',
+        'targetJobs',
+        'sectorId',
+        'jobFamilyId',
+        'jobRoleId',
+        'availability',
+        'locationArea',
+        'experienceLevel',
+        'verifiedScore',
+        'testPassed',
+        'lastTestAt',
+        'sevenoAssessmentStatus',
+        'sevenoAssessmentOverallScore',
+        'sevenoAssessmentDimensions',
+        'sevenoAssessmentVersion',
+        'sevenoAssessmentCompletedAt',
+        'profileStatus',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.uid, 120)
+      && isValidPublicCandidateId(data.publicCandidateId)
+      && data.role == 'candidate'
+      && data.targetJobRoleIds is list
+      && data.targetJobRoleIds.size() >= 1
+      && data.targetJobRoleIds.size() <= 3
+      && data.targetJobs is list
+      && data.targetJobs.size() == data.targetJobRoleIds.size()
+      && isNonEmptyString(data.sectorId, 160)
+      && isNonEmptyString(data.jobFamilyId, 200)
+      && isNonEmptyString(data.jobRoleId, 200)
+      && isValidCandidateAvailability(data.availability)
+      && isOptionalTimestampOrNull(data, 'availabilityAvailableFromAt')
+      && isOptionalTimestampOrNull(data, 'availabilityConfirmedAt')
+      && isOptionalTimestampOrNull(data, 'availabilityValidUntil')
+      && (!data.keys().hasAny(['dailyAvailabilityConfirmationEnabled']) || data.dailyAvailabilityConfirmationEnabled is bool)
+      && isOptionalTimestampOrNull(data, 'nextAvailabilityReminderAt')
+      && isOptionalTimestampOrNull(data, 'lastAvailabilityNotificationAt')
+      && isOptionalStringOrNull(data, 'availabilityTimezone', 80)
+      && (!data.keys().hasAny(['availabilityPushPermission']) || data.availabilityPushPermission in ['default', 'granted', 'denied'])
+      && (!data.keys().hasAny(['hasActiveAvailabilityPushSubscription']) || data.hasActiveAvailabilityPushSubscription is bool)
+      && isNonEmptyString(data.locationArea, 120)
+      && isValidCandidateExperienceLevel(data.experienceLevel)
+      && (
+        (
+          data.verifiedScore == null
+          && data.testPassed == false
+          && data.lastTestAt == null
+          && isOptionalStringOrNull(data, 'verifiedTestResultId', 120)
+          && (!data.keys().hasAny(['verifiedTestResultId']) || data.verifiedTestResultId == null)
+          && isOptionalStringOrNull(data, 'verifiedTestSessionId', 120)
+          && (!data.keys().hasAny(['verifiedTestSessionId']) || data.verifiedTestSessionId == null)
+          && isOptionalStringOrNull(data, 'verifiedJobRoleId', 200)
+          && (!data.keys().hasAny(['verifiedJobRoleId']) || data.verifiedJobRoleId == null)
+          && isOptionalStringOrNull(data, 'verifiedQuestionBankCode', 160)
+          && (!data.keys().hasAny(['verifiedQuestionBankCode']) || data.verifiedQuestionBankCode == null)
+          && isOptionalStringOrNull(data, 'verifiedQuestionBankVersion', 40)
+          && (!data.keys().hasAny(['verifiedQuestionBankVersion']) || data.verifiedQuestionBankVersion == null)
+        )
+        || (
+          data.verifiedScore is number
+          && data.verifiedScore >= 0
+          && data.verifiedScore <= 100
+          && data.testPassed is bool
+          && data.lastTestAt is timestamp
+          && data.keys().hasAll([
+            'verifiedTestResultId',
+            'verifiedTestSessionId',
+            'verifiedJobRoleId',
+            'verifiedQuestionBankCode',
+            'verifiedQuestionBankVersion'
+          ])
+          && isNonEmptyString(data.verifiedTestResultId, 120)
+          && isNonEmptyString(data.verifiedTestSessionId, 120)
+          && isNonEmptyString(data.verifiedJobRoleId, 200)
+          && data.verifiedJobRoleId == data.jobRoleId
+          && isNonEmptyString(data.verifiedQuestionBankCode, 160)
+          && isNonEmptyString(data.verifiedQuestionBankVersion, 40)
+        )
+      )
+      && data.sevenoAssessmentStatus in ['not_started', 'in_progress', 'completed']
+      && data.sevenoAssessmentDimensions is map
+      && (
+        (
+          data.sevenoAssessmentStatus != 'completed'
+          && data.sevenoAssessmentOverallScore == null
+          && data.sevenoAssessmentVersion == null
+          && data.sevenoAssessmentCompletedAt == null
+        )
+        || (
+          data.sevenoAssessmentStatus == 'completed'
+          && data.sevenoAssessmentOverallScore is number
+          && data.sevenoAssessmentOverallScore >= 0
+          && data.sevenoAssessmentOverallScore <= 100
+          && isNonEmptyString(data.sevenoAssessmentVersion, 40)
+          && data.sevenoAssessmentCompletedAt is timestamp
+          && isNonEmptyString(data.sevenoAssessmentSessionId, 120)
+          && isNonEmptyString(data.sevenoAssessmentResultId, 120)
+        )
+      )
+      && isValidCandidateProfileStatus(data.profileStatus)
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidCompanyProfileStatus(value) {
+      return value in ['draft', 'active', 'suspended'];
+    }
+
+    function isValidCompanyVerificationStatus(value) {
+      return value in ['unverified', 'pending', 'verified', 'rejected'];
+    }
+
+    function isValidCompanySize(value) {
+      return value in ['solo', '1_9', '10_49', '50_249', '250_plus'];
+    }
+
+    function isValidRecruitmentAreas(value) {
+      return value is list && value.size() > 0 && value.size() <= 12;
+    }
+
+    function hasValidCompanyProfileFields(data) {
+      return data.keys().hasAll([
+        'uid',
+        'companyName',
+        'companyType',
+        'businessSector',
+        'companySize',
+        'headquartersArea',
+        'recruitmentAreas',
+        'contactRole',
+        'profileStatus',
+        'verificationStatus',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.uid, 120)
+      && isNonEmptyString(data.companyName, 200)
+      && isOptionalString(data, 'legalName', 200)
+      && isNonEmptyString(data.companyType, 120)
+      && isOptionalString(data, 'siret', 14)
+      && isOptionalString(data, 'website', 200)
+      && isNonEmptyString(data.businessSector, 160)
+      && isValidCompanySize(data.companySize)
+      && isNonEmptyString(data.headquartersArea, 120)
+      && isValidRecruitmentAreas(data.recruitmentAreas)
+      && isNonEmptyString(data.contactRole, 120)
+      && isValidCompanyProfileStatus(data.profileStatus)
+      && isValidCompanyVerificationStatus(data.verificationStatus)
+      && (
+        !data.keys().hasAny(['siret'])
+        || data.siret.matches('^[0-9]{14}$')
+      )
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidCompanyProfileData(data) {
+      return data.keys().hasOnly([
+        'uid',
+        'companyName',
+        'legalName',
+        'companyType',
+        'siret',
+        'website',
+        'businessSector',
+        'companySize',
+        'headquartersArea',
+        'recruitmentAreas',
+        'contactRole',
+        'profileStatus',
+        'verificationStatus',
+        'createdAt',
+        'updatedAt'
+      ])
+      && hasValidCompanyProfileFields(data);
+    }
+
+    function isValidJobSectorData(data) {
+      return data.keys().hasOnly([
+        'code',
+        'label',
+        'description',
+        'assessmentType',
+        'order',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.code, 160)
+      && isNonEmptyString(data.label, 200)
+      && isOptionalString(data, 'description', 500)
+      && (!data.keys().hasAny(['order']) || data.order is number)
+      && (!data.keys().hasAny(['isActive']) || data.isActive is bool)
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidJobFamilyData(data) {
+      return data.keys().hasOnly([
+        'code',
+        'sectorCode',
+        'label',
+        'description',
+        'order',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.code, 200)
+      && isNonEmptyString(data.sectorCode, 160)
+      && isNonEmptyString(data.label, 200)
+      && isOptionalString(data, 'description', 500)
+      && (!data.keys().hasAny(['order']) || data.order is number)
+      && (!data.keys().hasAny(['isActive']) || data.isActive is bool)
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidJobRoleData(data) {
+      return data.keys().hasOnly([
+        'code',
+        'sectorCode',
+        'familyCode',
+        'label',
+        'aliases',
+        'description',
+        'order',
+        'isActive',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.code, 200)
+      && isNonEmptyString(data.sectorCode, 160)
+      && isNonEmptyString(data.familyCode, 200)
+      && isNonEmptyString(data.label, 200)
+      && (!data.keys().hasAny(['aliases']) || data.aliases is list)
+      && isOptionalString(data, 'description', 500)
+      && (!data.keys().hasAny(['order']) || data.order is number)
+      && (!data.keys().hasAny(['isActive']) || data.isActive is bool)
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidQuestionBankData(data) {
+      return data.keys().hasOnly([
+        'code',
+        'label',
+        'description',
+        'sectorCode',
+        'familyCode',
+        'roleCode',
+        'version',
+        'isActive',
+        'durationSeconds',
+        'threshold',
+        'questions',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.code, 160)
+      && isNonEmptyString(data.label, 200)
+      && isOptionalString(data, 'description', 1000)
+      && (!data.keys().hasAny(['assessmentType']) || data.assessmentType in ['seveno_general', 'company_application', 'legacy_job'])
+      && isOptionalString(data, 'sectorCode', 160)
+      && isOptionalString(data, 'familyCode', 200)
+      && isOptionalString(data, 'roleCode', 200)
+      && isNonEmptyString(data.version, 40)
+      && data.isActive is bool
+      && (!data.keys().hasAny(['durationSeconds']) || (data.durationSeconds is number && data.durationSeconds > 0 && data.durationSeconds <= 7200))
+      && (!data.keys().hasAny(['threshold']) || (data.threshold is number && data.threshold >= 0 && data.threshold <= 100))
+      && data.questions is list
+      && data.questions.size() > 0
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidTestSessionData(data) {
+      return data.keys().hasOnly([
+        'userId',
+        'candidateProfileId',
+        'questionBankCode',
+        'status',
+        'score',
+        'maxScore',
+        'passed',
+        'startedAt',
+        'submittedAt',
+        'expiresAt',
+        'lastQuestionId',
+        'answers',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.userId, 120)
+      && isNonEmptyString(data.candidateProfileId, 120)
+      && isNonEmptyString(data.questionBankCode, 160)
+      && data.status in ['pending', 'in_progress', 'completed', 'submitted', 'cancelled', 'expired', 'abandoned']
+      && (!data.keys().hasAny(['score']) || data.score is number)
+      && (!data.keys().hasAny(['maxScore']) || data.maxScore is number)
+      && (!data.keys().hasAny(['passed']) || data.passed is bool)
+      && isOptionalTimestampOrNull(data, 'startedAt')
+      && isOptionalTimestampOrNull(data, 'submittedAt')
+      && isOptionalTimestampOrNull(data, 'expiresAt')
+      && isOptionalString(data, 'lastQuestionId', 160)
+      && (!data.keys().hasAny(['answers']) || data.answers is map)
+      && data.createdAt is timestamp
+      && isOptionalTimestamp(data, 'updatedAt');
+    }
+
+    function isValidTestResultData(data) {
+      return data.keys().hasOnly([
+        'sessionId',
+        'userId',
+        'candidateProfileId',
+        'questionBankCode',
+        'answers',
+        'score',
+        'maxScore',
+        'passed',
+        'submittedAt',
+        'gradedAt',
+        'gradedByUserId',
+        'notes'
+      ])
+      && isNonEmptyString(data.sessionId, 120)
+      && isNonEmptyString(data.userId, 120)
+      && isNonEmptyString(data.candidateProfileId, 120)
+      && isNonEmptyString(data.questionBankCode, 160)
+      && data.answers is map
+      && data.score is number
+      && data.maxScore is number
+      && data.passed is bool
+      && data.submittedAt is timestamp
+      && isOptionalTimestampOrNull(data, 'gradedAt')
+      && isOptionalString(data, 'gradedByUserId', 120)
+      && isOptionalString(data, 'notes', 1000);
+    }
+
+    function isValidMatchRequestData(data) {
+      return data.keys().hasOnly([
+        'id',
+        'companyUid',
+        'candidateUid',
+        'companyNameSnapshot',
+        'publicCandidateId',
+        'jobRoleId',
+        'sectorId',
+        'jobFamilyId',
+        'status',
+        'message',
+        'proposedJobTitle',
+        'proposedLocation',
+        'contractType',
+        'candidateDecisionAt',
+        'acceptedAt',
+        'refusedAt',
+        'cancelledAt',
+        'expiresAt',
+        'createdAt',
+        'updatedAt'
+      ])
+      && isNonEmptyString(data.id, 120)
+      && isNonEmptyString(data.companyUid, 120)
+      && isNonEmptyString(data.candidateUid, 120)
+      && isNonEmptyString(data.companyNameSnapshot, 200)
+      && isValidPublicCandidateId(data.publicCandidateId)
+      && isNonEmptyString(data.jobRoleId, 200)
+      && isNonEmptyString(data.sectorId, 160)
+      && isNonEmptyString(data.jobFamilyId, 200)
+      && isValidMatchRequestStatus(data.status)
+      && isOptionalString(data, 'message', 500)
+      && isOptionalString(data, 'proposedJobTitle', 120)
+      && isOptionalString(data, 'proposedLocation', 120)
+      && (!data.keys().hasAny(['contractType']) || isValidMatchRequestContractType(data.contractType))
+      && isOptionalTimestampOrNull(data, 'candidateDecisionAt')
+      && isOptionalTimestampOrNull(data, 'acceptedAt')
+      && isOptionalTimestampOrNull(data, 'refusedAt')
+      && isOptionalTimestampOrNull(data, 'cancelledAt')
+      && isOptionalTimestampOrNull(data, 'expiresAt')
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      ;
+    }
+
+    function isValidAdminLogData(data) {
+      return data.keys().hasOnly([
+        'actorUserId',
+        'actorRole',
+        'action',
+        'targetCollection',
+        'targetId',
+        'metadata',
+        'createdAt'
+      ])
+      && isOptionalString(data, 'actorUserId', 120)
+      && (!data.keys().hasAny(['actorRole']) || isValidUserRole(data.actorRole))
+      && isNonEmptyString(data.action, 200)
+      && isOptionalString(data, 'targetCollection', 120)
+      && isOptionalString(data, 'targetId', 160)
+      && (!data.keys().hasAny(['metadata']) || data.metadata is map)
+      && data.createdAt is timestamp;
+    }
+
+    match /users/{uid} {
+      allow create: if isOwner(uid)
+        && isValidUserData(request.resource.data)
+        && request.resource.data.uid == uid
+        && authProviderMatchesCurrentSignIn(request.resource.data.authProvider)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.emailVerified == request.auth.token.email_verified
+        && (
+          request.resource.data.role == null
+          || (request.resource.data.authProvider == 'password' && request.resource.data.role in ['candidate', 'company'])
+        )
+        && request.resource.data.onboardingCompleted is bool;
+      allow read: if isOwner(uid) || isAdminForOtherUser(uid);
+      allow update: if (
+        isOwner(uid)
+        && isValidUserData(request.resource.data)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.authProvider == resource.data.authProvider
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.emailVerified == request.auth.token.email_verified
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.role != 'admin'
+        && isCandidatePrivateIdentityUpdateAllowed(uid)
+        && (
+          request.resource.data.role == resource.data.role
+          || (resource.data.role == null && request.resource.data.role in ['candidate', 'company'])
+        )
+      ) || (
+        isAdminForOtherUser(uid)
+        && isValidUserData(request.resource.data)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.authProvider == resource.data.authProvider
+        && request.resource.data.createdAt == resource.data.createdAt
+      );
+      allow delete: if isOwner(uid) || isAdminForOtherUser(uid);
+    }
+
+    // candidate_profiles contains the internal candidate uid and is never company-readable.
+    // Companies receive an explicit anonymous projection from the server API.
+    match /candidate_profiles/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow create: if isAdmin()
+        && isValidCandidateProfileData(request.resource.data)
+        && request.resource.data.uid == uid
+        && request.resource.data.role == 'candidate'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+      allow update: if isValidCandidateProfileData(request.resource.data)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.publicCandidateId == resource.data.publicCandidateId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          isAdmin()
+          || (
+            isCandidate()
+            && isOwner(uid)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'sectorId',
+              'jobFamilyId',
+              'jobRoleId',
+              'targetJobRoleIds',
+              'targetJobs',
+              'availabilityAvailableFromAt',
+              'availabilityConfirmedAt',
+              'availabilityValidUntil',
+              'dailyAvailabilityConfirmationEnabled',
+              'nextAvailabilityReminderAt',
+              'lastAvailabilityNotificationAt',
+              'availabilityTimezone',
+              'availabilityPushPermission',
+              'hasActiveAvailabilityPushSubscription',
+              'verifiedScore',
+              'testPassed',
+              'lastTestAt',
+              'verifiedTestResultId',
+              'verifiedTestSessionId',
+              'verifiedJobRoleId',
+              'verifiedQuestionBankCode',
+              'verifiedQuestionBankVersion',
+              'sevenoAssessmentStatus',
+              'sevenoAssessmentOverallScore',
+              'sevenoAssessmentDimensions',
+              'sevenoAssessmentVersion',
+              'sevenoAssessmentCompletedAt',
+              'sevenoAssessmentSessionId',
+              'sevenoAssessmentResultId',
+              'profileStatus'
+            ])
+          )
+        );
+      allow delete: if isAdmin() || (isCandidate() && isOwner(uid));
+    }
+
+    // Availability confirmations and push subscriptions are server-managed and never client-readable.
+    match /availability_confirmation_requests/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /availability_confirmation_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /candidate_push_subscriptions/{uid} {
+      allow read, write: if false;
+
+      match /devices/{deviceId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /company_profiles/{uid} {
+      allow read: if isAdmin() || (isCompany() && isOwner(uid));
+      allow create: if (
+        isAdmin()
+        || (isCompany() && isOwner(uid))
+      )
+        && isValidCompanyProfileData(request.resource.data)
+        && request.resource.data.uid == uid
+        && (
+          isAdmin()
+          || (
+            request.resource.data.profileStatus in ['draft', 'active']
+            && request.resource.data.verificationStatus in ['unverified', 'pending']
+          )
+        );
+      allow update: if hasValidCompanyProfileFields(request.resource.data)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          isAdmin()
+          || (
+            isCompany()
+            && isOwner(uid)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'companyName',
+              'legalName',
+              'companyType',
+              'siret',
+              'website',
+              'businessSector',
+              'companySize',
+              'headquartersArea',
+              'recruitmentAreas',
+              'contactRole',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() || (isCompany() && isOwner(uid));
+    }
+
+    match /job_sectors/{sectorCode} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && isValidJobSectorData(request.resource.data)
+        && request.resource.data.code == sectorCode;
+      allow delete: if isAdmin();
+    }
+
+    match /job_families/{familyCode} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && isValidJobFamilyData(request.resource.data)
+        && request.resource.data.code == familyCode;
+      allow delete: if isAdmin();
+    }
+
+    match /job_roles/{roleCode} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && isValidJobRoleData(request.resource.data)
+        && request.resource.data.code == roleCode;
+      allow delete: if isAdmin();
+    }
+
+    match /question_banks/{questionBankCode} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin()
+        && isValidQuestionBankData(request.resource.data)
+        && request.resource.data.code == questionBankCode;
+      allow delete: if isAdmin();
+    }
+
+    match /test_sessions/{sessionId} {
+      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.uid));
+      allow create, update, delete: if false;
+    }
+
+    match /test_results/{resultId} {
+      allow read: if isAdmin() || (isSignedIn() && isOwner(resource.data.uid));
+      allow create, update, delete: if false;
+    }
+
+    // Server-maintained pointer to the latest general Seven'O assessment.
+    // Detailed answers remain private in test_results and are never company-readable.
+    match /candidate_assessment_summaries/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow create, update, delete: if false;
+    }
+
+    match /candidate_assessment_attempts/{uid} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /match_requests/{requestId} {
+      // Candidate and company access goes through participant-checked server APIs.
+      allow read: if isAdmin();
+      // All writes go through server routes backed by Firebase Admin.
+      allow create, update, delete: if false;
+    }
+
+    // Central Seven'O prerequisite library. All writes and company reads use server APIs.
+    match /prerequisite_definitions/{prerequisiteId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Private suggestion queue for future moderation of company-created prerequisites.
+    // Client SDKs must never read or write these documents.
+    match /prerequisite_suggestions/{suggestionId} {
+      allow read, write: if false;
+
+      match /companies/{companyUid} {
+        allow read, write: if false;
+      }
+
+      match /usages/{usageId} {
+        allow read, write: if false;
+      }
+    }
+
+    // Short-lived server records proving that a complete import dry-run succeeded.
+    match /prerequisite_import_dry_runs/{dryRunId} {
+      allow read, create, update, delete: if false;
+    }
+
+    // Offers and their frozen published versions are managed exclusively by server APIs.
+    match /job_offers/{offerId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Applications and professional answers are exposed only through participant-checked server APIs.
+    match /job_applications/{applicationId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+
+      match /prerequisite_answers/{answerId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /job_application_guards/{guardId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /candidate_prerequisite_answers/{uid} {
+      allow read, create, update, delete: if false;
+
+      match /answers/{answerId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Company questionnaires contain private correction criteria and are server-only.
+    match /company_questionnaires/{questionnaireId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin();
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /admin_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidAdminLogData(request.resource.data);
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

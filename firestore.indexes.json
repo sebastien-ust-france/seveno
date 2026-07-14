@@ -1,0 +1,366 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "job_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "candidateUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyUid", "order": "ASCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "offerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "job_offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "jobRoleId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "applicabilityKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "applicabilityKeys", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_definitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "applicabilityKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "code", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profileStatus", "order": "ASCENDING" },
+        { "fieldPath": "targetJobRoleIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "sevenoAssessmentOverallScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profileStatus", "order": "ASCENDING" },
+        { "fieldPath": "targetJobRoleIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "sevenoAssessmentStatus", "order": "ASCENDING" },
+        { "fieldPath": "sevenoAssessmentOverallScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profileStatus", "order": "ASCENDING" },
+        { "fieldPath": "sectorId", "order": "ASCENDING" },
+        { "fieldPath": "jobFamilyId", "order": "ASCENDING" },
+        { "fieldPath": "jobRoleId", "order": "ASCENDING" },
+        { "fieldPath": "verifiedScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profileStatus", "order": "ASCENDING" },
+        { "fieldPath": "testPassed", "order": "ASCENDING" },
+        { "fieldPath": "sectorId", "order": "ASCENDING" },
+        { "fieldPath": "jobFamilyId", "order": "ASCENDING" },
+        { "fieldPath": "jobRoleId", "order": "ASCENDING" },
+        { "fieldPath": "verifiedScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profileStatus", "order": "ASCENDING" },
+        { "fieldPath": "availability", "order": "ASCENDING" },
+        { "fieldPath": "dailyAvailabilityConfirmationEnabled", "order": "ASCENDING" },
+        { "fieldPath": "nextAvailabilityReminderAt", "order": "ASCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationArea", "order": "ASCENDING" },
+        { "fieldPath": "verifiedScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "availability", "order": "ASCENDING" },
+        { "fieldPath": "verifiedScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidate_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "experienceLevel", "order": "ASCENDING" },
+        { "fieldPath": "verifiedScore", "order": "DESCENDING" },
+        { "fieldPath": "publicCandidateId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "statusRank", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "statusRank", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "usageCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "usageCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "usageCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "usageCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "companyCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "companyCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prerequisite_suggestions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchKeys", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "companyCount", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

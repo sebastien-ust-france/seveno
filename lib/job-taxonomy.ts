@@ -1,25 +1,6 @@
-export interface JobRole {
-  code: string;
-  label: string;
-  aliases?: string[];
-}
+import type { JobFamily, JobRole, JobSector, JobTaxonomy } from '@/types/seveno';
 
-export interface JobFamily {
-  code: string;
-  label: string;
-  roles: JobRole[];
-}
-
-export interface JobSector {
-  code: string;
-  label: string;
-  families: JobFamily[];
-}
-
-export interface JobTaxonomy {
-  version: string;
-  sectors: JobSector[];
-}
+export type { JobFamily, JobRole, JobSector, JobTaxonomy };
 
 const createRole = (code: string, label: string, aliases: string[] = []): JobRole => ({
   code,

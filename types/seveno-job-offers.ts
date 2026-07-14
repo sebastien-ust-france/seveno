@@ -1,0 +1,88 @@
+import type { FirestoreDateValue } from '@/types/seveno';
+import type {
+  OfferPrerequisiteSnapshot,
+  PrerequisiteCriterionValue,
+} from '@/types/seveno-prerequisites';
+
+export type JobOfferStatus = 'draft' | 'published' | 'paused' | 'closed' | 'archived';
+export type JobOfferWorkMode = 'onsite' | 'hybrid' | 'remote';
+export type JobOfferContractType =
+  | 'permanent'
+  | 'fixed_term'
+  | 'temporary'
+  | 'freelance'
+  | 'apprenticeship'
+  | 'internship'
+  | 'other';
+export type JobOfferWorkingTime = 'full_time' | 'part_time' | 'shift' | 'flexible' | 'other';
+export type JobOfferStatusAction = 'publish' | 'pause' | 'close' | 'archive';
+
+export interface JobOfferPrerequisiteSelectionInput {
+  prerequisiteId: string;
+  expectedCriterion: PrerequisiteCriterionValue;
+}
+
+export interface JobOfferInput {
+  title: string;
+  sectorId: string;
+  jobFamilyId: string;
+  jobRoleId: string;
+  questionnaireId: string;
+  location: string;
+  workMode: JobOfferWorkMode | '';
+  contractType: JobOfferContractType | '';
+  workingTime: JobOfferWorkingTime | '';
+  description: string;
+  missions: string;
+  profileSummary: string;
+  questionnaireRequired: boolean;
+  requiredPrerequisites: JobOfferPrerequisiteSelectionInput[];
+  preferredPrerequisites: JobOfferPrerequisiteSelectionInput[];
+}
+
+export interface JobOffer {
+  id: string;
+  companyUid: string;
+  companyPublicId: string;
+  companyNameSnapshot: string;
+  title: string;
+  sectorId: string;
+  jobFamilyId: string;
+  jobRoleId: string;
+  jobRoleLabel: string;
+  location: string;
+  workMode: JobOfferWorkMode | '';
+  contractType: JobOfferContractType | '';
+  workingTime: JobOfferWorkingTime | '';
+  description: string;
+  missions: string;
+  profileSummary: string;
+  questionnaireRequired: boolean;
+  questionnaireId: string | null;
+  questionnaireVersion: number | null;
+  questionnaireTitleSnapshot: string | null;
+  questionnaireQuestionCountSnapshot: number | null;
+  requiredPrerequisites: OfferPrerequisiteSnapshot[];
+  preferredPrerequisites: OfferPrerequisiteSnapshot[];
+  status: JobOfferStatus;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+  publishedAt: FirestoreDateValue | null;
+  closedAt: FirestoreDateValue | null;
+  version: number;
+}
+
+export interface SerializedJobOffer extends Omit<JobOffer, 'createdAt' | 'updatedAt' | 'publishedAt' | 'closedAt'> {
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  closedAt: string | null;
+}
+
+export interface JobOfferListPage {
+  offers: SerializedJobOffer[];
+  nextCursor: string | null;
+}
+
+/** Future public projection. Internal company ownership is intentionally excluded. */
+export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid'>;

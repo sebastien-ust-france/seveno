@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:prerequisites": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/prerequisites-smoke-test.mts",
+    "test:prerequisite-suggestions": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/prerequisite-suggestions-emulator-test.mts",
+    "promote:admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/promote-admin-role.mts",
+    "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
+    "test:applications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-applications-smoke-test.mts",
+    "test:questionnaires": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaires-smoke-test.mts"
   },
   "dependencies": {
     "firebase": "^12.0.0",

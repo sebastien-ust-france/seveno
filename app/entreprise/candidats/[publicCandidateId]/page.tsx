@@ -1,0 +1,487 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useParams } from 'next/navigation';
+import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
+import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
+import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
+import { getCandidateAvailabilityView } from '@/lib/seveno-candidate-availability';
+import { listCompanyJobOffers } from '@/lib/seveno-job-offers';
+import {
+  createCompanyInvitationClient,
+  listCompanyApplicationsClient,
+} from '@/lib/seveno-job-applications';
+import { getVisibleCandidateProfileByPublicId } from '@/lib/seveno-company-candidates';
+import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
+import type { VisibleCandidateProfile } from '@/types/seveno';
+import type { SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
+import type { SerializedJobOffer } from '@/types/seveno-job-offers';
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Brouillon',
+  invited: 'Invitation envoyée',
+  prerequisites_in_progress: 'Réponses en cours',
+  eligible: 'Prête à soumettre',
+  ineligible: 'Non éligible',
+  submitted: 'Soumise',
+  viewed: 'Consultée',
+  questionnaire_pending: 'Questionnaire à remplir',
+  questionnaire_completed: 'Questionnaire terminé',
+  shortlisted: 'Sélectionnée',
+  rejected: 'Refusée',
+  contact_requested: 'Contact demandé',
+  conversation_open: 'Conversation ouverte',
+  candidate_declined: 'Invitation refusée',
+  company_declined: 'Relation refusée',
+  candidate_withdrawn: 'Retrait candidat',
+  offer_unavailable: 'Offre indisponible',
+  withdrawn: 'Retirée',
+  closed: 'Fermée',
+};
+
+function formatTargetJobs(profile: VisibleCandidateProfile | null) {
+  if (!profile || profile.targetJobs.length === 0) {
+    return 'Non renseignés';
+  }
+
+  return profile.targetJobs.map((job) => job.label).join(', ');
+}
+
+function formatAssessmentState(profile: VisibleCandidateProfile | null) {
+  if (!profile) {
+    return 'Non disponible';
+  }
+  if (profile.sevenoAssessmentStatus === 'completed' && profile.sevenoAssessmentOverallScore !== null) {
+    return `${Math.round(profile.sevenoAssessmentOverallScore)} · Vérifié Seven O`;
+  }
+  return 'Non encore vérifié';
+}
+
+function formatAssessmentDate(profile: VisibleCandidateProfile | null) {
+  const value = profile?.sevenoAssessmentCompletedAt;
+  if (!value || typeof value !== 'object' || !('toDate' in value) || typeof value.toDate !== 'function') {
+    return 'Non disponible';
+  }
+
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(value.toDate());
+}
+
+function formatQuestionnaireSummary(
+  assessment: SerializedCandidateJobApplication['companyAssessment'],
+) {
+  if (!assessment) {
+    return null;
+  }
+
+  const score = assessment.finalScore ?? assessment.automaticScorePercent;
+  if (assessment.status === 'not_started' && score === null) {
+    return null;
+  }
+  const statusLabel = assessment.status === 'completed'
+    ? 'Termine'
+    : assessment.status === 'submitted'
+      ? 'En attente de validation'
+      : assessment.status === 'in_progress'
+        ? 'En cours'
+        : assessment.status === 'expired'
+          ? 'Expire'
+          : assessment.status === 'abandoned'
+            ? 'Abandonne'
+            : 'Non demarre';
+
+  return {
+    label: score !== null ? `Resultat : ${Math.round(score)} %` : statusLabel,
+    note: assessment.manualReviewRequired
+      ? assessment.manualReviewStatus === 'completed'
+        ? 'Validation manuelle terminee.'
+        : 'Correction manuelle requise avant validation finale.'
+      : assessment.status === 'completed'
+        ? 'Resultat valide par le serveur.'
+        : assessment.status === 'submitted' || assessment.status === 'in_progress'
+          ? 'Le questionnaire a ete transmis au candidat.'
+          : 'Aucun resultat disponible.',
+  };
+}
+
+function ApplicationCard({ application }: { application: SerializedCandidateJobApplication }) {
+  const questionnaireSummary = formatQuestionnaireSummary(application.companyAssessment ?? null);
+
+  return (
+    <article className="rounded-[22px] border border-white/10 bg-white/[0.04] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">
+            {application.origin === 'company' ? 'Invitation entreprise' : 'Candidature candidat'}
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-white">{application.offerSnapshot.title}</h3>
+          <p className="mt-2 text-sm text-slate-400">{application.companyNameSnapshot || application.offerSnapshot.companyName}</p>
+        </div>
+        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
+          {STATUS_LABELS[application.status] ?? application.status}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Statut</p>
+          <p className="mt-2 font-medium text-white">{STATUS_LABELS[application.status] ?? application.status}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Questionnaire</p>
+          <p className="mt-2 font-medium text-white">
+            {application.companyAssessment?.status === 'completed'
+              ? 'Terminé'
+              : application.companyAssessment?.status === 'submitted' || application.companyAssessment?.status === 'in_progress'
+                ? 'En cours'
+                : application.companyAssessment?.status === 'expired'
+                  ? 'Expiré'
+                  : 'Non démarré'}
+          </p>
+          {questionnaireSummary ? (
+            <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+              <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">Resultat du questionnaire</p>
+              <p className="mt-2 font-medium text-white">{questionnaireSummary.label}</p>
+              <p className="mt-1 text-xs text-emerald-100/80">{questionnaireSummary.note}</p>
+            </div>
+          ) : null}
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Conversation</p>
+          <p className="mt-2 font-medium text-white">
+            {application.conversationStatus === 'open'
+              ? `Ouverte · ${application.conversationUnreadCompanyCount} non lus`
+              : 'Fermée'}
+          </p>
+        </article>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Offre</p>
+          <p className="mt-2 text-sm font-medium text-white">{application.offerSnapshot.jobRoleLabel}</p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Secteur</p>
+          <p className="mt-2 text-sm font-medium text-white">
+            {findSectorLabel(application.offerSnapshot.sectorId) ?? application.offerSnapshot.sectorId}
+          </p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Famille</p>
+          <p className="mt-2 text-sm font-medium text-white">
+            {findFamilyLabel(application.offerSnapshot.jobFamilyId) ?? application.offerSnapshot.jobFamilyId}
+          </p>
+        </article>
+        <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Métier</p>
+          <p className="mt-2 text-sm font-medium text-white">
+            {findRoleLabel(application.offerSnapshot.jobRoleId) ?? application.offerSnapshot.jobRoleId}
+          </p>
+        </article>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link
+          href={`/entreprise/demandes/${application.id}`}
+          className="rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          Ouvrir le dossier
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+export default function CompanyCandidateDetailPage() {
+  const { authUser, profile, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
+  const params = useParams<{ publicCandidateId: string }>();
+  const publicCandidateId =
+    typeof params.publicCandidateId === 'string'
+      ? params.publicCandidateId
+      : Array.isArray(params.publicCandidateId)
+        ? params.publicCandidateId[0]
+        : '';
+
+  const [candidateProfile, setCandidateProfile] = useState<VisibleCandidateProfile | null>(null);
+  const [offers, setOffers] = useState<SerializedJobOffer[]>([]);
+  const [applications, setApplications] = useState<SerializedCandidateJobApplication[]>([]);
+  const [selectedOfferId, setSelectedOfferId] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const currentUser = authUser;
+    if (!currentUser || !publicCandidateId) {
+      return;
+    }
+    const firebaseUser = currentUser as NonNullable<typeof currentUser>;
+
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const [candidatePayload, offersPayload, applicationsPayload] = await Promise.all([
+          getVisibleCandidateProfileByPublicId(firebaseUser, publicCandidateId),
+          listCompanyJobOffers(firebaseUser, { status: 'published' }),
+          listCompanyApplicationsClient(firebaseUser, undefined, publicCandidateId),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        if (!candidatePayload) {
+          setCandidateProfile(null);
+          setOffers([]);
+          setApplications([]);
+          setError('Profil anonyme introuvable.');
+          return;
+        }
+
+        setCandidateProfile(candidatePayload);
+        setOffers(offersPayload.offers);
+        setApplications(applicationsPayload.applications);
+        setSelectedOfferId((current) => current || offersPayload.offers[0]?.id || '');
+      } catch (thrownError) {
+        if (active) {
+          setError(thrownError instanceof Error ? thrownError.message : 'Le profil anonyme n a pas pu etre charge.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [authUser, publicCandidateId]);
+
+  const publishedOffers = useMemo(() => offers.filter((offer) => offer.status === 'published'), [offers]);
+  const assessmentState = formatAssessmentState(candidateProfile);
+  const assessmentDate = formatAssessmentDate(candidateProfile);
+  const availabilityView = candidateProfile ? getCandidateAvailabilityView(candidateProfile) : null;
+  const activeApplications = applications.filter((application) => application.status === 'invited' || application.status === 'submitted' || application.status === 'questionnaire_pending' || application.status === 'questionnaire_completed' || application.status === 'conversation_open');
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!authUser || !candidateProfile || !selectedOfferId) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const payload = await createCompanyInvitationClient(authUser, {
+        offerId: selectedOfferId,
+        publicCandidateId: candidateProfile.publicCandidateId,
+        message: message.trim() || undefined,
+      });
+
+      setNotice(`Invitation envoyée. Dossier ${payload.application.id}.`);
+      setMessage('');
+
+      const refreshed = await listCompanyApplicationsClient(authUser, undefined, publicCandidateId);
+      setApplications(refreshed.applications);
+    } catch (thrownError) {
+      setError(thrownError instanceof Error ? thrownError.message : 'La demande de relation a échoué.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SevenoSurface
+      eyebrow="Entreprise"
+      title="Profil candidat anonyme"
+      description="Sélectionnez une offre publiée pour envoyer une invitation au candidat. Aucune donnée privée n est exposée ici."
+      footer={profile ? <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entreprise : {profile.companyName}</p> : null}
+      containerClassName="max-w-[86.4rem]"
+    >
+      <div className="space-y-6">
+        <Breadcrumbs
+          items={[
+            { label: 'Entreprise', href: '/entreprise' },
+            { label: 'Profils candidats', href: '/entreprise' },
+            { label: candidateProfile?.publicCandidateId ?? 'Profil candidat' },
+          ]}
+        />
+
+        {sessionError || error ? (
+          <SevenoPanel tone="orange" className="p-4">
+            <p className="text-sm text-orange-100">{sessionError ?? error}</p>
+          </SevenoPanel>
+        ) : null}
+
+        {notice ? (
+          <SevenoPanel tone="cyan" className="p-4">
+            <p className="text-sm text-cyan-100">{notice}</p>
+          </SevenoPanel>
+        ) : null}
+
+        {loading || sessionLoading ? (
+          <SevenoPanel tone="neutral" className="px-4 py-4 text-sm text-slate-300">
+            Chargement du profil...
+          </SevenoPanel>
+        ) : null}
+
+        {candidateProfile ? (
+          <>
+            <SevenoPanel tone="cyan" className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                    Identifiant public
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">{candidateProfile.publicCandidateId}</h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                    {formatTargetJobs(candidateProfile)}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Vérification</p>
+                  <p className="mt-2 font-medium text-white">{assessmentState}</p>
+                  <p className="mt-2 text-xs text-slate-400">{assessmentDate}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-4">
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Secteur</p>
+                  <p className="mt-2 text-sm font-medium text-white">
+                    {findSectorLabel(candidateProfile.sectorId) ?? candidateProfile.sectorId}
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Famille métier</p>
+                  <p className="mt-2 text-sm font-medium text-white">
+                    {findFamilyLabel(candidateProfile.jobFamilyId) ?? candidateProfile.jobFamilyId}
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Métier</p>
+                  <p className="mt-2 text-sm font-medium text-white">
+                    {findRoleLabel(candidateProfile.jobRoleId) ?? candidateProfile.jobRoleId}
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Localisation</p>
+                  <p className="mt-2 text-sm font-medium text-white">{candidateProfile.locationArea}</p>
+                </article>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Disponibilité</p>
+                  <p className="mt-2 text-sm font-medium text-white">{availabilityView?.label ?? candidateProfile.availability}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{availabilityView?.detail ?? 'Non disponible'}</p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Expérience</p>
+                  <p className="mt-2 text-sm font-medium text-white">{candidateProfile.experienceLevel}</p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Dossiers liés</p>
+                  <p className="mt-2 text-sm font-medium text-white">{activeApplications.length}</p>
+                </article>
+              </div>
+            </SevenoPanel>
+
+            <div className="grid gap-4 lg:grid-cols-[1.04fr_0.96fr]">
+              <SevenoPanel tone="neutral" className="p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                  Envoyer une invitation
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-white">Choisir une offre publiée</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  La proposition est créée à partir d une offre publiée et du profil anonyme du candidat.
+                </p>
+
+                <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-200">Offre publiée</span>
+                    <select
+                      value={selectedOfferId}
+                      onChange={(event) => setSelectedOfferId(event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-300/40"
+                    >
+                      <option value="">Sélectionner une offre</option>
+                      {publishedOffers.map((offer) => (
+                        <option key={offer.id} value={offer.id}>
+                          {offer.title} · {offer.jobRoleLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-200">Message optionnel</span>
+                    <textarea
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      rows={5}
+                      maxLength={500}
+                      placeholder="Présentez brièvement l opportunité..."
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    />
+                  </label>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      disabled={saving || !selectedOfferId}
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(139,92,246,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {saving ? 'Envoi en cours...' : 'Envoyer l invitation'}
+                    </button>
+                    <Link
+                      href="/entreprise/offres"
+                      className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                    >
+                      Gérer mes offres
+                    </Link>
+                  </div>
+                </form>
+              </SevenoPanel>
+
+              <SevenoPanel tone="neutral" className="p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                  Dossiers liés à ce candidat
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-white">Historique des relations</h3>
+
+                <div className="mt-5 space-y-4">
+                  {applications.length === 0 ? (
+                    <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-400">
+                      Aucun dossier pour le moment.
+                    </p>
+                  ) : (
+                    applications.map((application) => (
+                      <ApplicationCard key={application.id} application={application} />
+                    ))
+                  )}
+                </div>
+              </SevenoPanel>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </SevenoSurface>
+  );
+}

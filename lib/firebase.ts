@@ -18,6 +18,7 @@ const app = hasFirebaseConfig
     : initializeApp(firebaseConfig)
   : null;
 
+export const firebaseApp = app;
 export const db = app ? getFirestore(app) : null;
 export const adminCode = process.env.NEXT_PUBLIC_ADMIN_CODE?.trim() ?? '';
 export const isFirebaseConfigured = Boolean(db);

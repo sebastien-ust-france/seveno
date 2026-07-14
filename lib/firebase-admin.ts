@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 function getPrivateKey() {
@@ -64,6 +65,19 @@ export const adminDb = (() => {
 
   try {
     return getFirestore(getAdminApp());
+  } catch (error) {
+    adminDbInitError = error;
+    return null;
+  }
+})();
+
+export const adminAuth = (() => {
+  if (!isFirebaseAdminConfigured) {
+    return null;
+  }
+
+  try {
+    return getAuth(getAdminApp());
   } catch (error) {
     adminDbInitError = error;
     return null;
