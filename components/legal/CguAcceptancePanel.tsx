@@ -108,15 +108,21 @@ export function CguAcceptancePanel() {
 
     try {
       const result = await acceptSevenoTerms(authUser);
-      const refreshed = await ensureSevenoUser(authUser);
-      const refreshedAcceptance = getSevenoTermsAcceptance(refreshed, context);
-      setUser(refreshed);
+      const refreshedAcceptance = result.acceptance;
+      const nextUser = {
+        ...user,
+        termsAcceptance: {
+          ...(user.termsAcceptance ?? {}),
+          [context]: refreshedAcceptance,
+        },
+      } as SevenoUser;
+      setUser(nextUser);
       setAccepted(true);
       setNotice(
         `CGU version ${refreshedAcceptance?.cguVersion ?? result.acceptance.cguVersion} enregistrées le ${formatAcceptanceDate(refreshedAcceptance?.acceptedAt ?? result.acceptance.acceptedAt)}.`,
       );
       window.setTimeout(() => {
-        router.replace(resolveSevenoRedirect(refreshed));
+        router.replace(resolveSevenoRedirect(nextUser));
       }, 900);
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : "L'acceptation des CGU a echoue.");

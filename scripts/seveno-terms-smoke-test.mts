@@ -98,4 +98,9 @@ assertContains('firestore.rules', [
   'termsAcceptance',
 ]);
 
+assertNotContains('components/legal/CguAcceptancePanel.tsx', [
+  'const refreshed = await ensureSevenoUser(authUser);',
+  'router.replace(resolveSevenoRedirect(refreshed));',
+]);
+
 console.log('SevenO terms smoke test: OK');
