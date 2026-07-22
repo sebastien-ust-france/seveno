@@ -74,6 +74,20 @@ export function assertPublicAuthIsolation() {
 
   assertDoesNotContain('components/public/PublicMobileNavigation.tsx', AUTH_FORBIDDEN_FRAGMENTS);
   assertContains('components/public/PublicMobileNavigation.tsx', [
+    'usePathname',
+    'isMobileMenuOpen',
+    'closeMobileMenu',
+    'toggleMobileMenu',
+    'toggleButtonRef',
+    'fixed inset-x-0 top-[80px]',
+    'h-[calc(100dvh-80px)]',
+    'overflow-y-auto',
+    'overscroll-contain',
+    'backdrop-blur-[2px]',
+    'safe-area-inset-bottom',
+    'document.body.style.overflow = ',
+    'document.documentElement.style.overflow = ',
+    'Fermer',
     'Se connecter',
     'Créer mon profil',
     'public-site-mobile-menu',
