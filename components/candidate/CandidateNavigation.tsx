@@ -21,24 +21,14 @@ const NAV_ITEMS: CandidateNavigationItem[] = [
     hint: 'Profil metier',
   },
   {
-    href: '/candidat/test',
-    label: "Questionnaire Seven'O",
-    hint: 'Indice verifie',
+    href: '/candidat/identite',
+    label: 'Mon identite',
+    hint: 'Coordonnees privees',
   },
   {
-    href: '/candidat/offres',
-    label: 'Offres',
-    hint: 'Correspondances',
-  },
-  {
-    href: '/candidat/candidatures',
-    label: 'Mes candidatures',
-    hint: 'Suivi des dossiers',
-  },
-  {
-    href: '/candidat/demandes',
-    label: 'Mes demandes',
-    hint: 'Mises en relation',
+    href: '/candidat/recommandations',
+    label: 'Recommandations',
+    hint: 'Avis recueillis',
   },
 ];
 
@@ -51,7 +41,7 @@ function isActivePath(pathname: string, href: string) {
 }
 
 export function CandidateNavigation() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   return (
     <nav

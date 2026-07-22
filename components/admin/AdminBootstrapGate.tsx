@@ -71,7 +71,7 @@ export default function AdminBootstrapGate() {
   return (
     <SevenoSurface
       eyebrow="Acces admin"
-      title="Verification de votre session Seven'O"
+      title="Vérification de votre session Seven’O"
       description="L espace admin reste prive. La page verifie le token Firebase cote serveur puis autorise uniquement les comptes dont le role est admin."
       containerClassName="max-w-4xl"
     >

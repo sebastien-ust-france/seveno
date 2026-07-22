@@ -11,7 +11,7 @@ const LINKS = [
 ];
 
 export default function EntrepriseSectionNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   return (
     <nav aria-label="Navigation entreprise" className="flex flex-wrap gap-2">
       {LINKS.map((link) => {

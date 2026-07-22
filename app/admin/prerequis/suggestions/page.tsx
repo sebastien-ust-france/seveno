@@ -219,7 +219,7 @@ export default function AdminPrerequisiteSuggestionsPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Suggestions privees de prerequis"
       description="Lecture seule de la file privee remontee par les entreprises. Aucun document n est modifiable depuis le navigateur."
       containerClassName="max-w-7xl"
@@ -319,7 +319,7 @@ export default function AdminPrerequisiteSuggestionsPage() {
                   ? `${renderCount(items.length)} suggestion(s) chargee(s).`
                   : loading
                     ? 'Chargement des suggestions privees...'
-                    : 'Aucune suggestion ne correspond actuellement a ces criteres.'}
+                    : 'Aucune suggestion ne correspond actuellement à ces critères.'}
               </p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">

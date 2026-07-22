@@ -48,39 +48,9 @@ const CARD_VARIANTS = [
   },
 ] as const;
 
-function isTimestampLike(value: unknown): value is { toDate: () => Date } {
-  if (value == null || typeof value !== 'object') {
-    return false;
-  }
-
-  return 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function';
-}
-
-function formatAssessmentDate(value: VisibleCandidateProfile['sevenoAssessmentCompletedAt']) {
-  if (!value || !isTimestampLike(value)) {
-    return 'Questionnaire non termine';
-  }
-
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(value.toDate());
-}
-
-function profileVariant(score: number | null) {
-  if (score === null) {
-    return CARD_VARIANTS[1];
-  }
-  if (score >= 80) {
-    return CARD_VARIANTS[0];
-  }
-
-  if (score >= 60) {
-    return CARD_VARIANTS[1];
-  }
-
-  return CARD_VARIANTS[2];
+function profileVariant(publicCandidateId: string) {
+  const seed = Array.from(publicCandidateId).reduce((accumulator, char) => accumulator + char.charCodeAt(0), 0);
+  return CARD_VARIANTS[seed % CARD_VARIANTS.length];
 }
 
 export default function AnonymousCandidateCard({
@@ -90,18 +60,13 @@ export default function AnonymousCandidateCard({
   profile: VisibleCandidateProfile;
   returnHref?: string;
 }) {
-  const variant = profileVariant(profile.sevenoAssessmentOverallScore);
+  const variant = profileVariant(profile.publicCandidateId);
   const availabilityView = getCandidateAvailabilityView(profile);
   const sectorLabel = findSectorLabel(profile.sectorId) ?? 'Secteur non classe';
   const familyLabel = findFamilyLabel(profile.jobFamilyId) ?? 'Famille non classee';
   const roleLabel = findRoleLabel(profile.jobRoleId) ?? 'Metier non classe';
-  const availabilityLabel = availabilityView.label ?? (AVAILABILITY_LABELS[profile.availability] ?? 'Disponibilite non renseignee');
-  const experienceLabel = EXPERIENCE_LABELS[profile.experienceLevel] ?? 'Experience non renseignee';
-  const assessmentDateLabel = formatAssessmentDate(profile.sevenoAssessmentCompletedAt);
-  const assessmentCompleted = profile.sevenoAssessmentStatus === 'completed'
-    && profile.sevenoAssessmentOverallScore !== null;
-  const scoreLabel = assessmentCompleted ? `${Math.round(profile.sevenoAssessmentOverallScore as number)}%` : '--';
-  const assessmentLabel = assessmentCompleted ? "Indice Seven'O" : 'Questionnaire non termine';
+  const availabilityLabel = availabilityView.label ?? (AVAILABILITY_LABELS[profile.availability] ?? 'Disponibilité non renseignée');
+  const experienceLabel = EXPERIENCE_LABELS[profile.experienceLevel] ?? 'Expérience non renseignée';
   const detailHref = `/entreprise/candidats/${profile.publicCandidateId}?returnTo=${encodeURIComponent(returnHref)}`;
 
   return (
@@ -120,7 +85,7 @@ export default function AnonymousCandidateCard({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-3">
             <span className={'inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ' + variant.badge}>
-              {assessmentLabel}
+              Profil anonyme
             </span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Identifiant public</p>
@@ -129,10 +94,8 @@ export default function AnonymousCandidateCard({
           </div>
 
           <div className={'flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border text-center ' + variant.score}>
-            <span className="text-2xl font-semibold leading-none">{scoreLabel}</span>
-            <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em]">
-              {assessmentCompleted ? 'Indice' : 'En attente'}
-            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em]">Anonyme</span>
+            <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em]">Seven&apos;O</span>
           </div>
         </div>
 
@@ -149,17 +112,31 @@ export default function AnonymousCandidateCard({
             <p className="mt-2 text-sm text-white">{profile.locationArea}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Experience</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Expérience</p>
             <p className="mt-2 text-sm text-white">{experienceLabel}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Disponibilite</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Disponibilité</p>
             <p className="mt-2 text-sm text-white">{availabilityLabel}</p>
             <p className="mt-1 text-xs leading-5 text-slate-400">{availabilityView.detail}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Evaluation Seven&apos;O</p>
-            <p className="mt-2 text-sm text-white">{assessmentDateLabel}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Analyse professionnelle</p>
+            <p className="mt-2 text-sm text-white">Nouvelle version en préparation</p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Aucun score global historique n&apos;est présenté côté entreprise.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Recommandations visibles</p>
+            <p className="mt-2 text-sm text-white">
+              {profile.recommendationVisibleCount && profile.recommendationVisibleCount > 0
+                ? `${profile.recommendationVisibleCount} recommandation(s) vérifiée(s)`
+                : 'Aucune recommandation vérifiée'}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Uniquement les avis vérifiés et rendus visibles apparaissent ici.
+            </p>
           </div>
         </div>
 

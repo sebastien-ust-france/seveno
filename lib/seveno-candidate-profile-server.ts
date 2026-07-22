@@ -17,7 +17,6 @@ import type {
   CandidateProfileStatus,
   CandidateProfileUpsertData,
   CandidateTargetJob,
-  SevenoAssessmentSummary,
 } from '@/types/seveno';
 
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
@@ -37,6 +36,24 @@ const EXPERIENCE_VALUES: CandidateExperienceLevel[] = [
 const PROFILE_STATUS_VALUES: CandidateProfileStatus[] = ['draft', 'active', 'paused'];
 const PUBLIC_CANDIDATE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_TARGET_JOBS = 3;
+const PROFESSIONAL_DESCRIPTION_MAX_LENGTH = 600;
+const PROFESSIONAL_SELF_DESCRIPTION_KEYS = [
+  'professionalSelfDescription',
+  'professionalPresentation',
+  'selfPresentation',
+  'candidateStatement',
+  'whatISayAboutMe',
+  'selfDescription',
+] as const;
+const PROFESSIONAL_REPUTATION_DESCRIPTION_KEYS = [
+  'professionalReputationDescription',
+  'whatOthersSayAboutMe',
+  'othersDescription',
+] as const;
+const PROFESSIONAL_PHONE_PATTERNS = [
+  /(?:^|[^\d])(?:\+33|0)[1-9](?:[\s().-]*\d){8}(?:$|[^\d])/,
+  /(?:^|[^\d])\+\d{1,3}(?:[\s().-]*\d){7,14}(?:$|[^\d])/,
+] as const;
 
 type FirestoreRecord = Record<string, unknown>;
 
@@ -94,6 +111,17 @@ function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function readFirstTextField(value: FirestoreRecord, keys: readonly string[]) {
+  for (const key of keys) {
+    const cleaned = cleanText(value[key]);
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+
+  return '';
+}
+
 function requireText(value: unknown, field: string, maxLength: number) {
   const cleaned = cleanText(value);
   if (!cleaned || cleaned.length > maxLength) {
@@ -102,7 +130,36 @@ function requireText(value: unknown, field: string, maxLength: number) {
   return cleaned;
 }
 
-function normalizeInput(value: unknown): CandidateProfileUpsertData {
+function normalizeProfessionalDescription(value: unknown, field: string) {
+  const cleaned = cleanText(value).replace(/\s+/g, ' ');
+  if (!cleaned) {
+    return null;
+  }
+
+  if (cleaned.length > PROFESSIONAL_DESCRIPTION_MAX_LENGTH) {
+    throw new SevenoCandidateProfileError(
+      'invalid_candidate_profile',
+      400,
+      `Le champ ${field} ne doit pas depasser ${PROFESSIONAL_DESCRIPTION_MAX_LENGTH} caracteres.`,
+    );
+  }
+
+  if (
+    /[\w.+-]+@[\w-]+\.[\w.-]+/i.test(cleaned)
+    || /(?:https?:\/\/|www\.|linkedin\.com)/i.test(cleaned)
+    || PROFESSIONAL_PHONE_PATTERNS.some((pattern) => pattern.test(cleaned))
+  ) {
+    throw new SevenoCandidateProfileError(
+      'invalid_candidate_profile',
+      400,
+      `Le champ ${field} ne doit pas contenir de coordonnées, d'email, de numéro de téléphone ou de lien externe.`,
+    );
+  }
+
+  return cleaned;
+}
+
+export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateProfileUpsertData {
   if (!isPlainObject(value)) {
     throw new SevenoCandidateProfileError('invalid_candidate_profile', 400, 'Le profil candidat est invalide.');
   }
@@ -166,6 +223,14 @@ function normalizeInput(value: unknown): CandidateProfileUpsertData {
     availabilityAvailableFromAt: cleanText(value.availabilityAvailableFromAt) || null,
     locationArea: requireText(value.locationArea, 'zone geographique', 120),
     experienceLevel,
+    professionalSelfDescription: normalizeProfessionalDescription(
+      readFirstTextField(value, PROFESSIONAL_SELF_DESCRIPTION_KEYS),
+      'ce que vous diriez de vous',
+    ),
+    professionalReputationDescription: normalizeProfessionalDescription(
+      readFirstTextField(value, PROFESSIONAL_REPUTATION_DESCRIPTION_KEYS),
+      'ce que les autres disent de vous',
+    ),
     profileStatus,
     anonymousVisibilityConsent,
   };
@@ -282,41 +347,18 @@ async function loadPreservedVerification(
   };
 }
 
-function readAssessmentSummary(data: FirestoreRecord | undefined): SevenoAssessmentSummary | null {
-  if (
-    !data
-    || data.assessmentType !== 'seveno_general'
-    || data.status !== 'completed'
-    || typeof data.overallScore !== 'number'
-    || !Number.isFinite(data.overallScore)
-    || !isPlainObject(data.scoresByDimension)
-    || !cleanText(data.questionnaireVersion)
-    || !cleanText(data.sessionId)
-    || !cleanText(data.resultId)
-    || !(data.completedAt instanceof Timestamp)
-  ) {
-    return null;
-  }
-
-  return data as unknown as SevenoAssessmentSummary;
-}
-
 export async function createOrUpdateCandidateProfileServer(
   uid: string,
   rawInput: unknown,
   emailVerified: boolean,
 ) {
   const firestore = requireAdminDatabase();
-  const input = normalizeInput(rawInput);
+  const input = normalizeCandidateProfileUpsertInput(rawInput);
   const userRef = firestore.collection('users').doc(uid);
   const profileRef = firestore.collection('candidate_profiles').doc(uid);
-  const assessmentSummaryRef = firestore.collection('candidate_assessment_summaries').doc(uid);
 
   return firestore.runTransaction(async (transaction) => {
-    const [userSnapshot, assessmentSummarySnapshot] = await Promise.all([
-      transaction.get(userRef),
-      transaction.get(assessmentSummaryRef),
-    ]);
+    const userSnapshot = await transaction.get(userRef);
     if (!userSnapshot.exists || userSnapshot.get('role') !== 'candidate' || userSnapshot.get('uid') !== uid) {
       throw new SevenoCandidateProfileError('forbidden_role', 403, 'Seuls les candidats peuvent modifier ce profil.');
     }
@@ -334,9 +376,6 @@ export async function createOrUpdateCandidateProfileServer(
     if (!primaryJob) {
       throw new SevenoCandidateProfileError('invalid_candidate_job', 400, 'Selectionnez au moins un metier.');
     }
-    const assessmentSummary = readAssessmentSummary(
-      assessmentSummarySnapshot.exists ? assessmentSummarySnapshot.data() as FirestoreRecord : undefined,
-    );
     const publicCandidateId = existing ? cleanText(existing.publicCandidateId) : generatePublicCandidateId();
     if (!publicCandidateId) {
       throw new SevenoCandidateProfileError('invalid_candidate_profile', 409, 'Le profil candidat existant est invalide.');
@@ -387,9 +426,19 @@ export async function createOrUpdateCandidateProfileServer(
       && (
         !emailVerified
         || identityMissingFields.length > 0
-        || !assessmentSummary
       );
     const effectiveProfileStatus: CandidateProfileStatus = activationDowngraded ? 'draft' : input.profileStatus;
+    const legacyAssessmentFields = existing
+      ? {}
+      : {
+          sevenoAssessmentStatus: 'not_started' as const,
+          sevenoAssessmentOverallScore: null,
+          sevenoAssessmentDimensions: {},
+          sevenoAssessmentVersion: null,
+          sevenoAssessmentCompletedAt: null,
+          sevenoAssessmentSessionId: null,
+          sevenoAssessmentResultId: null,
+        };
 
     const editableProfileFields = {
       targetJobRoleIds: input.targetJobRoleIds,
@@ -403,14 +452,10 @@ export async function createOrUpdateCandidateProfileServer(
       ...(availabilityValidUntil ? { availabilityValidUntil } : {}),
       locationArea: input.locationArea,
       experienceLevel: input.experienceLevel,
+      professionalSelfDescription: input.professionalSelfDescription,
+      professionalReputationDescription: input.professionalReputationDescription,
       ...verification,
-      sevenoAssessmentStatus: assessmentSummary ? 'completed' : 'not_started',
-      sevenoAssessmentOverallScore: assessmentSummary?.overallScore ?? null,
-      sevenoAssessmentDimensions: assessmentSummary?.scoresByDimension ?? {},
-      sevenoAssessmentVersion: assessmentSummary?.questionnaireVersion ?? null,
-      sevenoAssessmentCompletedAt: assessmentSummary?.completedAt ?? null,
-      sevenoAssessmentSessionId: assessmentSummary?.sessionId ?? null,
-      sevenoAssessmentResultId: assessmentSummary?.resultId ?? null,
+      ...legacyAssessmentFields,
       profileStatus: effectiveProfileStatus,
       dailyAvailabilityConfirmationEnabled,
       ...(nextAvailabilityReminderAt ? { nextAvailabilityReminderAt } : {}),
@@ -441,7 +486,6 @@ export async function createOrUpdateCandidateProfileServer(
       verificationReset: !preservedVerification,
       activationDowngraded,
       identityMissingFields,
-      assessmentRequired: !assessmentSummary,
       profileStatus: effectiveProfileStatus,
     };
   });

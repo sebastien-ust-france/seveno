@@ -82,7 +82,7 @@ export default function AdminOverviewPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Tableau de bord de supervision"
       description="Vue d ensemble du socle MVP: comptes, profils anonymes, entreprises, tests, mises en relation et journal d actions."
       footer={<p className="text-xs uppercase tracking-[0.24em] text-slate-500">Acces reserve aux comptes admin</p>}
@@ -300,7 +300,7 @@ export default function AdminOverviewPage() {
                         <p className="mt-3 text-sm leading-6 text-slate-300">
                           {request.proposedJobTitle ?? request.jobRoleId} - {request.proposedLocation ?? 'A definir'}
                         </p>
-                        <p className="mt-2 text-xs text-slate-500">Creee {formatDateTime(request.createdAt)}</p>
+                        <p className="mt-2 text-xs text-slate-500">Créée {formatDateTime(request.createdAt)}</p>
                       </article>
                     ))
                   ) : (

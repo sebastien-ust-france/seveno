@@ -77,12 +77,14 @@ export async function POST(request: NextRequest) {
     if (!label) {
       throw new SevenoPrerequisiteError('invalid_prerequisite_label', 400, 'Saisissez le nom du prerequis.');
     }
+    const candidateHelp = typeof body.candidateHelp === 'string' ? body.candidateHelp.trim() : '';
 
     const saveToLibrary = body.saveToLibrary === true;
     const offer = await getJobOffer(decodedToken.uid, offerId);
     const definition = await createCompanyPrerequisite(decodedToken.uid, offer, {
       offerId,
       label,
+      ...(candidateHelp ? { candidateHelp } : {}),
       saveToLibrary,
     });
     return NextResponse.json({ definition }, { status: 201 });

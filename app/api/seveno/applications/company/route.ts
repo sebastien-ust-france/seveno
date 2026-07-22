@@ -25,10 +25,12 @@ export async function GET(request: NextRequest) {
     }
 
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
+    const offerId = request.nextUrl.searchParams.get('offerId')?.trim() ?? '';
     const payload = await listCompanyApplications(token.uid, {
       limit,
       cursor: request.nextUrl.searchParams.get('cursor') ?? undefined,
       ...(publicCandidateId ? { publicCandidateId } : {}),
+      ...(offerId ? { offerId } : {}),
     });
 
     return NextResponse.json(payload);

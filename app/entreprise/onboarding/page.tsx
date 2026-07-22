@@ -5,8 +5,15 @@ import { useRouter } from 'next/navigation';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS, findSectorLabel } from '@/lib/job-taxonomy';
 import { COMPANY_PROFILE_LIMITS, createOrUpdateCompanyProfile, getCompanyProfile } from '@/lib/seveno-companies';
-import { ensureSevenoUser, markUserOnboardingCompleted, resolveSevenoRedirect } from '@/lib/seveno-users';
+import {
+  acceptSevenoTerms,
+  ensureSevenoUser,
+  hasSevenoTermsAcceptance,
+  markUserOnboardingCompleted,
+  resolveSevenoRedirect,
+} from '@/lib/seveno-users';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
+import { Select } from '@/components/ui/Select';
 import type { CompanyProfileUpsertData, CompanySize } from '@/types/seveno';
 
 const COMPANY_SIZE_OPTIONS: Array<{ value: CompanySize; label: string }> = [
@@ -119,6 +126,8 @@ export default function CompanyOnboardingPage() {
   const [headquartersArea, setHeadquartersArea] = useState('');
   const [recruitmentAreas, setRecruitmentAreas] = useState<string[]>(['']);
   const [contactRole, setContactRole] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [hasTermsAcceptance, setHasTermsAcceptance] = useState(false);
 
   const selectedBusinessSectorLabel = findSectorLabel(businessSector) ?? businessSector;
 
@@ -145,6 +154,10 @@ export default function CompanyOnboardingPage() {
         if (!active) {
           return;
         }
+
+        const termsAcceptanceExists = hasSevenoTermsAcceptance(sevenoUser, 'company_first_access');
+        setHasTermsAcceptance(termsAcceptanceExists);
+        setTermsAccepted(termsAcceptanceExists);
 
         if (!sevenoUser.role) {
           router.replace('/onboarding');
@@ -282,9 +295,6 @@ export default function CompanyOnboardingPage() {
         return;
       }
 
-      submissionLockRef.current = true;
-      setSaving(true);
-
       const authUser = await getCurrentAuthUser();
       if (!authUser) {
         router.replace('/connexion');
@@ -295,6 +305,22 @@ export default function CompanyOnboardingPage() {
       if (sevenoUser.role !== 'company') {
         router.replace(resolveSevenoRedirect(sevenoUser));
         return;
+      }
+
+      if (!hasTermsAcceptance) {
+        if (!termsAccepted) {
+          setError("Vous devez accepter les Conditions générales d'utilisation de Seven’O avant d'enregistrer votre profil entreprise.");
+          return;
+        }
+      }
+
+      submissionLockRef.current = true;
+      setSaving(true);
+
+      if (!hasTermsAcceptance) {
+        await acceptSevenoTerms(authUser);
+        setTermsAccepted(true);
+        setHasTermsAcceptance(true);
       }
 
       const payload: CompanyProfileUpsertData = {
@@ -376,7 +402,7 @@ export default function CompanyOnboardingPage() {
                     onChange={(event) => setCompanyName(event.target.value)}
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.companyName}
-                    placeholder="Seven'O SAS"
+                    placeholder="Seven’O SAS"
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
                   />
                 </label>
@@ -439,34 +465,32 @@ export default function CompanyOnboardingPage() {
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-200">Secteur d activite *</span>
-                  <select
+                  <Select
                     value={businessSector}
                     onChange={(event) => setBusinessSector(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-300/40"
                   >
                     {JOB_SECTORS.map((sector) => (
                       <option key={sector.code} value={sector.code}>
                         {sector.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-200">Taille de l entreprise *</span>
-                  <select
+                  <Select
                     value={companySize}
                     onChange={(event) => setCompanySize(event.target.value as CompanySize)}
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-300/40"
                   >
                     {COMPANY_SIZE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
 
                 <label className="space-y-2">
@@ -551,10 +575,28 @@ export default function CompanyOnboardingPage() {
                 </div>
               </div>
 
+              <div className="rounded-[24px] border border-white/10 bg-white/5 p-5 text-sm leading-7 text-slate-300">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    className="mt-1 accent-violet-400"
+                    disabled={hasTermsAcceptance}
+                  />
+                  <span>
+                    Je confirme être habilité à représenter l’entreprise et j’accepte les Conditions générales d’utilisation de Seven’O.
+                  </span>
+                </label>
+                <p className="mt-3 text-xs leading-6 text-slate-400">
+                  La version 1.0 des CGU est enregistrée avec un horodatage serveur avant la validation du profil entreprise.
+                </p>
+              </div>
+
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || (!hasTermsAcceptance && !termsAccepted)}
                   className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(139,92,246,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {saving ? 'Enregistrement...' : isEditing ? 'Enregistrer mes modifications' : 'Enregistrer mon entreprise'}

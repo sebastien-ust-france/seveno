@@ -85,7 +85,7 @@ export default function AdminCandidatesPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Candidats"
       description="Les profils ici sont anonymises. Aucune identite privee ne doit etre visible dans cette liste."
       containerClassName="max-w-7xl"
@@ -122,7 +122,7 @@ export default function AdminCandidatesPage() {
                           {sectorLabel} - {familyLabel} - {roleLabel}
                         </p>
                         <p className="text-sm leading-6 text-slate-300">
-                          Zone: {candidate.locationArea} - Experience: {candidate.experienceLevel}
+                          Zone : {candidate.locationArea} - Expérience : {candidate.experienceLevel}
                         </p>
                       </div>
 
@@ -175,7 +175,7 @@ export default function AdminCandidatesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === candidate.uid && candidate.profileStatus !== 'active'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Activer'}
                       </button>
 
@@ -186,7 +186,7 @@ export default function AdminCandidatesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === candidate.uid && candidate.profileStatus !== 'paused'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Mettre en pause'}
                       </button>
 
@@ -197,7 +197,7 @@ export default function AdminCandidatesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === candidate.uid && candidate.profileStatus !== 'draft'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Repasser en brouillon'}
                       </button>
                     </div>

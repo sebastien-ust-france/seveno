@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
 import {
+  MAX_ACTIVE_CANDIDATE_FILES_PER_OFFER,
+  buildOfferCapacityLabel,
+  buildOfferCapacityReminderMessage,
+} from '@/lib/seveno-active-candidate-files';
+import {
   changeCompanyJobOfferStatus,
   listCompanyJobOffers,
 } from '@/lib/seveno-job-offers';
@@ -76,7 +81,7 @@ export default function CompanyOffersPage() {
     <SevenoSurface
       eyebrow="Espace entreprise"
       title="Mes offres"
-      description="Créez, reprenez et pilotez vos offres structurées Seven'O."
+      description="Créez, reprenez et pilotez vos offres structurées Seven’O."
       actions={<Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white">Créer une offre</Link>}
       containerClassName="max-w-[96rem]"
     >
@@ -103,12 +108,47 @@ export default function CompanyOffersPage() {
                 <div className="mt-5 flex flex-wrap gap-2">
                   {offer.status !== 'closed' && offer.status !== 'archived' ? <Link href={`/entreprise/offres/${offer.id}/modifier`} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white">Modifier</Link> : null}
                   {offer.status !== 'closed' && offer.status !== 'archived' ? <Link href={`/entreprise/offres/${offer.id}/questionnaire`} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs text-violet-100">Questionnaire</Link> : null}
-                  {(offer.status === 'draft' || offer.status === 'paused') ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'publish')} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-40">Publier</button> : null}
-                  {offer.status === 'published' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'pause')} className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 disabled:opacity-40">Mettre en pause</button> : null}
-                  {(offer.status === 'published' || offer.status === 'paused') ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'close')} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs text-rose-100 disabled:opacity-40">Fermer</button> : null}
-                  {offer.status === 'closed' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'archive')} className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300 disabled:opacity-40">Archiver</button> : null}
+            {(offer.status === 'draft' || offer.status === 'paused') ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'publish')} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-40">Publier</button> : null}
+            {offer.status === 'published' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'pause')} className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 disabled:opacity-40">Mettre en pause</button> : null}
+            {(offer.status === 'published' || offer.status === 'paused') ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'close')} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs text-rose-100 disabled:opacity-40">Fermer</button> : null}
+            {offer.status === 'closed' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'archive')} className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300 disabled:opacity-40">Archiver</button> : null}
+          </div>
+          {(() => {
+            const activeCandidateFilesCount = offer.activeCandidateFilesCount ?? 0;
+            const reminder = buildOfferCapacityReminderMessage(activeCandidateFilesCount);
+            const applicationsHref = `/entreprise/demandes?offerId=${encodeURIComponent(offer.id)}`;
+
+            return (
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-cyan-100">
+                    {buildOfferCapacityLabel(activeCandidateFilesCount)}
+                  </span>
+                  {activeCandidateFilesCount > 0 ? (
+                    <Link
+                      href={applicationsHref}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200 transition hover:bg-white/10"
+                    >
+                      Traiter les candidatures en cours
+                    </Link>
+                  ) : null}
                 </div>
-              </article>
+                {reminder ? (
+                  <p
+                    className={
+                      'max-w-2xl rounded-2xl border px-4 py-3 text-sm leading-6 ' +
+                      (activeCandidateFilesCount >= MAX_ACTIVE_CANDIDATE_FILES_PER_OFFER
+                        ? 'border-orange-300/20 bg-orange-400/10 text-orange-100'
+                        : 'border-white/10 bg-white/5 text-slate-300')
+                    }
+                  >
+                    {reminder}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })()}
+        </article>
             ))}
           </div>
           {nextCursor ? <button type="button" disabled={loading} onClick={() => void loadOffers(true, nextCursor)} className="mt-5 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">Charger la suite</button> : null}

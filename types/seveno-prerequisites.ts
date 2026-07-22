@@ -190,6 +190,7 @@ export interface PrerequisiteImportRequest {
 export interface CompanyPrerequisiteCreationInput {
   offerId: string;
   label: string;
+  candidateHelp?: string;
   saveToLibrary: boolean;
 }
 

@@ -1,8 +1,16 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import AdminBootstrapGate from '@/components/admin/AdminBootstrapGate';
 import { AuthenticatedAppShell } from '@/components/navigation/AuthenticatedAppShell';
 import { ADMIN_NAVIGATION } from '@/lib/seveno-navigation';
 import { getSevenoAdminSessionFromCookies } from '@/lib/seveno-admin-auth';
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await getSevenoAdminSessionFromCookies();
@@ -13,7 +21,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <AuthenticatedAppShell
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Navigation administration"
       description="Supervisez les comptes, les tests, les demandes de mise en relation et le journal interne."
       navigation={ADMIN_NAVIGATION}

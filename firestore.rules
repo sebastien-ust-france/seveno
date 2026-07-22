@@ -386,6 +386,7 @@ service cloud.firestore {
         'postalCode',
         'city',
         'country',
+        'termsAcceptance',
         'onboardingCompleted',
         'createdAt',
         'updatedAt'
@@ -399,6 +400,7 @@ service cloud.firestore {
       && isOptionalString(data, 'photoURL', 1000)
       && isValidCandidatePrivateIdentity(data)
       && (!hasCandidatePrivateIdentityFields(data) || data.role == 'candidate')
+      && (!data.keys().hasAny(['termsAcceptance']) || data.termsAcceptance is map)
       && data.onboardingCompleted is bool
       && data.createdAt is timestamp
       && isOptionalTimestamp(data, 'updatedAt');
@@ -876,6 +878,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.role != 'admin'
         && isCandidatePrivateIdentityUpdateAllowed(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['termsAcceptance'])
         && (
           request.resource.data.role == resource.data.role
           || (resource.data.role == null && request.resource.data.role in ['candidate', 'company'])
@@ -1058,6 +1061,18 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    match /candidate_private_data/{uid} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /candidate_recommendation_requests/{requestId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /candidate_recommendations/{recommendationId} {
+      allow read, create, update, delete: if false;
+    }
+
     match /match_requests/{requestId} {
       // Candidate and company access goes through participant-checked server APIs.
       allow read: if isAdmin();
@@ -1139,6 +1154,11 @@ service cloud.firestore {
         allow read: if isAdmin();
         allow create, update, delete: if false;
       }
+    }
+
+    // Seven'O professional assessment versions are managed exclusively by server routes.
+    match /professional_assessment_versions/{versionId} {
+      allow read, write: if isAdmin();
     }
 
     match /admin_logs/{logId} {

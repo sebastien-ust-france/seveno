@@ -3,6 +3,7 @@
 import type { User } from 'firebase/auth';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import type {
+  CompanyApplicationPrioritySelection,
   CandidateOfferListPage,
   CandidateOfferProjection,
   PrerequisiteAnswerInput,
@@ -74,11 +75,17 @@ export function listCompanyApplicationsClient(
   authUser: User,
   cursor?: string | null,
   publicCandidateId?: string,
+  offerId?: string,
 ) {
   const params = new URLSearchParams({ limit: '20' });
   if (cursor) params.set('cursor', cursor);
   if (publicCandidateId) params.set('publicCandidateId', publicCandidateId);
-  return fetchSevenoMatchApi<{ applications: SerializedCandidateJobApplication[]; nextCursor: string | null }>(
+  if (offerId) params.set('offerId', offerId);
+  return fetchSevenoMatchApi<{
+    applications: SerializedCandidateJobApplication[];
+    nextCursor: string | null;
+    prioritySelection: CompanyApplicationPrioritySelection | null;
+  }>(
     authUser,
     `/api/seveno/applications/company?${params.toString()}`,
   );

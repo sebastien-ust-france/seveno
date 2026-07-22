@@ -219,7 +219,7 @@ function buildQueryPlan(
 
 function normalizeStatusLabel(status: PrerequisiteSuggestionStatus) {
   if (status === 'pending') return 'À examiner';
-  if (status === 'merged') return "Rattaché à un prérequis Seven'O";
+  if (status === 'merged') return "Rattaché à un prérequis Seven’O";
   if (status === 'approved') return 'Approuvé';
   return 'Rejeté';
 }

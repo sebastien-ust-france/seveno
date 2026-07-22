@@ -77,6 +77,7 @@ export interface SerializedJobOffer extends Omit<JobOffer, 'createdAt' | 'update
   updatedAt: string;
   publishedAt: string | null;
   closedAt: string | null;
+  activeCandidateFilesCount?: number;
 }
 
 export interface JobOfferListPage {

@@ -3,6 +3,7 @@ import type {
   CompanyApplicationAssessmentSummary,
   SerializedCompanyApplicationAssessmentSummary,
 } from '@/types/seveno-application-questionnaires';
+import type { CompanyQuestionnaireScoreClassification } from '@/types/seveno-company-questionnaires';
 import type {
   JobOfferContractType,
   JobOfferWorkingTime,
@@ -108,6 +109,19 @@ export interface CandidateOfferListItem extends Omit<CandidateOfferProjection,
 export interface CandidateOfferListPage {
   offers: CandidateOfferListItem[];
   nextCursor: string | null;
+}
+
+export interface CompanyApplicationPrioritySelectionItem {
+  application: SerializedCandidateJobApplication;
+  scorePercent: number;
+  classification: CompanyQuestionnaireScoreClassification;
+}
+
+export interface CompanyApplicationPrioritySelection {
+  applications: CompanyApplicationPrioritySelectionItem[];
+  qualifiedCount: number;
+  nearThresholdCount: number;
+  eligibleCount: number;
 }
 
 export interface PrerequisiteAnswerInput {

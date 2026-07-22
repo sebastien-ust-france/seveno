@@ -4,6 +4,15 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Timestamp, type Query } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import {
+  MAX_ACTIVE_CANDIDATE_FILES_PER_OFFER,
+} from '@/lib/seveno-active-candidate-files';
+import {
+  buildOfferActiveCandidateFilesLockId,
+  isActiveCandidateFileStatus,
+  touchOfferCapacityLockPayload,
+} from '@/lib/seveno-active-candidate-files-server';
+import { selectCompanyQuestionnairePriorityApplications } from '@/lib/seveno-company-questionnaire-thresholds';
 import type {
   ApplicationSevenoAssessmentSnapshot,
   CandidateOfferListPage,
@@ -21,6 +30,7 @@ import type {
   SerializedCandidateJobApplication,
   SerializedJobApplicationPrerequisiteAnswer,
   SerializedJobApplicationConversationMessage,
+  CompanyApplicationPrioritySelection,
 } from '@/types/seveno-job-applications';
 import type { SerializedCompanyApplicationAssessmentSummary } from '@/types/seveno-application-questionnaires';
 import type { OfferPrerequisiteSnapshot, PrerequisiteAnswerOption } from '@/types/seveno-prerequisites';
@@ -29,6 +39,7 @@ import type { SevenoAssessmentScores, SevenoAssessmentStatus } from '@/types/sev
 const OFFERS_COLLECTION = 'job_offers';
 const APPLICATIONS_COLLECTION = 'job_applications';
 const GUARDS_COLLECTION = 'job_application_guards';
+const OFFER_CAPACITY_LOCKS_COLLECTION = 'job_application_offer_locks';
 const REUSABLE_COLLECTION = 'candidate_prerequisite_answers';
 const APPLICATION_MESSAGES_SUBCOLLECTION = 'messages';
 const CANDIDATE_PROFILES_COLLECTION = 'candidate_profiles';
@@ -580,6 +591,7 @@ function defaultCompanyAssessment(questionnaireVersion: string): SerializedCompa
     manualReviewRequired: false,
     manualReviewStatus: 'not_required',
     finalScore: null,
+    minimumPassingScorePercent: null,
     questionnaireVersion,
     completedAt: null,
     startedAt: null,
@@ -643,6 +655,9 @@ function serializeCompanyAssessment(
     finalScore: typeof data.finalScore === 'number' && Number.isFinite(data.finalScore)
       ? data.finalScore
       : null,
+    minimumPassingScorePercent: typeof data.minimumPassingScorePercent === 'number' && Number.isFinite(data.minimumPassingScorePercent)
+      ? data.minimumPassingScorePercent
+      : null,
     questionnaireVersion: normalizedQuestionnaireVersion,
     completedAt: timestampToIso(data.completedAt),
     startedAt: timestampToIso(data.startedAt),
@@ -679,9 +694,11 @@ function serializeApplication(id: string, data: FirestoreRecord): SerializedCand
     candidateDecisionAt: timestampToIso(data.candidateDecisionAt),
     companyDecisionAt: timestampToIso(data.companyDecisionAt),
     conversationId: typeof data.conversationId === 'string' && data.conversationId ? data.conversationId : null,
-    conversationStatus: data.conversationStatus === 'open' || data.conversationStatus === 'closed'
-      ? data.conversationStatus
-      : null,
+    conversationStatus: data.conversationStatus === 'open' || data.status === 'conversation_open'
+      ? 'open'
+      : data.conversationStatus === 'closed'
+        ? 'closed'
+        : null,
     conversationUnreadCandidateCount: typeof data.conversationUnreadCandidateCount === 'number' && Number.isFinite(data.conversationUnreadCandidateCount)
       ? data.conversationUnreadCandidateCount
       : 0,
@@ -700,6 +717,10 @@ function serializeApplication(id: string, data: FirestoreRecord): SerializedCand
     submittedAt: timestampToIso(data.submittedAt),
     withdrawnAt: timestampToIso(data.withdrawnAt),
   };
+}
+
+function hasOpenJobApplicationConversation(application: SerializedCandidateJobApplication) {
+  return application.conversationStatus === 'open' || application.status === 'conversation_open';
 }
 
 function serializeAnswer(data: FirestoreRecord): SerializedJobApplicationPrerequisiteAnswer {
@@ -1023,6 +1044,14 @@ export async function createCompanyApplicationInvitation(input: {
   const snapshots = [...projection.requiredPrerequisites, ...projection.preferredPrerequisites];
   const firestore = requireDatabase();
   const guardRef = firestore.collection(GUARDS_COLLECTION).doc(buildJobApplicationGuardId(projection.offerId, candidateProfile.uid));
+  const offerCapacityLockRef = firestore.collection(OFFER_CAPACITY_LOCKS_COLLECTION).doc(
+    buildOfferActiveCandidateFilesLockId(input.companyUid, projection.offerId),
+  );
+  const activeApplicationsQuery = firestore.collection(APPLICATIONS_COLLECTION)
+    .where('companyUid', '==', input.companyUid)
+    .where('offerId', '==', projection.offerId)
+    .orderBy('updatedAt', 'desc')
+    .orderBy('id', 'asc');
   const applicationId = randomUUID();
   const applicationRef = firestore.collection(APPLICATIONS_COLLECTION).doc(applicationId);
   const message = typeof input.message === 'string' ? input.message.trim() : '';
@@ -1038,6 +1067,20 @@ export async function createCompanyApplicationInvitation(input: {
           return guarded;
         }
       }
+    }
+
+    await transaction.get(offerCapacityLockRef);
+    const activeApplicationsSnapshot = await transaction.get(activeApplicationsQuery);
+    const activeCount = activeApplicationsSnapshot.docs.reduce((count, document) => {
+      const status = String(document.get('status') ?? '');
+      return isActiveCandidateFileStatus(status) ? count + 1 : count;
+    }, 0);
+    if (activeCount >= MAX_ACTIVE_CANDIDATE_FILES_PER_OFFER) {
+      throw new SevenoJobApplicationError(
+        'active_candidate_limit_reached',
+        409,
+        'Finalisez une candidature en cours avant d engager un nouveau candidat.',
+      );
     }
 
     const now = Timestamp.now();
@@ -1074,6 +1117,7 @@ export async function createCompanyApplicationInvitation(input: {
     };
 
     transaction.create(applicationRef, stored);
+    transaction.set(offerCapacityLockRef, touchOfferCapacityLockPayload(input.companyUid, projection.offerId), { merge: true });
     transaction.set(guardRef, {
       offerId: projection.offerId,
       candidateUid: candidateProfile.uid,
@@ -1103,12 +1147,16 @@ export async function createCompanyApplicationInvitation(input: {
 
 export async function listCompanyApplications(
   companyUid: string,
-  options: { limit?: number; cursor?: string; publicCandidateId?: string } = {},
+  options: { limit?: number; cursor?: string; publicCandidateId?: string; offerId?: string } = {},
 ) {
   await assertVerifiedCompanyAccount(companyUid);
   const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, options.limit ?? DEFAULT_PAGE_LIMIT));
   let query: Query = requireDatabase().collection(APPLICATIONS_COLLECTION)
     .where('companyUid', '==', companyUid);
+  const offerId = cleanText(options.offerId, 100);
+  if (offerId) {
+    query = query.where('offerId', '==', offerId);
+  }
   if (options.publicCandidateId) {
     query = query.where('publicCandidateId', '==', cleanText(options.publicCandidateId, 40));
   }
@@ -1121,11 +1169,24 @@ export async function listCompanyApplications(
   const documents = snapshot.docs.slice(0, limit);
   const last = documents.at(-1);
   const updatedAt = last?.get('updatedAt');
+  let prioritySelection: CompanyApplicationPrioritySelection | null = null;
+  if (offerId) {
+    const selectionSnapshot = await requireDatabase()
+      .collection(APPLICATIONS_COLLECTION)
+      .where('companyUid', '==', companyUid)
+      .where('offerId', '==', offerId)
+      .orderBy('updatedAt', 'desc')
+      .orderBy('id', 'asc')
+      .get();
+    const allOfferApplications = selectionSnapshot.docs.map((item) => serializeApplication(item.id, item.data() as FirestoreRecord));
+    prioritySelection = selectCompanyQuestionnairePriorityApplications(allOfferApplications);
+  }
   return {
     applications: documents.map((item) => serializeApplication(item.id, item.data() as FirestoreRecord)),
     nextCursor: snapshot.docs.length > limit && updatedAt instanceof Timestamp
       ? encodeCursor({ timestamp: updatedAt.toMillis(), id: last?.id ?? '' })
       : null,
+    prioritySelection,
   };
 }
 
@@ -1143,11 +1204,80 @@ export async function respondToJobApplicationInvitation(
       throw new SevenoJobApplicationError('forbidden_application', 403, 'Cette relation ne vous appartient pas.');
     }
     const application = serializeApplication(snapshot.id, snapshot.data() as FirestoreRecord);
-    if (application.origin !== 'company' || application.status !== 'invited') {
+    const isProposal = application.status === 'contact_requested';
+    const isInvitation = application.origin === 'company' && application.status === 'invited';
+    const isOpenConversation = hasOpenJobApplicationConversation(application);
+
+    if (!isProposal && !isInvitation && !isOpenConversation) {
       throw new SevenoJobApplicationError('invitation_unavailable', 409, 'Cette invitation ne peut plus etre repondue.');
     }
 
     const now = Timestamp.now();
+    if (isOpenConversation) {
+      if (decision === 'accepted') {
+        return application;
+      }
+
+      throw new SevenoJobApplicationError('conversation_already_open', 409, 'La relation est deja ouverte.');
+    }
+
+    if (isProposal) {
+      if (decision === 'accepted') {
+        const conversationId = application.conversationId ?? ref.id;
+        transaction.update(ref, {
+          status: 'conversation_open',
+          candidateDecisionAt: now,
+          conversationId,
+          conversationStatus: 'open',
+          conversationUnreadCandidateCount: 0,
+          conversationUnreadCompanyCount: 0,
+          updatedAt: now,
+        });
+        return {
+          ...application,
+          status: 'conversation_open' as const,
+          candidateDecisionAt: now.toDate().toISOString(),
+          conversationId,
+          conversationStatus: 'open' as const,
+          conversationUnreadCandidateCount: 0,
+          conversationUnreadCompanyCount: 0,
+          updatedAt: now.toDate().toISOString(),
+        };
+      }
+
+      transaction.update(ref, {
+        status: 'candidate_declined',
+        candidateDecisionAt: now,
+        conversationId: null,
+        conversationStatus: 'closed',
+        conversationUnreadCandidateCount: 0,
+        conversationUnreadCompanyCount: 0,
+        withdrawnAt: now,
+        updatedAt: now,
+      });
+      transaction.set(
+        firestore.collection(GUARDS_COLLECTION).doc(buildJobApplicationGuardId(application.offerId, candidateUid)),
+        {
+          offerId: application.offerId,
+          candidateUid,
+          applicationId: ref.id,
+          active: false,
+          updatedAt: now,
+        },
+      );
+      return {
+        ...application,
+        status: 'candidate_declined' as const,
+        candidateDecisionAt: now.toDate().toISOString(),
+        conversationId: null,
+        conversationStatus: 'closed' as const,
+        conversationUnreadCandidateCount: 0,
+        conversationUnreadCompanyCount: 0,
+        withdrawnAt: now.toDate().toISOString(),
+        updatedAt: now.toDate().toISOString(),
+      };
+    }
+
     if (decision === 'accepted') {
       transaction.update(ref, {
         status: 'prerequisites_in_progress',
@@ -1214,6 +1344,30 @@ export async function reviewCompanyJobApplication(
       throw new SevenoJobApplicationError('invalid_application', 409, 'La relation est invalide.');
     }
 
+    if (application.status === 'contact_requested') {
+      if (decision === 'interested') {
+        return application;
+      }
+
+      throw new SevenoJobApplicationError(
+        'proposal_already_pending',
+        409,
+        'Une proposition de mise en relation est deja en attente.',
+      );
+    }
+
+    if (hasOpenJobApplicationConversation(application)) {
+      if (decision === 'interested') {
+        return application;
+      }
+
+      throw new SevenoJobApplicationError(
+        'conversation_already_open',
+        409,
+        'La conversation est deja ouverte.',
+      );
+    }
+
     if (!['submitted', 'questionnaire_pending', 'questionnaire_completed'].includes(application.status)) {
       throw new SevenoJobApplicationError('application_not_ready', 409, 'La relation doit etre soumise et completee avant revue.');
     }
@@ -1233,18 +1387,22 @@ export async function reviewCompanyJobApplication(
     const now = Timestamp.now();
     if (decision === 'interested') {
       transaction.update(ref, {
-        status: 'conversation_open',
+        status: 'contact_requested',
         companyDecisionAt: now,
-        conversationId: ref.id,
-        conversationStatus: 'open',
+        conversationId: null,
+        conversationStatus: 'closed',
+        conversationUnreadCandidateCount: 0,
+        conversationUnreadCompanyCount: 0,
         updatedAt: now,
       });
       return {
         ...application,
-        status: 'conversation_open' as const,
+        status: 'contact_requested' as const,
         companyDecisionAt: now.toDate().toISOString(),
-        conversationId: ref.id,
-        conversationStatus: 'open' as const,
+        conversationId: null,
+        conversationStatus: 'closed' as const,
+        conversationUnreadCandidateCount: 0,
+        conversationUnreadCompanyCount: 0,
         updatedAt: now.toDate().toISOString(),
       };
     }
@@ -1292,6 +1450,10 @@ export async function getJobApplicationConversation(applicationId: string, parti
     }
   }
 
+  if (!hasOpenJobApplicationConversation(application)) {
+    return { application, messages: [] };
+  }
+
   const messages = await loadConversationMessages(applicationId);
   return { application, messages };
 }
@@ -1319,7 +1481,7 @@ export async function sendJobApplicationConversationMessage(
         throw new SevenoJobApplicationError('forbidden_application', 403, 'Cette relation ne vous appartient pas.');
       }
     }
-    if (application.conversationStatus !== 'open' || !application.conversationId) {
+    if (!hasOpenJobApplicationConversation(application)) {
       throw new SevenoJobApplicationError('conversation_closed', 409, 'La conversation n est pas ouverte.');
     }
 
@@ -1380,6 +1542,10 @@ export async function markJobApplicationConversationRead(
       if (participant.role === 'company' && String(record.companyUid ?? '') !== participant.uid) {
         throw new SevenoJobApplicationError('forbidden_application', 403, 'Cette relation ne vous appartient pas.');
       }
+    }
+
+    if (!hasOpenJobApplicationConversation(serializeApplication(snapshot.id, record))) {
+      throw new SevenoJobApplicationError('conversation_closed', 409, 'La conversation n est pas ouverte.');
     }
 
     const now = Timestamp.now();

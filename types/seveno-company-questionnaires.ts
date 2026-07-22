@@ -1,6 +1,8 @@
 import type { FirestoreDateValue } from '@/types/seveno';
 
 export type CompanyQuestionnaireStatus = 'draft' | 'active' | 'archived';
+export type CompanyQuestionnaireCreationMode = 'manual' | 'ai_import';
+export type CompanyQuestionnaireScoreClassification = 'qualified' | 'near_threshold' | 'below_threshold';
 export type CompanyQuestionType =
   | 'single_choice'
   | 'multiple_choice'
@@ -10,6 +12,7 @@ export type CompanyQuestionType =
   | 'long_text';
 export type CompanyQuestionCorrectionMode = 'automatic' | 'manual';
 export type CompanyQuestionNumberOperator = 'equals' | 'minimum' | 'maximum';
+export type CompanyQuestionDifficulty = 'easy' | 'medium' | 'hard';
 export type CompanyQuestionExpectedAnswer = string | string[] | boolean | number;
 
 export interface CompanyQuestionOption {
@@ -22,6 +25,7 @@ export interface CompanyQuestionInput {
   id: string;
   prompt: string;
   help?: string;
+  explanation?: string;
   type: CompanyQuestionType;
   required: boolean;
   options: CompanyQuestionOption[];
@@ -30,11 +34,15 @@ export interface CompanyQuestionInput {
   numberOperator?: CompanyQuestionNumberOperator;
   points: number;
   order: number;
+  difficulty?: CompanyQuestionDifficulty;
 }
 
 export interface CompanyQuestionnaireInput {
   title: string;
   instructions: string;
+  creationMode?: CompanyQuestionnaireCreationMode;
+  minimumPassingScorePercent?: number;
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestionInput[];
 }
@@ -57,7 +65,10 @@ export interface CompanyQuestionnaire {
   offerVersion: number;
   title: string;
   instructions: string;
+  creationMode: CompanyQuestionnaireCreationMode;
   status: CompanyQuestionnaireStatus;
+  minimumPassingScorePercent: number;
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestion[];
   version: number;
@@ -72,7 +83,10 @@ export interface CompanyQuestionnaireEditorProjection {
   offerVersion: number;
   title: string;
   instructions: string;
+  creationMode: CompanyQuestionnaireCreationMode;
   status: CompanyQuestionnaireStatus;
+  minimumPassingScorePercent: number;
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestionEditorProjection[];
   version: number;
@@ -87,6 +101,7 @@ export interface CompanyQuestionnaireListItem {
   title: string;
   questionCount: number;
   status: CompanyQuestionnaireStatus;
+  minimumPassingScorePercent: number;
   version: number;
   updatedAt: string;
   publishedAt: string | null;

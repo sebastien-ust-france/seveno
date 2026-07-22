@@ -37,7 +37,7 @@ export function AuthenticatedAppShell({
   sidebarTop,
   footerNote,
 }: AuthenticatedAppShellProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);

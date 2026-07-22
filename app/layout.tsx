@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://seveno.eu'),
   title: 'SEVENO',
   description: 'Plateforme europeenne dediee a la disponibilite des competences.',
   icons: {

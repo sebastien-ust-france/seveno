@@ -6,14 +6,12 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/candidat', label: 'Tableau de bord' },
   { href: '/candidat/onboarding', label: 'Mon profil' },
-  { href: '/candidat/test', label: "Questionnaire Seven'O" },
-  { href: '/candidat/offres', label: 'Offres' },
-  { href: '/candidat/candidatures', label: 'Mes candidatures' },
-  { href: '/candidat/demandes', label: 'Mises en relation' },
+  { href: '/candidat/identite', label: 'Mon identite' },
+  { href: '/candidat/recommandations', label: 'Recommandations' },
 ];
 
 export default function CandidateSectionNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   return (
     <nav aria-label="Navigation candidat" className="flex flex-wrap gap-2">
       {LINKS.map((link) => {

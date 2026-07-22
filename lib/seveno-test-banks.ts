@@ -62,7 +62,7 @@ function createQuestion(
 export const SEVENO_TEST_BANK_TEMPLATES: QuestionBankTemplate[] = [
   {
     code: 'seveno-general-v1',
-    label: "Questionnaire general Seven'O",
+    label: "Questionnaire général Seven’O",
     description: 'Evaluation generale de la maniere de travailler et des atouts professionnels.',
     assessmentType: 'seveno_general',
     version: '1.0.0',
@@ -350,7 +350,7 @@ export function getSevenoGeneralAssessmentTemplate(): QuestionBankTemplate {
   );
 
   if (!template) {
-    throw new Error("La banque d'evaluation generale Seven'O est absente.");
+    throw new Error("La banque d’évaluation générale Seven’O est absente.");
   }
 
   return template;

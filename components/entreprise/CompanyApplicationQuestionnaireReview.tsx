@@ -1,6 +1,7 @@
 'use client';
 
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
+import { buildQuestionnaireScoreSummary } from '@/lib/seveno-company-questionnaire-thresholds';
 import type {
   CompanyApplicationQuestionnaireAnswerRecord,
   CompanyApplicationQuestionnaireReviewView,
@@ -36,6 +37,9 @@ function getCorrectOptionIds(question: ReviewQuestion) {
 
 function getSelectedOptionIds(answer: CompanyApplicationQuestionnaireAnswerRecord | null) {
   if (!answer) {
+    return [];
+  }
+  if (answer.timedOutAt) {
     return [];
   }
   if (typeof answer.answerValue === 'string') {
@@ -95,6 +99,9 @@ function formatExpectedAnswer(question: ReviewQuestion) {
 
 function formatCandidateAnswer(question: ReviewQuestion, answer: CompanyApplicationQuestionnaireAnswerRecord | null) {
   if (!answer || answer.answerValue === null || answer.answeredAt === null) {
+    if (answer?.timedOutAt) {
+      return 'Temps écoulé';
+    }
     return 'Aucune réponse';
   }
 
@@ -125,6 +132,9 @@ function formatCandidateAnswer(question: ReviewQuestion, answer: CompanyApplicat
 }
 
 function resultTone(answer: CompanyApplicationQuestionnaireAnswerRecord | null) {
+  if (answer?.timedOutAt) {
+    return 'incorrect';
+  }
   if (!answer || answer.answerValue === null || answer.answeredAt === null) {
     return 'neutral';
   }
@@ -154,6 +164,9 @@ function toneClasses(tone: 'neutral' | 'correct' | 'incorrect' | 'manual') {
 }
 
 function formatQuestionTone(answer: CompanyApplicationQuestionnaireAnswerRecord | null) {
+  if (answer?.timedOutAt) {
+    return 'Temps écoulé';
+  }
   if (!answer || answer.answerValue === null || answer.answeredAt === null) {
     return 'Non répondu';
   }
@@ -233,8 +246,13 @@ export function CompanyApplicationQuestionnaireReview({
   }
 
   const { questionnaire, assessment, answers } = review;
-  const answerCount = answers.filter((answer) => answer.answeredAt !== null && answer.answerValue !== null).length;
+  const answerCount = answers.filter((answer) => answer.answeredAt !== null || answer.timedOutAt !== null).length;
   const correctCount = answers.filter((answer) => answer.automaticResult === 'correct').length;
+  const scoreSummary = buildQuestionnaireScoreSummary(
+    assessment?.finalScore ?? assessment?.automaticScorePercent ?? null,
+    assessment?.minimumPassingScorePercent ?? null,
+    'company',
+  );
 
   return (
     <SevenoPanel tone="neutral" className="p-5" id="questionnaire-candidat">
@@ -250,7 +268,12 @@ export function CompanyApplicationQuestionnaireReview({
               {questionnaire.questions.length} question(s)
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              {questionnaire.durationMinutes ? `${questionnaire.durationMinutes} minute(s)` : 'Sans limite de temps'}
+              {questionnaire.questionTimeSeconds} s / question
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Temps max estime : {Math.floor((questionnaire.questions.length * questionnaire.questionTimeSeconds) / 60)} min {(
+                questionnaire.questions.length * questionnaire.questionTimeSeconds
+              ) % 60} s
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
               {assessment?.status === 'completed'
@@ -268,13 +291,14 @@ export function CompanyApplicationQuestionnaireReview({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
           <article className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Score</p>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Résultat</p>
             <p className="mt-2 text-lg font-semibold text-white">
-              {assessment?.finalScore !== null && assessment?.finalScore !== undefined
-                ? `${Math.round(assessment.finalScore)}%`
-                : assessment?.automaticScorePercent !== null && assessment?.automaticScorePercent !== undefined
-                  ? `${Math.round(assessment.automaticScorePercent)}%`
-                  : 'En attente'}
+              {scoreSummary?.label ?? 'En attente'}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {scoreSummary
+                ? `${scoreSummary.scoreLabel} · ${scoreSummary.thresholdLabel}`
+                : 'Aucun résultat disponible pour le moment.'}
             </p>
           </article>
           <article className="rounded-[22px] border border-white/10 bg-white/5 p-4">
@@ -311,6 +335,11 @@ export function CompanyApplicationQuestionnaireReview({
                   </p>
                   <h4 className="mt-2 text-lg font-semibold text-white">{question.prompt}</h4>
                   {question.help ? <p className="mt-2 text-sm leading-7 text-slate-400">{question.help}</p> : null}
+                  {question.explanation ? (
+                    <p className="mt-3 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm leading-7 text-cyan-50">
+                      {question.explanation}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-slate-300">
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
@@ -322,10 +351,15 @@ export function CompanyApplicationQuestionnaireReview({
                           ? 'Oui / Non'
                           : question.type === 'number'
                             ? 'Numérique'
-                            : question.type === 'short_text'
-                              ? 'Texte court'
-                              : 'Texte long'}
+                        : question.type === 'short_text'
+                          ? 'Texte court'
+                          : 'Texte long'}
                   </span>
+                  {question.difficulty ? (
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                      Difficulte {question.difficulty}
+                    </span>
+                  ) : null}
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                     {question.points} point(s)
                   </span>

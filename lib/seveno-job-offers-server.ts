@@ -4,6 +4,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Timestamp, type Query } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
+import {
+  countActiveCandidateFilesForOffer,
+} from '@/lib/seveno-active-candidate-files-server';
 import { SEVENO_OFFER_PREREQUISITE_LIMITS } from '@/lib/seveno-prerequisite-constants';
 import { syncPrerequisiteSuggestionsForOffer } from '@/lib/seveno-prerequisite-suggestions-server';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
@@ -765,7 +768,14 @@ export async function listJobOffers(companyUid: string, options: {
   const documents = snapshot.docs.slice(0, limit);
   const last = documents.at(-1);
   const updatedAt = last?.get('updatedAt');
-  const offers = await Promise.all(documents.map(async (document) => hydrateQuestionnaireSnapshot(companyUid, serializeOffer(document.id, document.data() as FirestoreRecord))));
+  const offers = await Promise.all(documents.map(async (document) => {
+    const offer = await hydrateQuestionnaireSnapshot(companyUid, serializeOffer(document.id, document.data() as FirestoreRecord));
+    const activeCandidateFilesCount = await countActiveCandidateFilesForOffer(companyUid, offer.id).catch(() => 0);
+    return {
+      ...offer,
+      activeCandidateFilesCount,
+    };
+  }));
   return {
     offers,
     nextCursor: snapshot.docs.length > limit && updatedAt instanceof Timestamp

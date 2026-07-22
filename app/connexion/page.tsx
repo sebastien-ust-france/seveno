@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { FirebaseError } from 'firebase/app';
 import type { User } from 'firebase/auth';
 import {
   createEmailPasswordUser,
@@ -17,8 +18,8 @@ import {
   signInWithGoogle,
   signOutUser,
 } from '@/lib/auth';
-import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
-import type { PublicUserRole, SevenoUser } from '@/types/seveno';
+import { COMPANY_INVITE_ONLY_MESSAGE, ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import type { SevenoUser } from '@/types/seveno';
 
 type AuthMode = 'sign-in' | 'sign-up' | 'reset';
 type LoadingAction = 'google' | 'sign-in' | 'sign-up' | 'reset' | 'resend' | 'refresh' | 'sign-out' | null;
@@ -28,10 +29,134 @@ type PendingVerification = {
   sevenoUser: SevenoUser;
 };
 
+type GoogleSignInStage = 'popup' | 'token' | 'user_document' | 'redirect';
+
+function isFirebaseError(error: unknown): error is FirebaseError {
+  return error instanceof FirebaseError;
+}
+
 function getFirebaseErrorCode(error: unknown) {
+  if (isFirebaseError(error)) {
+    return error.code;
+  }
+
   return error && typeof error === 'object' && 'code' in error
     ? String((error as { code?: unknown }).code ?? 'unknown')
     : 'unknown';
+}
+
+function getFirebaseErrorName(error: unknown) {
+  return error instanceof Error ? error.name : 'UnknownError';
+}
+
+function getFirebaseErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function shouldRedactDiagnosticsKey(key: string) {
+  const normalizedKey = key.toLowerCase();
+
+  return [
+    'token',
+    'credential',
+    'secret',
+    'password',
+    'email',
+    'photo',
+    'access',
+    'refresh',
+    'idtoken',
+  ].some((fragment) => normalizedKey.includes(fragment));
+}
+
+function redactDiagnosticsValue(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'bigint' || typeof value === 'symbol') {
+    return String(value);
+  }
+
+  if (typeof value === 'function') {
+    return '[Function]';
+  }
+
+  if (Array.isArray(value)) {
+    if (depth >= 2) {
+      return '[Array]';
+    }
+
+    return value.map((entry) => redactDiagnosticsValue(entry, depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    if (depth >= 2) {
+      return '[Object]';
+    }
+
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        shouldRedactDiagnosticsKey(key) ? '[redacted]' : redactDiagnosticsValue(entry, depth + 1),
+      ]),
+    );
+  }
+
+  return String(value);
+}
+
+function getFirebaseCustomData(error: unknown) {
+  if (!error || typeof error !== 'object' || !('customData' in error)) {
+    return undefined;
+  }
+
+  return redactDiagnosticsValue((error as { customData?: unknown }).customData);
+}
+
+function getGoogleSignInDiagnostics(error: unknown, stage: GoogleSignInStage) {
+  return {
+    stage,
+    name: getFirebaseErrorName(error),
+    code: getFirebaseErrorCode(error),
+    message: getFirebaseErrorMessage(error),
+    customData: getFirebaseCustomData(error),
+    stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
+  };
+}
+
+function getGoogleSignInUserMessage(error: unknown, stage: GoogleSignInStage) {
+  switch (getFirebaseErrorCode(error)) {
+    case 'auth/popup-closed-by-user':
+      return 'La fenêtre de connexion Google a été fermée.';
+    case 'auth/popup-blocked':
+      return 'Chrome a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour Seven’O.';
+    case 'auth/unauthorized-domain':
+      return 'Ce domaine n est pas autorisé pour la connexion Google.';
+    case 'auth/network-request-failed':
+      return 'La connexion à Google a échoué. Vérifiez votre connexion Internet.';
+    case 'auth/invalid-api-key':
+      return 'La configuration Firebase locale est invalide.';
+    case 'auth/operation-not-allowed':
+      return 'La connexion Google n est pas activée dans Firebase.';
+    default:
+      break;
+  }
+
+  switch (stage) {
+    case 'token':
+      return 'La connexion Google a réussi, mais le jeton de session n a pas pu être récupéré.';
+    case 'user_document':
+      return 'La connexion Google a réussi, mais la synchronisation du compte Seven’O a échoué.';
+    case 'redirect':
+      return 'La connexion Google a réussi, mais la redirection a échoué.';
+    default:
+      return 'La connexion Google a échoué. Réessayez.';
+  }
 }
 
 function getSafeAuthError(error: unknown, context: AuthMode | 'google' | 'verification') {
@@ -82,7 +207,6 @@ export default function ConnexionPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [selectedRole, setSelectedRole] = useState<PublicUserRole>('candidate');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -157,16 +281,31 @@ export default function ConnexionPage() {
     setError(null);
     setNotice(null);
 
+    let stage: GoogleSignInStage = 'popup';
+
     try {
       const authUser = await signInWithGoogle();
+      stage = 'token';
+      try {
+        await authUser.getIdToken();
+      } catch (tokenError) {
+        console.error('Connexion Google SevenO echouee', getGoogleSignInDiagnostics(tokenError, stage));
+      }
+      stage = 'user_document';
       const sevenoUser = await ensureSevenoUser(authUser);
-      router.replace(resolveSevenoRedirect(sevenoUser));
-    } catch (thrownError) {
-      console.error('Connexion Google SevenO échouée', {
-        code: getFirebaseErrorCode(thrownError),
-        error: thrownError,
+      stage = 'redirect';
+      const redirectPath = resolveSevenoRedirect(sevenoUser);
+      console.info('Connexion Google SevenO reussie', {
+        stage,
+        uid: authUser.uid,
+        role: sevenoUser.role,
+        redirectPath,
       });
-      setError(getSafeAuthError(thrownError, 'google'));
+      router.replace(redirectPath);
+    } catch (thrownError) {
+      console.error('Connexion Google SevenO echouee', getGoogleSignInDiagnostics(thrownError, stage));
+      setError(getGoogleSignInUserMessage(thrownError, stage));
+    } finally {
       setLoadingAction(null);
     }
   }
@@ -242,7 +381,7 @@ export default function ConnexionPage() {
 
       let sevenoUser: SevenoUser;
       try {
-        sevenoUser = await ensureSevenoUser(createdAuthUser, selectedRole);
+        sevenoUser = await ensureSevenoUser(createdAuthUser, 'candidate');
       } catch (userDocumentError) {
         await deleteAuthUser(createdAuthUser).catch(() => undefined);
         createdAuthUser = null;
@@ -550,27 +689,9 @@ export default function ConnexionPage() {
                         />
                       </label>
 
-                      <fieldset className="space-y-3">
-                        <legend className="text-sm font-medium text-slate-200">Votre profil</legend>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {([
-                            { value: 'candidate' as const, label: 'Candidat' },
-                            { value: 'company' as const, label: 'Entreprise' },
-                          ]).map((option) => (
-                            <label key={option.value} className={`cursor-pointer rounded-2xl border p-4 text-sm transition ${selectedRole === option.value ? 'border-cyan-300/30 bg-cyan-400/10 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>
-                              <input
-                                type="radio"
-                                name="profile-role"
-                                value={option.value}
-                                checked={selectedRole === option.value}
-                                onChange={() => setSelectedRole(option.value)}
-                                className="mr-3 accent-cyan-400"
-                              />
-                              {option.label}
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
+                      <div className="rounded-2xl border border-violet-300/15 bg-violet-400/10 px-4 py-3 text-sm leading-6 text-violet-100">
+                        {COMPANY_INVITE_ONLY_MESSAGE}
+                      </div>
                     </>
                   ) : null}
 

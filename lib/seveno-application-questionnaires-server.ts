@@ -1,6 +1,11 @@
 import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
+import {
+  COMPANY_QUESTION_TIME_LIMIT_SECONDS,
+  COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
+} from '@/lib/seveno-company-questionnaire-constants';
+import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import { toCompanyQuestionEditorProjection } from '@/lib/seveno-company-questionnaires-server';
@@ -47,6 +52,7 @@ type AssessmentMetrics = {
   manualReviewRequired: boolean;
   manualReviewStatus: CompanyApplicationQuestionnaireManualReviewStatus;
   finalScore: number | null;
+  minimumPassingScorePercent?: number;
   manualQuestionsCount: number;
 } & Record<string, unknown>;
 
@@ -134,6 +140,31 @@ function serializeAttempt(session: FirestoreRecord, serverNow: Timestamp): Compa
     return null;
   }
 
+  const questionIds = Array.isArray(session.questionIds)
+    ? session.questionIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    : [];
+  const totalQuestions = typeof session.totalQuestions === 'number' && Number.isFinite(session.totalQuestions)
+    ? session.totalQuestions
+    : questionIds.length;
+  const answeredCount = typeof session.answersCount === 'number' && Number.isFinite(session.answersCount)
+    ? session.answersCount
+    : isPlainObject(session.answers)
+      ? Object.values(session.answers).filter((value) => value !== null && value !== undefined && value !== '').length
+      : 0;
+  const questionTimeSeconds = typeof session.questionTimeSeconds === 'number' && session.questionTimeSeconds > 0
+    ? session.questionTimeSeconds
+    : typeof session.durationSeconds === 'number' && session.durationSeconds > 0 && totalQuestions > 0
+      ? Math.max(1, Math.round(session.durationSeconds / totalQuestions))
+      : null;
+  const currentQuestionIndex = typeof session.currentQuestionIndex === 'number' && Number.isFinite(session.currentQuestionIndex)
+    ? session.currentQuestionIndex
+    : Math.min(answeredCount, Math.max(totalQuestions - 1, 0));
+  const currentQuestionStartedAt = toTimestamp(session.questionStartedAt) ?? startedAt;
+  const currentQuestionExpiresAt = toTimestamp(session.questionExpiresAt)
+    ?? (questionTimeSeconds
+      ? Timestamp.fromMillis(currentQuestionStartedAt.toMillis() + questionTimeSeconds * 1000)
+      : null);
+
   return {
     sessionId,
     status,
@@ -144,15 +175,22 @@ function serializeAttempt(session: FirestoreRecord, serverNow: Timestamp): Compa
     durationMinutes: typeof session.durationSeconds === 'number' && session.durationSeconds > 0
       ? Math.round(session.durationSeconds / 60)
       : null,
-    totalQuestions: typeof session.totalQuestions === 'number' ? session.totalQuestions : 0,
-    answerCount: typeof session.answersCount === 'number' ? session.answersCount : 0,
+    totalQuestions,
+    answerCount: answeredCount,
+    questionTimeSeconds,
+    currentQuestionId: typeof session.currentQuestionId === 'string' && session.currentQuestionId
+      ? session.currentQuestionId
+      : questionIds[Math.min(currentQuestionIndex, Math.max(questionIds.length - 1, 0))] ?? null,
+    currentQuestionIndex,
+    currentQuestionStartedAt: currentQuestionStartedAt.toDate().toISOString(),
+    currentQuestionExpiresAt: currentQuestionExpiresAt ? currentQuestionExpiresAt.toDate().toISOString() : null,
   };
 }
 
 function serializeAssessment(value: unknown, questionnaireVersionFallback: string | null): SerializedCompanyApplicationAssessmentSummary | null {
   const data = isPlainObject(value) ? value : null;
   if (!data) {
-    return questionnaireVersionFallback
+      return questionnaireVersionFallback
       ? {
           status: 'not_started',
           automaticScorePercent: null,
@@ -161,6 +199,7 @@ function serializeAssessment(value: unknown, questionnaireVersionFallback: strin
           manualReviewRequired: false,
           manualReviewStatus: 'not_required',
           finalScore: null,
+          minimumPassingScorePercent: null,
           questionnaireVersion: questionnaireVersionFallback,
           completedAt: null,
           startedAt: null,
@@ -207,6 +246,9 @@ function serializeAssessment(value: unknown, questionnaireVersionFallback: strin
     manualReviewStatus,
     finalScore: typeof data.finalScore === 'number' && Number.isFinite(data.finalScore)
       ? data.finalScore
+      : null,
+    minimumPassingScorePercent: typeof data.minimumPassingScorePercent === 'number' && Number.isFinite(data.minimumPassingScorePercent)
+      ? data.minimumPassingScorePercent
       : null,
     questionnaireVersion,
     completedAt: timestampToIso(data.completedAt),
@@ -260,6 +302,7 @@ function buildQuestionnaireProjection(questionnaireVersion: string, data: Firest
     title: String(data.title ?? ''),
     instructions: String(data.instructions ?? ''),
     durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : null,
+    questionTimeSeconds: COMPANY_QUESTION_TIME_LIMIT_SECONDS,
     status: data.status === 'active' || data.status === 'archived' ? data.status : 'draft',
     questions: questions
       .map((question) => buildPublicQuestion(question))
@@ -285,6 +328,7 @@ function buildQuestionnaireReviewProjection(
     title: String(data.title ?? ''),
     instructions: String(data.instructions ?? ''),
     durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : null,
+    questionTimeSeconds: COMPANY_QUESTION_TIME_LIMIT_SECONDS,
     status: data.status === 'active' || data.status === 'archived' ? data.status : 'draft',
     questions: questions
       .map((question) => ({ ...question, options: Array.isArray(question.options) ? question.options.map((option) => ({ ...option })) : [] }))
@@ -418,6 +462,13 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
   return {
     questionnaireId,
     questionnaireVersion,
+    minimumPassingScorePercent: (() => {
+      try {
+        return normalizeQuestionnaireMinimumPassingScorePercent(versionData.minimumPassingScorePercent);
+      } catch {
+        return COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT;
+      }
+    })(),
     currentStatus: currentData?.status === 'active' || currentData?.status === 'archived' ? currentData.status as 'active' | 'archived' : 'draft',
     projection: buildQuestionnaireProjection(questionnaireVersion, versionData),
     rawQuestions: Array.isArray(versionData.questions) ? versionData.questions as CompanyQuestion[] : [],
@@ -452,6 +503,15 @@ function buildQuestionnaireAvailability(
     return {
       available: false,
       status: 'completed' as const,
+    };
+  }
+
+  if (attempt?.status === 'expired') {
+    return {
+      available: false,
+      status: 'unavailable' as const,
+      reasonCode: 'questionnaire_expired',
+      reason: 'Le temps imparti est depasse. Vous devez recommencer le questionnaire.',
     };
   }
 
@@ -568,7 +628,7 @@ function compareArrayValues(left: string[], right: string[]) {
   return leftSet.size === rightSet.size && left.every((value) => rightSet.has(value));
 }
 
-function evaluateQuestion(question: CompanyQuestion, value: unknown): {
+function evaluateQuestion(question: CompanyQuestion, value: unknown, timedOut = false): {
   record: CompanyApplicationQuestionnaireAnswerRecord;
   autoScoredPoints: number;
   autoScoredMaximum: number;
@@ -581,7 +641,26 @@ function evaluateQuestion(question: CompanyQuestion, value: unknown): {
     questionType: question.type,
     answerValue: normalized ?? null,
     answeredAt: normalized === null ? null : answeredAt.toDate().toISOString(),
+    ...(timedOut ? { timedOutAt: answeredAt.toDate().toISOString() } : {}),
   };
+
+  if (timedOut) {
+    const canAutoScore = question.correctionMode === 'automatic'
+      && (question.type === 'single_choice'
+        || question.type === 'multiple_choice'
+        || question.type === 'boolean'
+        || question.type === 'number');
+    return {
+      record: {
+        ...baseRecord,
+        automaticResult: 'incorrect',
+        awardedPoints: 0,
+      },
+      autoScoredPoints: 0,
+      autoScoredMaximum: canAutoScore ? question.points : 0,
+      manualQuestionsCount: 0,
+    };
+  }
 
   if (normalized === null) {
     return { record: baseRecord, autoScoredPoints: 0, autoScoredMaximum: 0, manualQuestionsCount: 0 };
@@ -640,6 +719,7 @@ function evaluateQuestion(question: CompanyQuestion, value: unknown): {
 function computeAssessment(
   questions: CompanyQuestion[],
   providedAnswers: Map<string, unknown>,
+  timedOutQuestionIds: Set<string> = new Set(),
 ) {
   const answerRecords: CompanyApplicationQuestionnaireAnswerRecord[] = [];
   let autoScoredPoints = 0;
@@ -649,10 +729,12 @@ function computeAssessment(
   for (const question of [...questions].sort((left, right) => left.order - right.order)) {
     const provided = providedAnswers.has(question.id);
     const value = provided ? providedAnswers.get(question.id) : null;
-    if (question.required && (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0))) {
+    const timedOut = timedOutQuestionIds.has(question.id);
+    const effectiveValue = timedOut ? null : value;
+    if (!timedOut && question.required && (effectiveValue === null || effectiveValue === undefined || effectiveValue === '' || (Array.isArray(effectiveValue) && effectiveValue.length === 0))) {
       throw new SevenoApplicationQuestionnaireError('question_required', 400, `La question ${question.id} doit etre renseignee.`);
     }
-    const scored = evaluateQuestion(question, value);
+    const scored = evaluateQuestion(question, effectiveValue, timedOut);
     answerRecords.push(scored.record);
     autoScoredPoints += scored.autoScoredPoints;
     autoScoredMaximum += scored.autoScoredMaximum;
@@ -685,6 +767,7 @@ function buildStoredAssessmentSummary(
   questionnaireVersion: string,
   sessionId: string | null,
   resultId: string | null,
+  minimumPassingScorePercent: number,
   metrics: AssessmentMetrics,
   startedAt: Timestamp | null,
   submittedAt: Timestamp | null,
@@ -697,6 +780,7 @@ function buildStoredAssessmentSummary(
     manualReviewRequired: metrics.manualReviewRequired,
     manualReviewStatus: metrics.manualReviewStatus,
     finalScore: metrics.finalScore,
+    minimumPassingScorePercent,
     questionnaireVersion,
     completedAt: submittedAt,
     startedAt,
@@ -705,6 +789,34 @@ function buildStoredAssessmentSummary(
     resultId,
     manualQuestionsCount: metrics.manualQuestionsCount,
   };
+}
+
+export function shuffleQuestionIds(questionIds: string[], rng: () => number = Math.random) {
+  const shuffled = [...questionIds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function orderQuestionsByIds<T extends { id: string }>(questions: T[], questionIds: string[]) {
+  if (!questionIds.length) {
+    return [...questions];
+  }
+
+  const byId = new Map(questions.map((question) => [question.id, question] as const));
+  const ordered = questionIds.map((questionId) => byId.get(questionId)).filter((question): question is T => Boolean(question));
+  return ordered.length === questions.length ? ordered : [...questions];
+}
+
+function getSessionOrderedQuestions<T extends { id: string }>(session: FirestoreRecord, questions: T[]) {
+  if (!Array.isArray(session.questionIds)) {
+    return [...questions];
+  }
+
+  const questionIds = session.questionIds.filter((item): item is string => typeof item === 'string' && item.length > 0);
+  return orderQuestionsByIds(questions, questionIds);
 }
 
 function buildSessionRecord(params: {
@@ -720,14 +832,18 @@ function buildSessionRecord(params: {
   questionnaireId: string;
   questionnaireVersion: string;
   questionnaireQuestions: CompanyApplicationQuestionnaireProjection['questions'];
-  durationMinutes: number | null;
+  questionTimeSeconds: number;
+  minimumPassingScorePercent: number;
   startedAt: Timestamp;
 }) {
-  const durationSeconds = params.durationMinutes ? params.durationMinutes * 60 : 0;
-  const expiresAt = params.durationMinutes
+  const questionIds = shuffleQuestionIds(params.questionnaireQuestions.map((question) => question.id));
+  const durationSeconds = questionIds.length > 0 ? params.questionTimeSeconds * questionIds.length : 0;
+  const expiresAt = durationSeconds > 0
     ? Timestamp.fromMillis(params.startedAt.toMillis() + durationSeconds * 1000)
+    : params.startedAt;
+  const firstQuestionExpiresAt = questionIds.length > 0
+    ? Timestamp.fromMillis(params.startedAt.toMillis() + params.questionTimeSeconds * 1000)
     : null;
-  const questionIds = params.questionnaireQuestions.map((question) => question.id);
 
   return {
     uid: params.candidateUid,
@@ -749,14 +865,20 @@ function buildSessionRecord(params: {
     questionIds,
     answersCount: 0,
     durationSeconds,
-    threshold: 0,
+    questionTimeSeconds: params.questionTimeSeconds,
+    threshold: params.minimumPassingScorePercent,
     score: null,
     correctAnswers: 0,
     totalQuestions: questionIds.length,
+    timedOutQuestionIds: [],
     passed: false,
     startedAt: params.startedAt,
+    questionStartedAt: params.startedAt,
+    questionExpiresAt: firstQuestionExpiresAt,
+    currentQuestionIndex: 0,
+    currentQuestionId: questionIds[0] ?? null,
     submittedAt: null,
-    expiresAt: expiresAt ?? Timestamp.fromMillis(params.startedAt.toMillis()),
+    expiresAt,
     expiredAt: null,
     cancelledAt: null,
     abandonedAt: null,
@@ -794,10 +916,13 @@ export async function getCandidateApplicationQuestionnaireView(
   const serverNow = Timestamp.now();
   const firestore = requireDatabase();
   let attempt: CompanyApplicationQuestionnaireAttemptSummary | null = null;
+  let orderedQuestions = bundle.projection.questions;
   if (assessment?.sessionId) {
     const sessionSnapshot = await firestore.collection(SESSIONS_COLLECTION).doc(assessment.sessionId).get();
     if (sessionSnapshot.exists) {
-      attempt = serializeAttempt({ id: sessionSnapshot.id, ...sessionSnapshot.data() as FirestoreRecord }, serverNow);
+      const sessionData = sessionSnapshot.data() as FirestoreRecord;
+      attempt = serializeAttempt({ id: sessionSnapshot.id, ...sessionData }, serverNow);
+      orderedQuestions = getSessionOrderedQuestions(sessionData, bundle.projection.questions);
     }
   }
 
@@ -805,9 +930,9 @@ export async function getCandidateApplicationQuestionnaireView(
   return {
     questionnaire:
       access.available || access.status === 'in_progress' || access.status === 'completed'
-        ? bundle.projection
-        : assessment?.status === 'expired' || assessment?.status === 'abandoned'
-          ? bundle.projection
+        ? { ...bundle.projection, questions: orderedQuestions }
+        : attempt?.status === 'expired' || assessment?.status === 'expired' || assessment?.status === 'abandoned'
+          ? { ...bundle.projection, questions: orderedQuestions }
           : null,
     access,
     assessment,
@@ -879,6 +1004,7 @@ export async function getCompanyApplicationQuestionnaireReview(
       title: bundle.projection.title,
       instructions: bundle.projection.instructions,
       durationMinutes: bundle.projection.durationMinutes,
+      questionTimeSeconds: bundle.projection.questionTimeSeconds,
       status: bundle.projection.status,
       questionnaireVersion: bundle.questionnaireVersion,
       questions: bundle.rawQuestions,
@@ -908,6 +1034,7 @@ export async function startCandidateApplicationQuestionnaire(
   const questionnaireProjection = bundle.projection;
   const questionnaireVersion = bundle.questionnaireVersion;
   const questionnaireId = bundle.questionnaireId;
+  const minimumPassingScorePercent = bundle.minimumPassingScorePercent;
 
   const appRef = application.ref;
   const sessionRef = firestore.collection(SESSIONS_COLLECTION).doc();
@@ -925,8 +1052,8 @@ export async function startCandidateApplicationQuestionnaire(
     const currentSessionSnapshot = await firestore.collection(SESSIONS_COLLECTION).doc(currentAttempt.sessionId).get();
     if (currentSessionSnapshot.exists && currentSessionSnapshot.get('status') === 'in_progress') {
       const currentSession = currentSessionSnapshot.data() as FirestoreRecord;
-      const expiresAt = toTimestamp(currentSession.expiresAt);
-      if (typeof currentSession.durationSeconds !== 'number' || currentSession.durationSeconds <= 0 || !expiresAt || expiresAt.toMillis() > Timestamp.now().toMillis()) {
+      const serializedAttempt = serializeAttempt({ id: currentSessionSnapshot.id, ...currentSession }, Timestamp.now());
+      if (serializedAttempt?.status === 'in_progress') {
         return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
       }
     }
@@ -981,8 +1108,8 @@ export async function startCandidateApplicationQuestionnaire(
         ? session.status
         : 'in_progress';
       if (sessionStatus === 'in_progress') {
-        const expiresAt = toTimestamp(session.expiresAt);
-        if (typeof session.durationSeconds === 'number' && session.durationSeconds > 0 && expiresAt && expiresAt.toMillis() <= now.toMillis()) {
+        const serializedAttempt = serializeAttempt({ id: currentSessionId, ...session }, now);
+        if (serializedAttempt?.status === 'expired') {
           transaction.update(currentSessionSnapshot.ref, {
             status: 'expired',
             expiredAt: now,
@@ -993,6 +1120,7 @@ export async function startCandidateApplicationQuestionnaire(
               questionnaireVersion,
               currentSessionId,
               currentAttempt?.resultId ?? null,
+              minimumPassingScorePercent,
               {
                 status: 'expired',
                 automaticScorePercent: null,
@@ -1007,6 +1135,7 @@ export async function startCandidateApplicationQuestionnaire(
                 submittedAt: null,
                 sessionId: currentSessionId,
                 resultId: currentAttempt?.resultId ?? null,
+                minimumPassingScorePercent,
                 manualQuestionsCount: 0,
               },
               session.startedAt instanceof Timestamp ? session.startedAt : now,
@@ -1033,7 +1162,8 @@ export async function startCandidateApplicationQuestionnaire(
       questionnaireId,
       questionnaireVersion,
       questionnaireQuestions: questionnaireProjection.questions,
-      durationMinutes: questionnaireProjection.durationMinutes,
+      questionTimeSeconds: COMPANY_QUESTION_TIME_LIMIT_SECONDS,
+      minimumPassingScorePercent,
       startedAt: now,
     });
 
@@ -1044,6 +1174,7 @@ export async function startCandidateApplicationQuestionnaire(
         questionnaireVersion,
         sessionRef.id,
         null,
+        minimumPassingScorePercent,
         {
           status: 'in_progress',
           automaticScorePercent: null,
@@ -1058,6 +1189,7 @@ export async function startCandidateApplicationQuestionnaire(
           submittedAt: null,
           sessionId: sessionRef.id,
           resultId: null,
+          minimumPassingScorePercent,
           manualQuestionsCount: 0,
         },
         now,
@@ -1088,8 +1220,241 @@ export async function submitCandidateApplicationQuestionnaire(
   const sessionRef = firestore.collection(SESSIONS_COLLECTION).doc(cleanText(sessionId, 120));
   const resultRef = firestore.collection(RESULTS_COLLECTION).doc(cleanText(sessionId, 120));
   const questions = bundle.rawQuestions;
-  const providedAnswers = normalizeSubmissionAnswers(rawAnswers, questions);
+  const minimumPassingScorePercent = bundle.minimumPassingScorePercent;
   const now = Timestamp.now();
+  const payload = isPlainObject(rawAnswers) ? rawAnswers : null;
+
+  if (payload && typeof payload.questionId === 'string') {
+    const questionId = cleanText(payload.questionId, 120);
+    const providedAnswer = 'answer' in payload ? payload.answer : null;
+
+    const committed = await firestore.runTransaction(async (transaction) => {
+      const [appSnapshot, sessionSnapshot, resultSnapshot] = await Promise.all([
+        transaction.get(appRef),
+        transaction.get(sessionRef),
+        transaction.get(resultRef),
+      ]);
+
+      if (!appSnapshot.exists || appSnapshot.get('candidateUid') !== candidateUid) {
+        throw new SevenoApplicationQuestionnaireError('forbidden_application', 403, 'Cette candidature ne vous appartient pas.');
+      }
+
+      const appData = appSnapshot.data() as FirestoreRecord;
+      const summary = serializeAssessment(appData.companyAssessment, bundle.questionnaireVersion);
+      if (!summary?.sessionId || summary.sessionId !== sessionId) {
+        throw new SevenoApplicationQuestionnaireError('forbidden_session', 403, 'Cette tentative ne vous appartient pas.');
+      }
+
+      if (!sessionSnapshot.exists) {
+        throw new SevenoApplicationQuestionnaireError('session_not_found', 404, 'Tentative de questionnaire introuvable.');
+      }
+
+      const session = sessionSnapshot.data() as FirestoreRecord;
+      if (session.applicationId !== applicationId || session.candidateUid !== candidateUid) {
+        throw new SevenoApplicationQuestionnaireError('forbidden_session', 403, 'Cette tentative ne vous appartient pas.');
+      }
+
+      if (session.status !== 'in_progress') {
+        if (session.status === 'expired') {
+          throw new SevenoApplicationQuestionnaireError(
+            'session_expired',
+            409,
+            'Le temps imparti est depasse. Vous devez recommencer le questionnaire.',
+          );
+        }
+        if ((session.status === 'submitted' || session.status === 'completed') && resultSnapshot.exists) {
+          return true;
+        }
+        throw new SevenoApplicationQuestionnaireError('session_not_active', 409, 'Cette tentative de questionnaire n est plus active.');
+      }
+
+      const serializedAttempt = serializeAttempt({ id: sessionSnapshot.id, ...session }, now);
+      if (serializedAttempt?.status === 'expired') {
+        transaction.update(sessionRef, {
+          status: 'expired',
+          expiredAt: now,
+          updatedAt: now,
+        });
+        transaction.update(appRef, {
+          companyAssessment: buildStoredAssessmentSummary(
+            summary.questionnaireVersion,
+            sessionId,
+            summary.resultId,
+            minimumPassingScorePercent,
+            {
+              status: 'expired',
+              automaticScorePercent: null,
+              autoScoredPoints: null,
+              autoScoredMaximum: null,
+              manualReviewRequired: false,
+              manualReviewStatus: 'not_required',
+              finalScore: null,
+              questionnaireVersion: summary.questionnaireVersion,
+              completedAt: null,
+              startedAt: toTimestamp(session.startedAt),
+              submittedAt: null,
+              sessionId,
+              resultId: summary.resultId,
+              minimumPassingScorePercent,
+              manualQuestionsCount: 0,
+            },
+            toTimestamp(session.startedAt),
+            null,
+          ),
+          updatedAt: now,
+        });
+        throw new SevenoApplicationQuestionnaireError(
+          'session_expired',
+          409,
+          'Le temps imparti est depasse. Vous devez recommencer le questionnaire.',
+        );
+      }
+
+      const sessionQuestions = getSessionOrderedQuestions(session, questions);
+      const currentQuestionId = typeof session.currentQuestionId === 'string' && session.currentQuestionId
+        ? session.currentQuestionId
+        : sessionQuestions[Math.max(0, typeof session.currentQuestionIndex === 'number' ? session.currentQuestionIndex : 0)]?.id ?? '';
+      const currentQuestionIndex = typeof session.currentQuestionIndex === 'number' && Number.isFinite(session.currentQuestionIndex)
+        ? session.currentQuestionIndex
+        : sessionQuestions.findIndex((item) => item.id === currentQuestionId);
+      const question = sessionQuestions[currentQuestionIndex] ?? sessionQuestions.find((item) => item.id === currentQuestionId);
+      if (!question) {
+        throw new SevenoApplicationQuestionnaireError('question_not_found', 404, 'La question en cours est introuvable.');
+      }
+      if (question.id !== questionId) {
+        throw new SevenoApplicationQuestionnaireError('question_mismatch', 409, 'La question envoyee ne correspond pas a la question en cours.');
+      }
+
+      const questionExpiresAt = toTimestamp(session.questionExpiresAt);
+      const timedOut = payload.timeout === true
+        || Boolean(questionExpiresAt && questionExpiresAt.toMillis() <= now.toMillis());
+      const normalizedAnswer = timedOut ? null : normalizeAnswerValue(question, providedAnswer);
+      if (!timedOut && question.required && (normalizedAnswer === null || normalizedAnswer === undefined || normalizedAnswer === '' || (Array.isArray(normalizedAnswer) && normalizedAnswer.length === 0))) {
+        throw new SevenoApplicationQuestionnaireError('question_required', 400, `La question ${question.id} doit etre renseignee.`);
+      }
+
+      const storedAnswers = isPlainObject(session.answers) ? { ...session.answers } : {};
+      storedAnswers[question.id] = normalizedAnswer;
+      const timedOutQuestionIds = Array.isArray(session.timedOutQuestionIds)
+        ? session.timedOutQuestionIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
+        : [];
+      if (timedOut && !timedOutQuestionIds.includes(question.id)) {
+        timedOutQuestionIds.push(question.id);
+      }
+      const answersCount = Object.values(storedAnswers).filter((value) => value !== null && value !== undefined && value !== '').length;
+      const isLastQuestion = currentQuestionIndex >= sessionQuestions.length - 1;
+
+      if (!isLastQuestion) {
+        const nextQuestion = sessionQuestions[currentQuestionIndex + 1];
+        transaction.update(sessionRef, {
+          status: 'in_progress',
+          answers: storedAnswers,
+          timedOutQuestionIds,
+          answersCount,
+          lastQuestionId: question.id,
+          currentQuestionIndex: currentQuestionIndex + 1,
+          currentQuestionId: nextQuestion.id,
+          questionStartedAt: now,
+          questionExpiresAt: Timestamp.fromMillis(now.toMillis() + COMPANY_QUESTION_TIME_LIMIT_SECONDS * 1000),
+          updatedAt: now,
+        });
+        return true;
+      }
+
+      const fullAnswers = new Map(Object.entries(storedAnswers));
+      const assessment = computeAssessment(sessionQuestions, fullAnswers, new Set(timedOutQuestionIds));
+      const startedAt = toTimestamp(session.startedAt) ?? now;
+      const submittedAt = now;
+      const questionnaireVersion = summary.questionnaireVersion;
+      const totalDurationSeconds = sessionQuestions.length > 0 ? COMPANY_QUESTION_TIME_LIMIT_SECONDS * sessionQuestions.length : 0;
+      const scorePercent = assessment.finalScore ?? assessment.automaticScorePercent ?? 0;
+      const resultPayload = {
+        uid: candidateUid,
+        candidateUid,
+        publicCandidateId: cleanText(session.publicCandidateId ?? application.data.publicCandidateId, 40),
+        sessionId,
+        candidateProfileId: candidateUid,
+        assessmentType: 'company_application',
+        questionnaireVersion,
+        applicationId,
+        offerId: application.data.offerId,
+        companyUid: application.data.companyUid,
+        questionnaireId: bundle.questionnaireId,
+        status: 'completed',
+        sectorId: application.data.offerSnapshot.sectorId,
+        jobFamilyId: application.data.offerSnapshot.jobFamilyId,
+        jobRoleId: application.data.offerSnapshot.jobRoleId,
+        questionBankCode: bundle.questionnaireId,
+        questionBankVersion: questionnaireVersion,
+        score: scorePercent,
+        overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
+        correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
+        totalQuestions: assessment.questionCount,
+        passed: scorePercent >= minimumPassingScorePercent,
+        threshold: minimumPassingScorePercent,
+        durationSeconds: totalDurationSeconds,
+        answersCount: assessment.answerRecords.filter((item) => item.answeredAt !== null).length,
+        submittedAt,
+        questionIds: sessionQuestions.map((item) => item.id),
+        answers: Object.fromEntries(assessment.answerRecords.map((item) => [item.questionId, item.answerValue])),
+        companyApplicationAnswers: assessment.answerRecords,
+        autoScoredPoints: assessment.autoScoredPoints,
+        autoScoredMaximum: assessment.autoScoredMaximum,
+        automaticScorePercent: assessment.automaticScorePercent,
+        manualReviewRequired: assessment.manualReviewRequired,
+        manualReviewStatus: assessment.manualReviewStatus,
+        finalScore: assessment.finalScore,
+        manualQuestionsCount: assessment.manualQuestionsCount,
+        timedOutQuestionIds,
+        startedAt,
+        createdAt: submittedAt,
+        verifiedAt: submittedAt,
+      };
+
+      transaction.create(resultRef, resultPayload);
+      transaction.update(sessionRef, {
+        status: assessment.status,
+        score: scorePercent,
+        overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
+        correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
+        totalQuestions: assessment.questionCount,
+        passed: scorePercent >= minimumPassingScorePercent,
+        threshold: minimumPassingScorePercent,
+        answersCount: assessment.answerRecords.filter((item) => item.answeredAt !== null).length,
+        answers: storedAnswers,
+        timedOutQuestionIds,
+        lastQuestionId: question.id,
+        currentQuestionIndex: currentQuestionIndex + 1,
+        currentQuestionId: null,
+        questionStartedAt: now,
+        questionExpiresAt: null,
+        submittedAt,
+        updatedAt: submittedAt,
+      });
+      transaction.update(appRef, {
+        status: 'questionnaire_completed',
+        companyAssessment: buildStoredAssessmentSummary(
+          questionnaireVersion,
+          sessionId,
+          resultRef.id,
+          minimumPassingScorePercent,
+          assessment,
+          startedAt,
+          submittedAt,
+        ),
+        updatedAt: submittedAt,
+      });
+      return true;
+    });
+
+    if (!committed) {
+      throw new SevenoApplicationQuestionnaireError('submission_failed', 409, 'La soumission du questionnaire a echoue.');
+    }
+
+    return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
+  }
+
+  const providedAnswers = normalizeSubmissionAnswers(rawAnswers, questions);
 
   const committed = await firestore.runTransaction(async (transaction) => {
     const [appSnapshot, sessionSnapshot, resultSnapshot] = await Promise.all([
@@ -1146,6 +1511,7 @@ export async function submitCandidateApplicationQuestionnaire(
           summary.questionnaireVersion,
           sessionId,
           summary.resultId,
+          minimumPassingScorePercent,
           {
             status: 'expired',
             automaticScorePercent: null,
@@ -1160,6 +1526,7 @@ export async function submitCandidateApplicationQuestionnaire(
             submittedAt: null,
             sessionId,
             resultId: summary.resultId,
+            minimumPassingScorePercent,
             manualQuestionsCount: 0,
           },
           toTimestamp(session.startedAt),
@@ -1174,11 +1541,18 @@ export async function submitCandidateApplicationQuestionnaire(
       );
     }
 
-    const assessment = computeAssessment(questions, providedAnswers);
-    const startedAt = toTimestamp(session.startedAt) ?? now;
-    const submittedAt = now;
-    const questionnaireVersion = summary.questionnaireVersion;
-    const resultPayload = {
+    const sessionQuestions = getSessionOrderedQuestions(session, questions);
+    const timedOutQuestionIds = new Set(
+      Array.isArray(session.timedOutQuestionIds)
+        ? session.timedOutQuestionIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
+        : [],
+    );
+      const assessment = computeAssessment(sessionQuestions, providedAnswers, timedOutQuestionIds);
+      const startedAt = toTimestamp(session.startedAt) ?? now;
+      const submittedAt = now;
+      const questionnaireVersion = summary.questionnaireVersion;
+      const scorePercent = assessment.finalScore ?? assessment.automaticScorePercent ?? 0;
+      const resultPayload = {
       uid: candidateUid,
       candidateUid,
       publicCandidateId: cleanText(session.publicCandidateId ?? application.data.publicCandidateId, 40),
@@ -1193,19 +1567,19 @@ export async function submitCandidateApplicationQuestionnaire(
       status: 'completed',
       sectorId: application.data.offerSnapshot.sectorId,
       jobFamilyId: application.data.offerSnapshot.jobFamilyId,
-      jobRoleId: application.data.offerSnapshot.jobRoleId,
-      questionBankCode: bundle.questionnaireId,
-      questionBankVersion: questionnaireVersion,
-      score: assessment.automaticScorePercent ?? 0,
-      overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
-      correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
-      totalQuestions: assessment.questionCount,
-      passed: !assessment.manualReviewRequired,
-      threshold: 0,
-      durationSeconds: session.durationSeconds ?? 0,
+        jobRoleId: application.data.offerSnapshot.jobRoleId,
+        questionBankCode: bundle.questionnaireId,
+        questionBankVersion: questionnaireVersion,
+        score: scorePercent,
+        overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
+        correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
+        totalQuestions: assessment.questionCount,
+        passed: scorePercent >= minimumPassingScorePercent,
+        threshold: minimumPassingScorePercent,
+        durationSeconds: session.durationSeconds ?? 0,
       answersCount: assessment.answerRecords.filter((item) => item.answeredAt !== null).length,
       submittedAt,
-      questionIds: questions.map((question) => question.id),
+      questionIds: sessionQuestions.map((question) => question.id),
       answers: Object.fromEntries(assessment.answerRecords.map((item) => [item.questionId, item.answerValue])),
       companyApplicationAnswers: assessment.answerRecords,
       autoScoredPoints: assessment.autoScoredPoints,
@@ -1215,23 +1589,26 @@ export async function submitCandidateApplicationQuestionnaire(
       manualReviewStatus: assessment.manualReviewStatus,
       finalScore: assessment.finalScore,
       manualQuestionsCount: assessment.manualQuestionsCount,
+      timedOutQuestionIds: [...timedOutQuestionIds],
       startedAt,
       createdAt: submittedAt,
       verifiedAt: submittedAt,
     };
 
     transaction.create(resultRef, resultPayload);
-    transaction.update(sessionRef, {
-      status: assessment.status,
-      score: assessment.automaticScorePercent ?? 0,
-      overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
-      correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
-      totalQuestions: assessment.questionCount,
-      passed: !assessment.manualReviewRequired,
-      answersCount: assessment.answerRecords.filter((item) => item.answeredAt !== null).length,
+      transaction.update(sessionRef, {
+        status: assessment.status,
+        score: scorePercent,
+        overallScore: assessment.finalScore ?? assessment.automaticScorePercent ?? null,
+        correctAnswers: assessment.answerRecords.filter((item) => item.automaticResult === 'correct').length,
+        totalQuestions: assessment.questionCount,
+        passed: scorePercent >= minimumPassingScorePercent,
+        threshold: minimumPassingScorePercent,
+        answersCount: assessment.answerRecords.filter((item) => item.answeredAt !== null).length,
       submittedAt,
+      timedOutQuestionIds: [...timedOutQuestionIds],
       updatedAt: submittedAt,
-      ...(assessment.status === 'completed' ? { lastQuestionId: questions.at(-1)?.id ?? null } : {}),
+      ...(assessment.status === 'completed' ? { lastQuestionId: sessionQuestions.at(-1)?.id ?? null } : {}),
     });
     transaction.update(appRef, {
       status: 'questionnaire_completed',
@@ -1239,6 +1616,7 @@ export async function submitCandidateApplicationQuestionnaire(
         questionnaireVersion,
         sessionId,
         resultRef.id,
+        minimumPassingScorePercent,
         assessment,
         startedAt,
         submittedAt,

@@ -15,6 +15,8 @@ export interface CandidateAvailabilityView {
   state: CandidateAvailabilityDisplayState;
   label: string;
   detail: string;
+  isProfileVisibleToCompanies: boolean;
+  isImmediateAvailabilityConfirmed: boolean;
   isDeclaredImmediate: boolean;
   isConfirmedNow: boolean;
   isConfirmationExpired: boolean;
@@ -146,6 +148,27 @@ export function normalizeAvailabilityTimezone(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : DEFAULT_AVAILABILITY_TIMEZONE;
 }
 
+/**
+ * Base visibility signal for a candidate profile.
+ * Combine this with profile completeness before presenting a company-facing "visible" state.
+ */
+export function isProfileVisibleToCompanies(profile: Pick<CandidateProfile, 'profileStatus'>) {
+  return profile.profileStatus === 'active';
+}
+
+export function isImmediateAvailabilityConfirmed(
+  profile: {
+    availability: CandidateProfile['availability'];
+    availabilityValidUntil?: Parameters<typeof toAvailabilityDate>[0];
+  },
+  reference: Date = new Date(),
+) {
+  const validUntil = toAvailabilityDate(profile.availabilityValidUntil);
+  return profile.availability === 'immediate'
+    && Boolean(validUntil)
+    && validUntil!.getTime() > reference.getTime();
+}
+
 export function buildAvailabilityReminderPeriodKey(reference: Date, timeZone: string) {
   const parts = getZonedDateParts(reference, timeZone);
   const year = String(parts.year).padStart(4, '0');
@@ -187,6 +210,7 @@ export function getCandidateAvailabilityView(
     | 'availabilityValidUntil'
     | 'availabilityAvailableFromAt'
     | 'availabilityTimezone'
+    | 'profileStatus'
     | 'dailyAvailabilityConfirmationEnabled'
     | 'hasActiveAvailabilityPushSubscription'
     | 'nextAvailabilityReminderAt'
@@ -199,14 +223,17 @@ export function getCandidateAvailabilityView(
   const availableFromAt = toAvailabilityDate(profile.availabilityAvailableFromAt);
   const nextReminderAt = toAvailabilityDate(profile.nextAvailabilityReminderAt);
   const isDeclaredImmediate = profile.availability === 'immediate';
-  const isConfirmedNow = isDeclaredImmediate && Boolean(validUntil) && validUntil!.getTime() > reference.getTime();
+  const isConfirmedNow = isImmediateAvailabilityConfirmed(profile, reference);
   const isConfirmationExpired = isDeclaredImmediate && !isConfirmedNow;
+  const isProfileVisible = isProfileVisibleToCompanies({ profileStatus: profile.profileStatus });
 
   if (isDeclaredImmediate && isConfirmedNow) {
     return {
       state: 'available_now',
       label: 'Disponible immédiatement · confirmé aujourd’hui',
       detail: `Confirmation valable jusqu’au ${formatReminderDate(validUntil!, timezone)}.`,
+      isProfileVisibleToCompanies: isProfileVisible,
+      isImmediateAvailabilityConfirmed: isConfirmedNow,
       isDeclaredImmediate,
       isConfirmedNow,
       isConfirmationExpired,
@@ -222,7 +249,9 @@ export function getCandidateAvailabilityView(
     return {
       state: 'confirmation_required',
       label: 'Disponibilité à confirmer',
-      detail: 'Confirmez votre disponibilité immédiate pour redevenir visible auprès des entreprises.',
+      detail: 'La mention "Disponible immédiatement" n’est plus confirmée. Vous pouvez la réactiver à tout moment.',
+      isProfileVisibleToCompanies: isProfileVisible,
+      isImmediateAvailabilityConfirmed: isConfirmedNow,
       isDeclaredImmediate,
       isConfirmedNow,
       isConfirmationExpired,
@@ -243,6 +272,8 @@ export function getCandidateAvailabilityView(
         year: 'numeric',
       })}`,
       detail: 'Le profil reste visible avec cette disponibilité future.',
+      isProfileVisibleToCompanies: isProfileVisible,
+      isImmediateAvailabilityConfirmed: isConfirmedNow,
       isDeclaredImmediate,
       isConfirmedNow,
       isConfirmationExpired,
@@ -262,6 +293,8 @@ export function getCandidateAvailabilityView(
     detail: profile.availability === 'not_available'
       ? 'Votre disponibilité immédiate est désactivée.'
       : 'Votre disponibilité immédiate doit être confirmée.',
+    isProfileVisibleToCompanies: isProfileVisible,
+    isImmediateAvailabilityConfirmed: isConfirmedNow,
     isDeclaredImmediate,
     isConfirmedNow,
     isConfirmationExpired,
@@ -281,11 +314,7 @@ export function isCandidateCurrentlyImmediatelyAvailable(
   },
   reference: Date = new Date(),
 ) {
-  const validUntil = toAvailabilityDate(profile.availabilityValidUntil);
-  return profile.profileStatus === 'active'
-    && profile.availability === 'immediate'
-    && Boolean(validUntil)
-    && validUntil!.getTime() > reference.getTime();
+  return isProfileVisibleToCompanies(profile) && isImmediateAvailabilityConfirmed(profile, reference);
 }
 
 export function isCandidateAvailabilityReminderDue(

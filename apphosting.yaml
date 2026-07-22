@@ -4,10 +4,64 @@ runConfig:
   minInstances: 0
 
 env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyBdbKuYVPus0c6bZ6lY_5h69oqAgHc8BPs
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: seveno-a8eb1.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: seveno-a8eb1
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: seveno-a8eb1.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: 552697874600
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:552697874600:web:06da4ba69b1975e0249a9d
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
     value: BDOU99-h67HcA6JeFXHbSNMu7e2yNNu3RzoMj8TM4W88jITfq7ZmPvIM1Iv-4_l2LxQcYwhqby2xGpWwzjfAnG4
     availability:
       - BUILD
+      - RUNTIME
+  - variable: CONTACT_SMTP_HOST
+    value: smtp.gmail.com
+    availability:
+      - RUNTIME
+  - variable: CONTACT_SMTP_PORT
+    value: "465"
+    availability:
+      - RUNTIME
+  - variable: CONTACT_SMTP_USER
+    value: sebastien@ust-france.com
+    availability:
+      - RUNTIME
+  - variable: CONTACT_SMTP_FROM_ADDRESS
+    value: sebastien@ust-france.com
+    availability:
+      - RUNTIME
+  - variable: CONTACT_SMTP_SECURE
+    value: "true"
+    availability:
+      - RUNTIME
+  - variable: CONTACT_SMTP_PASSWORD
+    secret: CONTACT_SMTP_PASSWORD
+    availability:
       - RUNTIME
   - variable: SEVENO_AVAILABILITY_CRON_SECRET
     secret: SEVENO_AVAILABILITY_CRON_SECRET

@@ -7,9 +7,9 @@ import {
   SevenoMatchRequestError,
 } from '@/lib/seveno-match-requests';
 import {
-  loadVisibleCandidateProfileByPublicId,
   searchVisibleCandidateProfiles,
 } from '@/lib/seveno-company-candidates-server';
+import { loadCompanyCandidateRecommendationBundleByPublicId, SevenoRecommendationError } from '@/lib/seveno-recommendations-server';
 import { toMatchApiErrorResponse } from '../matches/_shared';
 import type { CandidateAvailability, CandidateExperienceLevel, CandidateSearchFilters } from '@/types/seveno';
 
@@ -23,8 +23,6 @@ const SEARCH_PARAMETERS = new Set([
   'locationArea',
   'availability',
   'experienceLevel',
-  'minScore',
-  'assessment',
   'cursor',
 ]);
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
@@ -57,8 +55,6 @@ function readCandidateSearchFilters(request: NextRequest): CandidateSearchFilter
   const locationArea = request.nextUrl.searchParams.get('locationArea')?.trim() ?? '';
   const availability = request.nextUrl.searchParams.get('availability')?.trim() ?? '';
   const experienceLevel = request.nextUrl.searchParams.get('experienceLevel')?.trim() ?? '';
-  const minScoreValue = request.nextUrl.searchParams.get('minScore')?.trim() ?? '';
-  const assessmentValue = request.nextUrl.searchParams.get('assessment')?.trim() ?? 'all';
 
   const sector = JOB_SECTORS.find((item) => item.code === sectorId);
   const family = sector?.families.find((item) => item.code === jobFamilyId);
@@ -82,17 +78,6 @@ function readCandidateSearchFilters(request: NextRequest): CandidateSearchFilter
   if (experienceLevel && !EXPERIENCE_VALUES.includes(experienceLevel as CandidateExperienceLevel)) {
     throw new SevenoMatchRequestError('invalid_experience_level', 400, 'Le niveau d experience demande est invalide.');
   }
-  if (assessmentValue !== 'all' && assessmentValue !== 'completed') {
-    throw new SevenoMatchRequestError('invalid_assessment_filter', 400, "Le filtre d'evaluation est invalide.");
-  }
-
-  let minSevenoAssessmentScore: number | undefined;
-  if (minScoreValue) {
-    minSevenoAssessmentScore = Number(minScoreValue);
-    if (!Number.isInteger(minSevenoAssessmentScore) || minSevenoAssessmentScore < 0 || minSevenoAssessmentScore > 100) {
-      throw new SevenoMatchRequestError('invalid_min_score', 400, 'Le score minimum est invalide.');
-    }
-  }
 
   return {
     sectorId,
@@ -101,8 +86,6 @@ function readCandidateSearchFilters(request: NextRequest): CandidateSearchFilter
     ...(locationArea ? { locationArea } : {}),
     ...(availability ? { availability: availability as CandidateAvailability } : {}),
     ...(experienceLevel ? { experienceLevel: experienceLevel as CandidateExperienceLevel } : {}),
-    ...(minSevenoAssessmentScore !== undefined ? { minSevenoAssessmentScore } : {}),
-    assessment: assessmentValue,
   };
 }
 
@@ -120,8 +103,8 @@ export async function GET(request: NextRequest) {
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
     if (publicCandidateId) {
       assertOnlyAllowedParameters(request, new Set(['publicCandidateId']));
-      const candidate = await loadVisibleCandidateProfileByPublicId(publicCandidateId);
-      return NextResponse.json({ candidate });
+      const bundle = await loadCompanyCandidateRecommendationBundleByPublicId(publicCandidateId);
+      return NextResponse.json(bundle);
     }
 
     assertOnlyAllowedParameters(request, SEARCH_PARAMETERS);
@@ -145,6 +128,17 @@ export async function GET(request: NextRequest) {
       stack: firestoreError.stack,
     });
 
-    return toMatchApiErrorResponse(error);
+    return toCandidateSearchApiErrorResponse(error);
   }
+}
+
+function toCandidateSearchApiErrorResponse(error: unknown) {
+  if (error instanceof SevenoMatchRequestError || error instanceof SevenoRecommendationError) {
+    return NextResponse.json(
+      { error: error.code, message: error.message },
+      { status: error.status },
+    );
+  }
+
+  return toMatchApiErrorResponse(error);
 }

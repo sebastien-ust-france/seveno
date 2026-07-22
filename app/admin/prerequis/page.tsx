@@ -264,7 +264,7 @@ export default function AdminPrerequisitesPage() {
         method: editingCode ? 'PATCH' : 'POST',
         body: JSON.stringify(input),
       });
-      setMessage(editingCode ? 'Prerequis modifie et versionne.' : 'Prerequis cree.');
+      setMessage(editingCode ? 'Prérequis modifié et versionné.' : 'Prérequis créé.');
       setForm(EMPTY_FORM);
       setEditingCode(null);
       setHistory([]);
@@ -350,9 +350,9 @@ export default function AdminPrerequisitesPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
-      title="Bibliotheque des prerequis"
-      description="Definitions controlees par Seven'O. Les entreprises selectionnent ces entrees sans pouvoir rediger librement leurs criteres."
+      eyebrow="Administration Seven’O"
+      title="Bibliothèque des prérequis"
+      description="Définitions contrôlées par Seven’O. Les entreprises sélectionnent ces entrées sans pouvoir rédiger librement leurs critères."
       containerClassName="max-w-7xl"
     >
       <div className="space-y-6">
@@ -379,8 +379,8 @@ export default function AdminPrerequisitesPage() {
           <SevenoPanel tone="cyan" className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Definition</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">{editingCode ? `Modifier ${editingCode}` : 'Creer un prerequis'}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Définition</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{editingCode ? `Modifier ${editingCode}` : 'Créer un prérequis'}</h2>
               </div>
               {editingCode ? (
                 <button type="button" onClick={() => { setEditingCode(null); setForm(EMPTY_FORM); setHistory([]); }} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">
@@ -393,7 +393,7 @@ export default function AdminPrerequisitesPage() {
               <label className="space-y-2 text-sm text-slate-200">Code stable
                 <input value={form.code} disabled={Boolean(editingCode)} onChange={(event) => setForm({ ...form, code: event.target.value })} className={FIELD_CLASS} placeholder="permis-b" />
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Categorie
+              <label className="space-y-2 text-sm text-slate-200">Catégorie
                 <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as PrerequisiteCategory })} className={FIELD_CLASS}>
                   {PREREQUISITE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
@@ -403,7 +403,7 @@ export default function AdminPrerequisitesPage() {
                   {PREREQUISITE_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Libelle entreprise
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Libellé entreprise
                 <input value={form.companyLabel} onChange={(event) => setForm({ ...form, companyLabel: event.target.value })} className={FIELD_CLASS} />
               </label>
               <label className="space-y-2 text-sm text-slate-200 md:col-span-2 xl:col-span-3">Description entreprise
@@ -419,33 +419,33 @@ export default function AdminPrerequisitesPage() {
           </SevenoPanel>
 
           <SevenoPanel tone="violet" className="p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">Reponse et critere</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">Réponse et critère</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <label className="space-y-2 text-sm text-slate-200">Type de reponse
+              <label className="space-y-2 text-sm text-slate-200">Type de réponse
                 <select value={form.answerType} onChange={(event) => setForm({ ...form, answerType: event.target.value as PrerequisiteAnswerType })} className={FIELD_CLASS}>
                   {PREREQUISITE_ANSWER_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Operateur
+              <label className="space-y-2 text-sm text-slate-200">Opérateur
                 <select value={form.comparisonOperator} onChange={(event) => setForm({ ...form, comparisonOperator: event.target.value as PrerequisiteComparisonOperator })} className={FIELD_CLASS}>
                   {PREREQUISITE_OPERATORS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Mode du critere
+              <label className="space-y-2 text-sm text-slate-200">Mode du critère
                 <select value={form.criterionMode} onChange={(event) => setForm({ ...form, criterionMode: event.target.value as PrerequisiteCriterionMode })} className={FIELD_CLASS}>
                   {PREREQUISITE_CRITERION_MODES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2 xl:col-span-3">Options, une par ligne : valeur|libelle candidat|rang
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2 xl:col-span-3">Options, une par ligne : valeur|libellé candidat|rang
                 <textarea value={form.optionsText} onChange={(event) => setForm({ ...form, optionsText: event.target.value })} className={FIELD_CLASS} rows={4} placeholder={'A1|Niveau A1|1\nA2|Niveau A2|2'} />
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Critere par defaut, JSON
+              <label className="space-y-2 text-sm text-slate-200">Critère par défaut, JSON
                 <input value={form.defaultCriterionText} onChange={(event) => setForm({ ...form, defaultCriterionText: event.target.value })} className={FIELD_CLASS} placeholder={'true ou "B2"'} />
               </label>
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Valeurs configurables autorisees, tableau JSON
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Valeurs configurables autorisées, tableau JSON
                 <input value={form.allowedCriterionValuesText} onChange={(event) => setForm({ ...form, allowedCriterionValuesText: event.target.value })} className={FIELD_CLASS} placeholder={'["B1","B2","C1"]'} />
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Portee de reponse
+              <label className="space-y-2 text-sm text-slate-200">Portée de réponse
                 <select value={form.responseScope} onChange={(event) => setForm({ ...form, responseScope: event.target.value as PrerequisiteResponseScope })} className={FIELD_CLASS}>
                   {PREREQUISITE_RESPONSE_SCOPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
@@ -455,16 +455,16 @@ export default function AdminPrerequisitesPage() {
                   {PREREQUISITE_EVIDENCE_POLICIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-200">Fraicheur en jours
+              <label className="space-y-2 text-sm text-slate-200">Fraîcheur en jours
                 <input type="number" min="1" max="3650" value={form.freshnessDays} onChange={(event) => setForm({ ...form, freshnessDays: event.target.value })} className={FIELD_CLASS} />
               </label>
             </div>
           </SevenoPanel>
 
           <SevenoPanel tone="orange" className="p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-200/80">Applicabilite metier</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-200/80">Applicabilité métier</p>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300">
-              Ce prerequis sera applicable a : {form.global ? 'tous les metiers' : `${form.sectorIds.length} secteur(s), ${form.jobFamilyIds.length} famille(s), ${form.jobRoleIds.length} metier(s) specifique(s)`}.
+              Ce prérequis sera applicable à : {form.global ? 'tous les métiers' : `${form.sectorIds.length} secteur(s), ${form.jobFamilyIds.length} famille(s), ${form.jobRoleIds.length} métier(s) spécifique(s)`}.
               {' '}
               Exclusions actives : {form.excludedSectorIds.length} secteur(s), {form.excludedJobFamilyIds.length} famille(s), {form.excludedJobRoleIds.length} metier(s).
               {' '}
@@ -472,7 +472,7 @@ export default function AdminPrerequisitesPage() {
             </div>
             <label className="mt-4 flex items-center gap-3 text-sm text-white">
               <input type="checkbox" checked={form.global} onChange={(event) => setForm({ ...form, global: event.target.checked })} className="accent-cyan-400" />
-              Prerequis transversal a tous les metiers
+              Prérequis transversal à tous les métiers
             </label>
             {!form.global ? (
               <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -481,12 +481,12 @@ export default function AdminPrerequisitesPage() {
                     {JOB_SECTORS.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}
                   </select>
                 </label>
-                <label className="space-y-2 text-sm text-slate-200">Familles metier
+                <label className="space-y-2 text-sm text-slate-200">Familles métier
                   <select multiple value={form.jobFamilyIds} onChange={(event) => setForm({ ...form, jobFamilyIds: readMultipleSelect(event) })} className={FIELD_CLASS + ' min-h-44'}>
                     {ALL_FAMILIES.map((family) => <option key={family.code} value={family.code}>{family.label}</option>)}
                   </select>
                 </label>
-                <label className="space-y-2 text-sm text-slate-200">Metiers precis
+                <label className="space-y-2 text-sm text-slate-200">Métiers précis
                   <select multiple value={form.jobRoleIds} onChange={(event) => setForm({ ...form, jobRoleIds: readMultipleSelect(event) })} className={FIELD_CLASS + ' min-h-44'}>
                     {ALL_ROLES.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
                   </select>
@@ -506,7 +506,7 @@ export default function AdminPrerequisitesPage() {
                     {ALL_FAMILIES.map((family) => <option key={family.code} value={family.code}>{family.label}</option>)}
                   </select>
                 </label>
-                <label className="space-y-2 text-sm text-slate-200">Metiers exclus
+                <label className="space-y-2 text-sm text-slate-200">Métiers exclus
                   <select multiple value={form.excludedJobRoleIds} onChange={(event) => setForm({ ...form, excludedJobRoleIds: readMultipleSelect(event) })} className={FIELD_CLASS + ' min-h-40'}>
                     {ALL_ROLES.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
                   </select>
@@ -516,7 +516,7 @@ export default function AdminPrerequisitesPage() {
           </SevenoPanel>
 
           <button disabled={saving} className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
-            {saving ? 'Enregistrement...' : editingCode ? 'Enregistrer une nouvelle version' : 'Creer la definition'}
+            {saving ? 'Enregistrement...' : editingCode ? 'Enregistrer une nouvelle version' : 'Créer la définition'}
           </button>
         </form>
 
@@ -532,9 +532,9 @@ export default function AdminPrerequisitesPage() {
         <SevenoPanel tone="neutral" className="p-5">
           <div className="flex flex-wrap items-end gap-3">
             <label className="min-w-56 flex-1 space-y-2 text-sm text-slate-200">Recherche texte
-              <input value={search} onChange={(event) => setSearch(event.target.value)} className={FIELD_CLASS} placeholder="Code ou libelle" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} className={FIELD_CLASS} placeholder="Code ou libellé" />
             </label>
-            <label className="space-y-2 text-sm text-slate-200">Categorie
+            <label className="space-y-2 text-sm text-slate-200">Catégorie
               <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as PrerequisiteCategory | '')} className={FIELD_CLASS}>
                 <option value="">Toutes</option>{PREREQUISITE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
@@ -553,7 +553,7 @@ export default function AdminPrerequisitesPage() {
               <option value="">Toutes les familles</option>{filterFamilies.map((family) => <option key={family.code} value={family.code}>{family.label}</option>)}
             </select>
             <select value={filterRoleId} disabled={!filterFamilyId} onChange={(event) => setFilterRoleId(event.target.value)} className={FIELD_CLASS}>
-              <option value="">Tous les metiers</option>{filterRoles.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
+              <option value="">Tous les métiers</option>{filterRoles.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
             </select>
           </div>
           <button type="button" onClick={() => void loadLibrary()} className="mt-4 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-2 text-sm font-semibold text-cyan-100">Appliquer les filtres</button>
@@ -561,7 +561,7 @@ export default function AdminPrerequisitesPage() {
 
         <SevenoPanel tone="neutral" className="p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold text-white">Definitions</h2>
+            <h2 className="text-xl font-semibold text-white">Définitions</h2>
             <span className="text-sm text-slate-400">{items.length} affichee(s)</span>
           </div>
           <div className="mt-4 space-y-3">

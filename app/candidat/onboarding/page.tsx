@@ -5,12 +5,19 @@ import { useRouter } from 'next/navigation';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
 import { createOrUpdateCandidateProfile, getCandidateProfile } from '@/lib/seveno-candidates';
-import { ensureSevenoUser, markUserOnboardingCompleted, resolveSevenoRedirect } from '@/lib/seveno-users';
+import {
+  acceptSevenoTerms,
+  ensureSevenoUser,
+  hasSevenoTermsAcceptance,
+  markUserOnboardingCompleted,
+  resolveSevenoRedirect,
+} from '@/lib/seveno-users';
 import { CandidatePrivacyNotice } from '@/components/candidate/CandidatePrivacyNotice';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
+import { Select } from '@/components/ui/Select';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
@@ -108,8 +115,12 @@ export default function CandidateOnboardingPage() {
   const [locationArea, setLocationArea] = useState('');
   const [experienceLevel, setExperienceLevel] = useState<CandidateExperienceLevel>('intermediate');
   const [availability, setAvailability] = useState<CandidateAvailability>('listening');
+  const [professionalSelfDescription, setProfessionalSelfDescription] = useState('');
+  const [professionalReputationDescription, setProfessionalReputationDescription] = useState('');
   const [profileStatus, setProfileStatus] = useState<CandidateProfileStatus>('draft');
   const [anonymousVisibilityConsent, setAnonymousVisibilityConsent] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [hasTermsAcceptance, setHasTermsAcceptance] = useState(false);
 
   const selectedSector = JOB_SECTORS.find((item) => item.code === sectorId) ?? INITIAL_SECTOR;
   const familyOptions = selectedSector?.families ?? [];
@@ -140,6 +151,10 @@ export default function CandidateOnboardingPage() {
         if (!active) {
           return;
         }
+
+        const termsAcceptanceExists = hasSevenoTermsAcceptance(sevenoUser, 'candidate_account');
+        setHasTermsAcceptance(termsAcceptanceExists);
+        setTermsAccepted(termsAcceptanceExists);
 
         if (!sevenoUser.role) {
           router.replace('/onboarding');
@@ -193,6 +208,8 @@ export default function CandidateOnboardingPage() {
           }
           if (AVAILABILITY_OPTIONS.some((option) => option.value === existingProfile.availability)) {
             setAvailability(existingProfile.availability);
+            setProfessionalSelfDescription(typeof existingProfile.professionalSelfDescription === 'string' ? existingProfile.professionalSelfDescription : '');
+            setProfessionalReputationDescription(typeof existingProfile.professionalReputationDescription === 'string' ? existingProfile.professionalReputationDescription : '');
           } else {
             warnings.push('L’ancienne disponibilité a été remplacée par la valeur par défaut.');
           }
@@ -306,9 +323,6 @@ export default function CandidateOnboardingPage() {
       return;
     }
 
-    submissionLockRef.current = true;
-    setSaving(true);
-
     try {
       const authUser = await getCurrentAuthUser();
       if (!authUser) {
@@ -322,11 +336,29 @@ export default function CandidateOnboardingPage() {
         return;
       }
 
+      if (!hasTermsAcceptance) {
+        if (!termsAccepted) {
+          setError("Vous devez accepter les Conditions générales d'utilisation de Seven’O avant d'enregistrer votre profil.");
+          return;
+        }
+      }
+
+      submissionLockRef.current = true;
+      setSaving(true);
+
+      if (!hasTermsAcceptance) {
+        await acceptSevenoTerms(authUser);
+        setTermsAccepted(true);
+        setHasTermsAcceptance(true);
+      }
+
       const payload: CandidateProfileUpsertData = {
         targetJobRoleIds: targetJobs.map((job) => job.jobRoleId),
         availability,
         locationArea,
         experienceLevel,
+        professionalSelfDescription,
+        professionalReputationDescription,
         profileStatus,
         anonymousVisibilityConsent,
       };
@@ -348,18 +380,20 @@ export default function CandidateOnboardingPage() {
             ? `Profil enregistré en brouillon. Complétez votre identité privée : ${missingIdentityLabel}.`
             : !authUser.emailVerified
               ? 'Profil enregistré en brouillon. Vérifiez votre adresse email avant son activation.'
-              : saveResult.assessmentRequired
-                ? "Profil enregistré en brouillon. Terminez le questionnaire Seven’O avant de l’activer."
-                : 'Profil enregistré en brouillon. Complétez les conditions d’activation indiquées dans votre espace candidat.'
+              : 'Profil enregistré en brouillon. Complétez les conditions d’activation indiquées dans votre espace candidat.'
           : 'Profil anonyme enregistré. Redirection en cours vers votre tableau de bord.',
       );
 
       window.setTimeout(() => {
         router.replace('/candidat');
       }, saveResult.activationDowngraded ? 1600 : 700);
-    } catch {
+    } catch (caughtError) {
       submissionLockRef.current = false;
-      setError('Le profil candidat n’a pas pu être enregistré. Vérifiez les champs puis réessayez.');
+      setError(
+        caughtError instanceof Error && caughtError.message
+          ? caughtError.message
+          : 'Le profil candidat n’a pas pu être enregistré. Vérifiez les champs puis réessayez.',
+      );
       setSaving(false);
     }
   }
@@ -413,33 +447,31 @@ export default function CandidateOnboardingPage() {
                     <span className="text-sm font-medium text-slate-200">
                       Secteur
                     </span>
-                    <select
+                    <Select
                       value={sectorId}
                       onChange={(event) => handleSectorChange(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
                     >
                       {JOB_SECTORS.map((sector) => (
                         <option key={sector.code} value={sector.code}>
                           {sector.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {fieldErrors.sectorId ? <p className="text-xs text-rose-300">{fieldErrors.sectorId}</p> : null}
                   </label>
 
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-slate-200">Famille métier</span>
-                    <select
+                    <Select
                       value={jobFamilyId}
                       onChange={(event) => handleFamilyChange(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
                     >
                       {familyOptions.map((family) => (
                         <option key={family.code} value={family.code}>
                           {family.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {fieldErrors.jobFamilyId ? <p className="text-xs text-rose-300">{fieldErrors.jobFamilyId}</p> : null}
                   </label>
                 </div>
@@ -447,20 +479,19 @@ export default function CandidateOnboardingPage() {
                 <div className="mt-4">
                   <label className="space-y-2 block">
                     <span className="text-sm font-medium text-slate-200">Métier précis</span>
-                    <select
+                    <Select
                       value={jobRoleId}
                       onChange={(event) => {
                         setJobRoleId(event.target.value);
                         setFieldErrors((current) => ({ ...current, jobRoleId: undefined }));
                       }}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
                     >
                       {roleOptions.map((role) => (
                         <option key={role.code} value={role.code}>
                           {role.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {fieldErrors.jobRoleId ? <p className="text-xs text-rose-300">{fieldErrors.jobRoleId}</p> : null}
                   </label>
                   <button
@@ -516,32 +547,30 @@ export default function CandidateOnboardingPage() {
 
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-slate-200">Niveau d’expérience</span>
-                      <select
-                        value={experienceLevel}
-                        onChange={(event) => setExperienceLevel(event.target.value as CandidateExperienceLevel)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
-                      >
-                        {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                    <Select
+                      value={experienceLevel}
+                      onChange={(event) => setExperienceLevel(event.target.value as CandidateExperienceLevel)}
+                    >
+                      {EXPERIENCE_LEVEL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
                     </label>
 
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-slate-200">Quelle est votre disponibilité ?</span>
-                      <select
-                        value={availability}
-                        onChange={(event) => setAvailability(event.target.value as CandidateAvailability)}
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
-                      >
-                        {AVAILABILITY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                    <Select
+                      value={availability}
+                      onChange={(event) => setAvailability(event.target.value as CandidateAvailability)}
+                    >
+                      {AVAILABILITY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
                     </label>
                   </div>
                 </SevenoPanel>
@@ -551,7 +580,7 @@ export default function CandidateOnboardingPage() {
 
             <div className="space-y-5">
               <CandidatePrivacyNotice
-                message="Votre identité et vos coordonnées restent privées. Les entreprises voient votre profil anonymisé et, uniquement lorsqu’il existe, votre résultat vérifié."
+                message="Votre identité et vos coordonnées restent privées. Les entreprises voient votre profil anonymisé et, lorsqu’il existe, votre historique d’évaluation."
               />
 
               <SevenoPanel tone="neutral" className="p-5">
@@ -561,7 +590,7 @@ export default function CandidateOnboardingPage() {
                     tone="cyan"
                     label="Étape 1"
                     value={`${targetJobs.length}/3 métiers`}
-                    note="Sélectionnez les métiers que vous recherchez, sans lier votre Indice Seven’O à un poste."
+                    note="Sélectionnez les métiers que vous recherchez, sans lier votre historique d’évaluation à un poste."
                   />
                   <CandidateStatusCard
                     tone="violet"
@@ -588,7 +617,7 @@ export default function CandidateOnboardingPage() {
                   <div className="space-y-4">
                     <label className="space-y-2 block">
                     <span className="text-sm font-medium text-slate-200">Statut du profil</span>
-                    <select
+                    <Select
                       value={profileStatus}
                       onChange={(event) => {
                         setProfileStatus(event.target.value as CandidateProfileStatus);
@@ -598,14 +627,13 @@ export default function CandidateOnboardingPage() {
                           anonymousVisibilityConsent: undefined,
                         }));
                       }}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
                     >
                       {PROFILE_STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {fieldErrors.profileStatus ? <p className="text-xs text-rose-300">{fieldErrors.profileStatus}</p> : null}
                     <p className="text-xs leading-5 text-slate-400">
                       Brouillon : non visible pour l’instant. Actif : profil anonyme visible aux entreprises. Suspendu :
@@ -650,10 +678,70 @@ export default function CandidateOnboardingPage() {
                 </div>
               </SevenoPanel>
 
+              <SevenoPanel tone="neutral" className="p-5">
+                <label className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    className="mt-1 accent-cyan-400"
+                    disabled={hasTermsAcceptance}
+                  />
+                  <span>
+                    J’ai lu et j’accepte les Conditions générales d’utilisation de Seven’O.
+                  </span>
+                </label>
+                <p className="mt-3 text-xs leading-6 text-slate-400">
+                  La version 1.0 des CGU est enregistrée avec un horodatage serveur avant la validation du profil.
+                </p>
+              </SevenoPanel>
+
+              <SevenoPanel tone="neutral" className="p-5" id="presentation">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Bloc 4</p>
+                    <h2 className="mt-2 text-lg font-semibold text-white">Présentation professionnelle</h2>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
+                    Facultatif mais recommandé
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-4">
+                  <label className="space-y-2 block">
+                    <span className="text-sm font-medium text-slate-200">Ce que vous diriez de vous</span>
+                    <textarea
+                      value={professionalSelfDescription}
+                      onChange={(event) => setProfessionalSelfDescription(event.target.value)}
+                      rows={5}
+                      maxLength={600}
+                      placeholder="Décrivez votre parcours, votre manière de travailler et ce que vous apportez."
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40"
+                    />
+                  </label>
+
+                  <label className="space-y-2 block">
+                    <span className="text-sm font-medium text-slate-200">Ce que les autres disent de vous</span>
+                    <textarea
+                      value={professionalReputationDescription}
+                      onChange={(event) => setProfessionalReputationDescription(event.target.value)}
+                      rows={5}
+                      maxLength={600}
+                      placeholder="Résumé des retours de vos anciens collègues, managers ou clients."
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40"
+                    />
+                  </label>
+                </div>
+
+                <p className="mt-4 text-xs leading-5 text-slate-400">
+                  Ces textes alimentent votre profil candidat privé et les recommandations visibles une fois vérifiées.
+                </p>
+              </SevenoPanel>
+
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || (!hasTermsAcceptance && !termsAccepted)}
               className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {saving ? 'Enregistrement...' : isEditing ? 'Enregistrer mes modifications' : 'Enregistrer mon profil anonyme'}

@@ -64,9 +64,9 @@ export default function AdminTestsPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Tests"
-      description="Suivi des sessions de test et des resultats verifies. Aucune donnee privee candidat n est affichee ici."
+      description="Evaluations historiques - ancien modele. Suivi des sessions de test et des resultats verifies. Aucune donnee privee candidat n est affichee ici."
       containerClassName="max-w-7xl"
     >
       <div className="space-y-6">

@@ -3,14 +3,28 @@
 import type { User } from 'firebase/auth';
 import { deleteField, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
-import type { CandidatePrivateIdentityInput, PublicUserRole, SevenoUser } from '@/types/seveno';
+import type {
+  CandidatePrivateIdentityInput,
+  PublicUserRole,
+  TermsAcceptance,
+  TermsAcceptanceContext,
+  SevenoUser,
+  UserRoleOrNull,
+} from '@/types/seveno';
 
 const USERS_COLLECTION = 'users';
+export const SEVENO_TERMS_VERSION = '1.0' as const;
+export const COMPANY_INVITE_ONLY_MESSAGE = "L'accès entreprise est actuellement ouvert sur invitation.";
+
+export interface SevenoTermsAcceptanceResponse {
+  acceptance: TermsAcceptance;
+}
 
 function requireFirestoreClient() {
   if (!isFirebaseConfigured || !db) {
-    throw new Error('Firestore n est pas configure.');
+    throw new Error('Firestore n’est pas configuré.');
   }
 
   return db;
@@ -35,6 +49,28 @@ function cleanOptionalText(value: string | null | undefined) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+export function getSevenoTermsAcceptance(
+  user: SevenoUser | null,
+  context: TermsAcceptanceContext,
+): TermsAcceptance | null {
+  return user?.termsAcceptance?.[context] ?? null;
+}
+
+export function hasSevenoTermsAcceptance(
+  user: SevenoUser | null,
+  context: TermsAcceptanceContext,
+): boolean {
+  return Boolean(getSevenoTermsAcceptance(user, context));
+}
+
+export function canAssignPublicRole(existingRole: UserRoleOrNull, requestedRole: PublicUserRole) {
+  if (requestedRole !== 'company') {
+    return true;
+  }
+
+  return existingRole === 'company';
+}
+
 function resolveAuthProvider(authUser: User) {
   if (authUser.providerData.some((provider) => provider.providerId === 'google.com')) {
     return 'google' as const;
@@ -44,7 +80,7 @@ function resolveAuthProvider(authUser: User) {
     return 'password' as const;
   }
 
-  throw new Error('Le fournisseur de connexion Firebase n est pas pris en charge.');
+    throw new Error('Le fournisseur de connexion Firebase n’est pas pris en charge.');
 }
 
 function buildSevenoUserPayload(authUser: User, existing?: Partial<SevenoUser>) {
@@ -77,8 +113,6 @@ export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
 }
 
 async function createSevenoUser(authUser: User, initialRole: PublicUserRole | null): Promise<SevenoUser> {
-  await authUser.getIdToken();
-
   const firestore = requireFirestoreClient();
   const ref = doc(firestore, USERS_COLLECTION, authUser.uid);
   let existing;
@@ -96,6 +130,10 @@ async function createSevenoUser(authUser: User, initialRole: PublicUserRole | nu
   const email = cleanOptionalText(authUser.email);
   if (!email) {
     throw new Error('Impossible de créer le document utilisateur sans adresse email.');
+  }
+
+  if (initialRole === 'company') {
+    throw new Error(COMPANY_INVITE_ONLY_MESSAGE);
   }
 
   try {
@@ -138,8 +176,6 @@ export async function ensureSevenoUser(
   authUser: User,
   initialRole: PublicUserRole | null = null,
 ): Promise<SevenoUser> {
-  await authUser.getIdToken();
-
   const firestore = requireFirestoreClient();
   const ref = doc(firestore, USERS_COLLECTION, authUser.uid);
   let snapshot;
@@ -181,7 +217,7 @@ export async function ensureSevenoUser(
       ...updatePayload,
     });
   } catch (error) {
-    throw new Error(describeFirestoreError('Mise a jour du document utilisateur', error));
+    throw new Error(describeFirestoreError('Mise à jour du document utilisateur', error));
   }
 
   let updated;
@@ -201,13 +237,30 @@ export async function ensureSevenoUser(
 
 export async function updateSevenoUserRole(uid: string, role: PublicUserRole): Promise<SevenoUser> {
   const ref = userRef(uid);
+
+  let snapshot;
+  try {
+    snapshot = await getDoc(ref);
+  } catch (error) {
+    throw new Error(describeFirestoreError('Lecture du document utilisateur', error));
+  }
+
+  if (!snapshot.exists()) {
+    throw new Error("Le document users n a pas pu etre lu avant mise a jour du role.");
+  }
+
+  const existing = snapshot.data() as SevenoUser;
+  if (!canAssignPublicRole(existing.role, role)) {
+    throw new Error(COMPANY_INVITE_ONLY_MESSAGE);
+  }
+
   try {
     await updateDoc(ref, {
       role,
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    throw new Error(describeFirestoreError('Mise a jour du role utilisateur', error));
+    throw new Error(describeFirestoreError('Mise à jour du rôle utilisateur', error));
   }
 
   let updated;
@@ -284,7 +337,7 @@ export async function updateCandidatePrivateIdentity(
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    throw new Error(describeFirestoreError('Mise à jour de l identité privée', error));
+    throw new Error(describeFirestoreError('Mise à jour de l’identité privée', error));
   }
 
   const updated = await getDoc(ref);
@@ -293,6 +346,15 @@ export async function updateCandidatePrivateIdentity(
   }
 
   return updated.data() as SevenoUser;
+}
+
+export async function acceptSevenoTerms(authUser: User): Promise<SevenoTermsAcceptanceResponse> {
+  return fetchSevenoMatchApi<SevenoTermsAcceptanceResponse>(authUser, '/api/seveno/terms/acceptance', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 }
 
 export function resolveSevenoRedirect(user: SevenoUser | null) {
@@ -305,10 +367,18 @@ export function resolveSevenoRedirect(user: SevenoUser | null) {
   }
 
   if (user.role === 'candidate') {
+    if (user.onboardingCompleted && !hasSevenoTermsAcceptance(user, 'candidate_account')) {
+      return '/cgu';
+    }
+
     return user.onboardingCompleted ? '/candidat' : '/candidat/onboarding';
   }
 
   if (user.role === 'company') {
+    if (user.onboardingCompleted && !hasSevenoTermsAcceptance(user, 'company_first_access')) {
+      return '/cgu';
+    }
+
     return user.onboardingCompleted ? '/entreprise' : '/entreprise/onboarding';
   }
 

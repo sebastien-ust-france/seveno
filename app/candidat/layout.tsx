@@ -1,19 +1,18 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { CandidateSidebarIdentity } from '@/components/navigation/CandidateSidebarIdentity';
-import { AuthenticatedAppShell } from '@/components/navigation/AuthenticatedAppShell';
-import { CANDIDATE_NAVIGATION } from '@/lib/seveno-navigation';
+import { CandidateSessionGate } from '@/components/candidate/CandidateSessionGate';
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function CandidateLayout({ children }: { children: ReactNode }) {
   return (
-    <AuthenticatedAppShell
-      eyebrow="Espace candidat"
-      title=""
-      description=""
-      navigation={CANDIDATE_NAVIGATION}
-      role="candidate"
-      sidebarTop={<CandidateSidebarIdentity />}
-    >
+    <CandidateSessionGate>
       {children}
-    </AuthenticatedAppShell>
+    </CandidateSessionGate>
   );
 }

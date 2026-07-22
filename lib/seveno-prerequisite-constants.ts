@@ -13,10 +13,10 @@ export const PREREQUISITE_CATEGORIES: ReadonlyArray<{ value: PrerequisiteCategor
   { value: 'certification', label: 'Certifications' },
   { value: 'language', label: 'Langues' },
   { value: 'software', label: 'Logiciels' },
-  { value: 'technical_skill', label: 'Competences techniques' },
+  { value: 'technical_skill', label: 'Compétences techniques' },
   { value: 'experience', label: 'Experience professionnelle' },
   { value: 'education', label: 'Formation et diplome' },
-  { value: 'availability', label: 'Disponibilite' },
+  { value: 'availability', label: 'Disponibilité' },
   { value: 'mobility', label: 'Mobilite professionnelle' },
   { value: 'schedule', label: 'Horaires de travail' },
   { value: 'work_environment', label: 'Environnement de travail' },
@@ -44,7 +44,7 @@ export const PREREQUISITE_OPERATORS: ReadonlyArray<{ value: PrerequisiteComparis
 ];
 
 export const PREREQUISITE_CRITERION_MODES: ReadonlyArray<{ value: PrerequisiteCriterionMode; label: string }> = [
-  { value: 'fixed', label: 'Critere fixe Seven’O' },
+  { value: 'fixed', label: 'Critère fixe Seven’O' },
   { value: 'configurable', label: 'Critere configurable' },
 ];
 

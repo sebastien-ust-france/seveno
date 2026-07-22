@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { PrerequisiteLibraryPicker } from '@/components/entreprise/PrerequisiteLibraryPicker';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
+import { Select } from '@/components/ui/Select';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
 import {
   PREREQUISITE_CATEGORIES,
@@ -231,15 +232,14 @@ function SelectionPanel({
               {definition?.criterionMode === 'configurable' ? (
                 <label className="mt-3 block space-y-2 text-xs text-slate-300">
                   Critere attendu
-                  <select
+                  <Select
                     value={criterionKey(selection.expectedCriterion)}
                     onChange={(event) => onCriterion(selection.prerequisiteId, importance, JSON.parse(event.target.value) as PrerequisiteCriterionValue)}
-                    className={FIELD}
                   >
                     {definition.allowedCriterionValues.map((value) => (
                       <option key={criterionKey(value)} value={criterionKey(value)}>{criterionLabel(definition, value)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : (
                 <p className="mt-2 text-xs text-slate-400">Critere Seven&apos;O : {criterionLabel(definition, selection.expectedCriterion)}</p>
@@ -286,6 +286,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
   const [newPrerequisiteOpen, setNewPrerequisiteOpen] = useState(false);
   const [newPrerequisiteSaving, setNewPrerequisiteSaving] = useState(false);
   const [newPrerequisiteName, setNewPrerequisiteName] = useState('');
+  const [newPrerequisiteRequirement, setNewPrerequisiteRequirement] = useState('');
   const [newPrerequisiteImportance, setNewPrerequisiteImportance] = useState<PrerequisiteImportance>('required');
   const [newPrerequisiteSaveToLibrary, setNewPrerequisiteSaveToLibrary] = useState(false);
 
@@ -521,17 +522,20 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
     if (definition) assignPrerequisite(definition, importance);
   }
 
-  function openNewPrerequisiteForm() {
-    if (!currentOfferId) {
-      setError('Enregistrez d abord le brouillon avant d ajouter un prerequis.');
-      return;
-    }
-    if (!canAddRequired && !canAddPreferred) {
-      setError('La limite de prerequis est atteinte.');
+  async function openNewPrerequisiteForm() {
+    if (totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total) {
+      setError('Vous avez atteint la limite de 8 prerequis pour cette offre.');
       return;
     }
     setError(null);
+    if (!currentOfferId) {
+      const saved = await saveDraft();
+      if (!saved) {
+        return;
+      }
+    }
     setNewPrerequisiteName(search.trim());
+    setNewPrerequisiteRequirement('');
     setNewPrerequisiteImportance(canAddRequired ? 'required' : 'preferred');
     setNewPrerequisiteSaveToLibrary(false);
     setNewPrerequisiteOpen(true);
@@ -541,6 +545,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
     setNewPrerequisiteOpen(false);
     setNewPrerequisiteSaving(false);
     setNewPrerequisiteName('');
+    setNewPrerequisiteRequirement('');
     setNewPrerequisiteImportance('required');
     setNewPrerequisiteSaveToLibrary(false);
   }
@@ -551,7 +556,12 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       setError('Enregistrez d abord le brouillon avant d ajouter un prerequis.');
       return;
     }
+    if (totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total) {
+      setError('Vous avez atteint la limite de 8 prerequis pour cette offre.');
+      return;
+    }
     const label = newPrerequisiteName.trim().replace(/\s+/g, ' ');
+    const requirement = newPrerequisiteRequirement.trim().replace(/\s+/g, ' ');
     const normalizedLabel = normalizePrerequisiteLabel(label);
     if (!normalizedLabel) {
       setError('Saisissez le nom du prerequis.');
@@ -583,6 +593,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       const payload = await createCompanyPrerequisiteClient(authUser, {
         offerId: currentOfferId,
         label,
+        ...(requirement ? { candidateHelp: requirement } : {}),
         saveToLibrary: newPrerequisiteSaveToLibrary,
       } satisfies CompanyPrerequisiteCreationInput);
       const definition = normalizePrerequisiteDefinition(payload.definition);
@@ -668,7 +679,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
     <SevenoSurface
       eyebrow="Espace entreprise"
       title={currentOfferId ? 'Modifier une offre' : 'Creer une offre'}
-      description="Construisez une offre structuree et selectionnez uniquement des prerequis controles par Seven'O."
+      description="Construisez une offre structurée et sélectionnez uniquement des prérequis contrôlés par Seven’O."
       actions={<Link href="/entreprise/offres" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Retour aux offres</Link>}
       containerClassName="max-w-[96rem]"
     >
@@ -698,9 +709,9 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             <h2 className="text-xl font-semibold text-white">Le poste</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Titre de l offre<input value={input.title} onChange={(event) => setInput({ ...input, title: event.target.value })} className={FIELD} placeholder="Ex. Developpeur full stack" /></label>
-              <label className="space-y-2 text-sm text-slate-200">Secteur<select value={input.sectorId} onChange={(event) => changeSector(event.target.value)} className={FIELD}><option value="">Selectionner un secteur</option>{JOB_SECTORS.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
-              <label className="space-y-2 text-sm text-slate-200">Famille metier<select value={input.jobFamilyId} disabled={!input.sectorId} onChange={(event) => changeFamily(event.target.value)} className={FIELD}><option value="">Selectionner une famille metier</option>{families.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Metier precis<select value={input.jobRoleId} disabled={!input.jobFamilyId || prerequisitesLoading} onChange={(event) => void changeRole(event.target.value)} className={FIELD}><option value="">Selectionner un metier</option>{roles.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
+              <label className="space-y-2 text-sm text-slate-200">Secteur<Select value={input.sectorId} onChange={(event) => changeSector(event.target.value)}><option value="">Sélectionner un secteur</option>{JOB_SECTORS.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
+              <label className="space-y-2 text-sm text-slate-200">Famille metier<Select value={input.jobFamilyId} disabled={!input.sectorId} onChange={(event) => changeFamily(event.target.value)}><option value="">Sélectionner une famille métier</option>{families.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Metier precis<Select value={input.jobRoleId} disabled={!input.jobFamilyId || prerequisitesLoading} onChange={(event) => void changeRole(event.target.value)}><option value="">Sélectionner un métier</option>{roles.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
             </div>
           </SevenoPanel>
         ) : null}
@@ -710,9 +721,9 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             <h2 className="text-xl font-semibold text-white">Conditions</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-200">Localisation<input value={input.location} onChange={(event) => setInput({ ...input, location: event.target.value })} className={FIELD} placeholder="Paris, Lyon, France..." /></label>
-              <label className="space-y-2 text-sm text-slate-200">Modalite<select value={input.workMode} onChange={(event) => setInput({ ...input, workMode: event.target.value as JobOfferWorkMode | '' })} className={FIELD}><option value="">Selectionner</option><option value="onsite">Sur site</option><option value="hybrid">Hybride</option><option value="remote">A distance</option></select></label>
-              <label className="space-y-2 text-sm text-slate-200">Contrat<select value={input.contractType} onChange={(event) => setInput({ ...input, contractType: event.target.value as JobOfferContractType | '' })} className={FIELD}><option value="">Selectionner</option><option value="permanent">CDI</option><option value="fixed_term">CDD</option><option value="temporary">Interim</option><option value="freelance">Freelance</option><option value="apprenticeship">Alternance</option><option value="internship">Stage</option><option value="other">Autre</option></select></label>
-              <label className="space-y-2 text-sm text-slate-200">Temps de travail<select value={input.workingTime} onChange={(event) => setInput({ ...input, workingTime: event.target.value as JobOfferWorkingTime | '' })} className={FIELD}><option value="">Selectionner</option><option value="full_time">Temps plein</option><option value="part_time">Temps partiel</option><option value="shift">Horaires postes</option><option value="flexible">Flexible</option><option value="other">Autre</option></select></label>
+              <label className="space-y-2 text-sm text-slate-200">Modalite<Select value={input.workMode} onChange={(event) => setInput({ ...input, workMode: event.target.value as JobOfferWorkMode | '' })}><option value="">Sélectionner</option><option value="onsite">Sur site</option><option value="hybrid">Hybride</option><option value="remote">À distance</option></Select></label>
+              <label className="space-y-2 text-sm text-slate-200">Contrat<Select value={input.contractType} onChange={(event) => setInput({ ...input, contractType: event.target.value as JobOfferContractType | '' })}><option value="">Sélectionner</option><option value="permanent">CDI</option><option value="fixed_term">CDD</option><option value="temporary">Intérim</option><option value="freelance">Freelance</option><option value="apprenticeship">Alternance</option><option value="internship">Stage</option><option value="other">Autre</option></Select></label>
+              <label className="space-y-2 text-sm text-slate-200">Temps de travail<Select value={input.workingTime} onChange={(event) => setInput({ ...input, workingTime: event.target.value as JobOfferWorkingTime | '' })}><option value="">Sélectionner</option><option value="full_time">Temps plein</option><option value="part_time">Temps partiel</option><option value="shift">Horaires postés</option><option value="flexible">Flexible</option><option value="other">Autre</option></Select></label>
             </div>
           </SevenoPanel>
         ) : null}
@@ -726,7 +737,6 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             ) : (
               <>
                 <PrerequisiteLibraryPicker
-                  currentOfferId={currentOfferId}
                   input={input}
                   search={search}
                   onSearchChange={setSearch}
@@ -743,6 +753,8 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
                   newPrerequisiteSaving={newPrerequisiteSaving}
                   newPrerequisiteName={newPrerequisiteName}
                   onNewPrerequisiteNameChange={setNewPrerequisiteName}
+                  newPrerequisiteRequirement={newPrerequisiteRequirement}
+                  onNewPrerequisiteRequirementChange={setNewPrerequisiteRequirement}
                   newPrerequisiteImportance={newPrerequisiteImportance}
                   onNewPrerequisiteImportanceChange={setNewPrerequisiteImportance}
                   newPrerequisiteSaveToLibrary={newPrerequisiteSaveToLibrary}
@@ -766,16 +778,16 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-white">Questionnaire entreprise</h2>
-                <p className="mt-3 text-sm leading-7 text-slate-300">Associez un questionnaire existant a cette offre. Il reste distinct de l Indice Seven&apos;O et des prerequis. Une offre peut rester en brouillon sans questionnaire.</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">Associez un questionnaire créé par votre entreprise à cette offre. Il évalue les critères propres au poste et reste distinct des prérequis. Le seuil de réussite est défini par votre entreprise. Une offre peut rester en brouillon sans questionnaire.</p>
               </div>
               <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{questionnaireSummary}</span>
             </div>
             <label className="mt-5 block space-y-2 text-sm text-slate-200">
               Questionnaire associe
-              <select value={input.questionnaireId} onChange={(event) => setInput((current) => ({ ...current, questionnaireId: event.target.value }))} className={FIELD}>
+              <Select value={input.questionnaireId} onChange={(event) => setInput((current) => ({ ...current, questionnaireId: event.target.value }))}>
                 <option value="">Aucun questionnaire associe</option>
                 {questionnaires.map((item) => <option key={item.id} value={item.id}>{questionnaireLabel(item)}</option>)}
-              </select>
+              </Select>
             </label>
             <p className="mt-3 text-sm leading-6 text-slate-400">Choisissez un questionnaire deja enregistre par votre entreprise. La verification de propriete est effectuee cote serveur.</p>
             {questionnairesLoading ? <p className="mt-2 text-xs text-slate-500">Chargement des questionnaires...</p> : questionnaires.length === 0 ? <p className="mt-2 text-xs text-amber-200">Aucun questionnaire n est encore enregistre pour cette entreprise.</p> : null}

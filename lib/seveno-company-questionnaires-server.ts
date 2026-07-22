@@ -4,11 +4,17 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getJobOffer } from '@/lib/seveno-job-offers-server';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import {
+  COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
+  COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
+} from '@/lib/seveno-company-questionnaire-constants';
+import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
 import type {
   CompanyQuestion,
   CompanyQuestionCorrectionMode,
   CompanyQuestionEditorProjection,
   CompanyQuestionExpectedAnswer,
+  CompanyQuestionnaireCreationMode,
   CompanyQuestionnaireListItem,
   CompanyQuestionnaireEditorProjection,
   CompanyQuestionnaireInput,
@@ -94,7 +100,7 @@ function normalizeOptions(raw: unknown, type: CompanyQuestionType) {
   if (new Set(options.map((item) => item.id)).size !== options.length) throw new SevenoCompanyQuestionnaireError('invalid_options', 400, 'Les identifiants des options doivent etre uniques.');
   if (new Set(options.map((item) => item.order)).size !== options.length) throw new SevenoCompanyQuestionnaireError('invalid_options', 400, 'Les ordres des options doivent etre uniques.');
   if (new Set(options.map((item) => normalizeOptionLabel(item.label))).size !== options.length) {
-    throw new SevenoCompanyQuestionnaireError('invalid_options', 400, 'Les libelles des options doivent etre differents.');
+    throw new SevenoCompanyQuestionnaireError('invalid_options', 400, 'Les libellés des options doivent être différents.');
   }
   return options;
 }
@@ -109,6 +115,17 @@ function normalizeExpectedAnswer(
   if (type === 'single_choice' && typeof raw === 'string' && options.some((item) => item.id === raw)) return raw;
   if (type === 'multiple_choice' && Array.isArray(raw) && raw.length > 0 && raw.every((item) => typeof item === 'string' && options.some((option) => option.id === item)) && new Set(raw).size === raw.length) return [...raw];
   throw new SevenoCompanyQuestionnaireError('invalid_expected_answer', 400, 'La correction automatique est invalide.');
+}
+
+function normalizeDifficulty(raw: unknown, existing?: CompanyQuestion): CompanyQuestion['difficulty'] {
+  if (raw === 'easy' || raw === 'medium' || raw === 'hard') {
+    return raw;
+  }
+  return existing?.difficulty;
+}
+
+function normalizeCreationMode(raw: unknown): CompanyQuestionnaireCreationMode {
+  return raw === 'ai_import' ? 'ai_import' : 'manual';
 }
 
 function normalizeQuestion(raw: unknown, existing?: CompanyQuestion): CompanyQuestion {
@@ -129,16 +146,20 @@ function normalizeQuestion(raw: unknown, existing?: CompanyQuestion): CompanyQue
     ? raw.order
     : null;
   if (points === null || order === null) throw new SevenoCompanyQuestionnaireError('invalid_question', 400, 'Les points ou l ordre sont invalides.');
+  const help = cleanText(raw.help, 1000);
+  const explanation = cleanText(raw.explanation, 2000) || existing?.explanation;
   const question: CompanyQuestion = {
     id,
     prompt: cleanText(raw.prompt, 500, true),
-    ...(cleanText(raw.help, 1000) ? { help: cleanText(raw.help, 1000) } : {}),
+    ...(help ? { help } : {}),
+    ...(explanation ? { explanation } : {}),
     type,
     required: raw.required === true,
     options,
     correctionMode,
     points,
     order,
+    ...(normalizeDifficulty(raw.difficulty, existing) ? { difficulty: normalizeDifficulty(raw.difficulty, existing) } : {}),
   };
   if (correctionMode === 'automatic') {
     const existingOptions = existing ? normalizeOptions(existing.options, existing.type) : [];
@@ -161,7 +182,14 @@ function normalizeQuestion(raw: unknown, existing?: CompanyQuestion): CompanyQue
   return question;
 }
 
-export function validateCompanyQuestionnaireInput(raw: unknown, existingQuestions: CompanyQuestion[] = []): CompanyQuestionnaireInput & { questions: CompanyQuestion[] } {
+export function validateCompanyQuestionnaireInput(
+  raw: unknown,
+  existingQuestions: CompanyQuestion[] = [],
+  existingMinimumPassingScorePercent: number | null | undefined = undefined,
+): CompanyQuestionnaireInput & {
+  questions: CompanyQuestion[];
+  minimumPassingScorePercent: number;
+} {
   if (!isPlainObject(raw)) throw new SevenoCompanyQuestionnaireError('invalid_questionnaire', 400, 'Le questionnaire est invalide.');
   if (!Array.isArray(raw.questions) || raw.questions.length > 50) throw new SevenoCompanyQuestionnaireError('invalid_questions', 400, 'Le questionnaire est limite a 50 questions.');
   const existingById = new Map(existingQuestions.map((item) => [item.id, item]));
@@ -175,9 +203,24 @@ export function validateCompanyQuestionnaireInput(raw: unknown, existingQuestion
       ? raw.durationMinutes
       : NaN;
   if (Number.isNaN(durationMinutes)) throw new SevenoCompanyQuestionnaireError('invalid_duration', 400, 'La duree doit etre comprise entre 1 et 240 minutes.');
+  let minimumPassingScorePercent: number;
+  try {
+    minimumPassingScorePercent = normalizeQuestionnaireMinimumPassingScorePercent(
+      raw.minimumPassingScorePercent,
+      existingMinimumPassingScorePercent,
+    );
+  } catch {
+    throw new SevenoCompanyQuestionnaireError(
+      'invalid_threshold',
+      400,
+      'Le seuil minimum doit etre compris entre 50 et 100 par paliers de 5.',
+    );
+  }
   return {
     title: cleanText(raw.title, 200),
     instructions: cleanText(raw.instructions, 3000),
+    creationMode: normalizeCreationMode(raw.creationMode),
+    minimumPassingScorePercent,
     durationMinutes,
     questions: questions.sort((left, right) => left.order - right.order),
   };
@@ -194,12 +237,14 @@ export function toCompanyQuestionEditorProjection(question: CompanyQuestion): Co
     id: question.id,
     prompt: question.prompt,
     ...(question.help ? { help: question.help } : {}),
+    ...(question.explanation ? { explanation: question.explanation } : {}),
     type: question.type,
     required: question.required,
     options,
     correctionMode: question.correctionMode,
     points: question.points,
     order: question.order,
+    ...(question.difficulty ? { difficulty: question.difficulty } : {}),
     hasExpectedAnswer: question.expectedAnswer !== undefined,
     hasNumberCriterion: question.numberOperator !== undefined,
     correctOptionIds,
@@ -214,7 +259,15 @@ function toProjection(id: string, data: FirestoreRecord): CompanyQuestionnaireEd
     offerVersion: typeof data.offerVersion === 'number' ? data.offerVersion : 0,
     title: String(data.title ?? ''),
     instructions: String(data.instructions ?? ''),
+    creationMode: data.creationMode === 'ai_import' ? 'ai_import' : 'manual',
     status: data.status === 'active' || data.status === 'archived' ? data.status : 'draft',
+    minimumPassingScorePercent: (() => {
+      try {
+        return normalizeQuestionnaireMinimumPassingScorePercent(data.minimumPassingScorePercent);
+      } catch {
+        return COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT;
+      }
+    })(),
     durationMinutes: typeof data.durationMinutes === 'number' ? data.durationMinutes : null,
     questions: questions.map(toCompanyQuestionEditorProjection),
     version: typeof data.version === 'number' ? data.version : 1,
@@ -232,6 +285,7 @@ function toListItem(id: string, data: FirestoreRecord): CompanyQuestionnaireList
     title: projection.title,
     questionCount: projection.questions.length,
     status: projection.status,
+    minimumPassingScorePercent: projection.minimumPassingScorePercent,
     version: projection.version,
     updatedAt: projection.updatedAt,
     publishedAt: projection.publishedAt,
@@ -274,7 +328,10 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
     const existingQuestions = snapshot.exists && Array.isArray(snapshot.data()?.questions)
       ? snapshot.data()?.questions as CompanyQuestion[]
       : [];
-    const input = validateCompanyQuestionnaireInput(raw, existingQuestions);
+    const existingMinimumPassingScorePercent = snapshot.exists && typeof snapshot.data()?.minimumPassingScorePercent === 'number'
+      ? snapshot.data()!.minimumPassingScorePercent
+      : undefined;
+    const input = validateCompanyQuestionnaireInput(raw, existingQuestions, existingMinimumPassingScorePercent);
     const now = Timestamp.now();
     const version = snapshot.exists && typeof snapshot.data()?.version === 'number' ? snapshot.data()!.version + 1 : 1;
     const stored = {
@@ -282,6 +339,7 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
       offerId: offer.id,
       offerVersion: offer.version,
       ...input,
+      creationMode: input.creationMode ?? 'manual',
       status: snapshot.data()?.status === 'archived' ? 'archived' : 'draft',
       version,
       createdAt: snapshot.exists && snapshot.get('createdAt') instanceof Timestamp ? snapshot.get('createdAt') : now,
@@ -312,8 +370,18 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
     }
     const data = snapshot.data() as FirestoreRecord;
     const questions = Array.isArray(data.questions) ? data.questions as CompanyQuestion[] : [];
-    if (!cleanText(data.title, 200) || questions.length === 0 || questions.some((item) => item.correctionMode === 'automatic' && item.expectedAnswer === undefined)) {
-      throw new SevenoCompanyQuestionnaireError('questionnaire_incomplete', 409, 'Completez le titre, les questions et les corrections avant activation.');
+    if (!cleanText(data.title, 200)) {
+      throw new SevenoCompanyQuestionnaireError('questionnaire_incomplete', 409, 'Completez le titre avant activation.');
+    }
+    if (questions.length !== COMPANY_QUESTIONNAIRE_QUESTION_COUNT) {
+      throw new SevenoCompanyQuestionnaireError(
+        'questionnaire_incomplete',
+        409,
+        `Le questionnaire doit contenir exactement ${COMPANY_QUESTIONNAIRE_QUESTION_COUNT} questions avant activation.`,
+      );
+    }
+    if (questions.some((item) => item.correctionMode === 'automatic' && item.expectedAnswer === undefined)) {
+      throw new SevenoCompanyQuestionnaireError('questionnaire_incomplete', 409, 'Completez les corrections avant activation.');
     }
     const now = Timestamp.now();
     const stored = { ...data, offerVersion: offer.version, status: 'active', updatedAt: now, publishedAt: now };

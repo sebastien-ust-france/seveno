@@ -1,0 +1,1001 @@
+import 'server-only';
+
+import { createHash, randomUUID } from 'node:crypto';
+import { AssessmentModelError, SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES } from '@/lib/seveno-professional-assessment';
+import type {
+  AssessmentDimensionCode,
+  AssessmentDimensionDefinition,
+  AssessmentInterpretationBlock,
+  AssessmentQuestion,
+  AssessmentQuestionDifficulty,
+  AssessmentScoreValue,
+  AssessmentValidationIssue,
+  AssessmentValidationResult,
+  AssessmentVersionDescriptor,
+} from '@/types/seveno-assessment';
+import type { SevenoAssessmentStoredVersion } from '@/types/seveno-assessment-admin';
+
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION = 'seveno_professional_assessment_bank_v1';
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE = 30;
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE = 30;
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE = 20;
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE = 20;
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_MAX_DOCUMENT_BYTES = 600 * 1024;
+
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DRAW_PROFILE = {
+  information_understanding: 3,
+  organization_prioritization: 4,
+  problem_solving: 4,
+  autonomy_initiative: 3,
+  adaptability: 2,
+  collaboration: 2,
+  rigor_reliability: 2,
+} as const satisfies Record<AssessmentDimensionCode, number>;
+
+export interface SevenoProfessionalAssessmentBankVersionMetadata {
+  name: string;
+  version: string;
+  description: string;
+  generatedPromptVersion: string;
+  essentialPoolSize: number;
+  extendedPoolSize: number;
+  essentialDrawSize: number;
+  extendedDrawSize: number;
+}
+
+export interface SevenoProfessionalAssessmentBankQuestionOption {
+  id: string;
+  label: string;
+  order: number;
+  dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
+  adminExplanation: string;
+}
+
+export interface SevenoProfessionalAssessmentBankQuestion {
+  questionId: string;
+  path: 'essential' | 'extended';
+  situation: string;
+  instruction: string;
+  primaryDimensionCodes: AssessmentDimensionCode[];
+  secondaryDimensionCode?: AssessmentDimensionCode | null;
+  options: SevenoProfessionalAssessmentBankQuestionOption[];
+  adminRationale: string;
+  difficulty: AssessmentQuestionDifficulty;
+  internalTags?: string[];
+}
+
+export interface SevenoProfessionalAssessmentBankDimensionConfiguration {
+  code: AssessmentDimensionCode;
+  label: string;
+  description: string;
+  weight: number;
+  displayOrder: number;
+  minimumEssentialObservations: number;
+  minimumExtendedObservations: number;
+  isActive: boolean;
+}
+
+export interface SevenoProfessionalAssessmentBankInterpretationBlockGroup {
+  dimensionCode: AssessmentDimensionCode;
+  blocks: AssessmentInterpretationBlock[];
+}
+
+export interface SevenoProfessionalAssessmentBankInterviewQuestion {
+  questionId: string;
+  dimensionCode: AssessmentDimensionCode;
+  prompt: string;
+  rationale: string;
+}
+
+export interface SevenoProfessionalAssessmentBankDocument {
+  versionMetadata: SevenoProfessionalAssessmentBankVersionMetadata;
+  essentialQuestionPool: SevenoProfessionalAssessmentBankQuestion[];
+  extendedQuestionPool: SevenoProfessionalAssessmentBankQuestion[];
+  dimensionConfigurations: SevenoProfessionalAssessmentBankDimensionConfiguration[];
+  interpretationBlocks: SevenoProfessionalAssessmentBankInterpretationBlockGroup[];
+  interviewQuestions: SevenoProfessionalAssessmentBankInterviewQuestion[];
+}
+
+export interface SevenoProfessionalAssessmentBankDrawResult {
+  essentialQuestionIds: string[];
+  extendedQuestionIds: string[];
+  essentialQuestions: SevenoProfessionalAssessmentBankQuestion[];
+  extendedQuestions: SevenoProfessionalAssessmentBankQuestion[];
+}
+
+export interface SevenoProfessionalAssessmentBankSimulationSummary {
+  runs: number;
+  uniqueEssentialDraws: number;
+  uniqueExtendedDraws: number;
+  uniquePairDraws: number;
+  crossPoolOverlapCount: number;
+  seedStabilityMatches: number;
+}
+
+function createIssue(
+  code: string,
+  path: string,
+  message: string,
+  severity: AssessmentValidationIssue['severity'] = 'error',
+): AssessmentValidationIssue {
+  return { code, path, message, severity };
+}
+
+function resultFromIssues(issues: AssessmentValidationIssue[]): AssessmentValidationResult {
+  return {
+    valid: issues.every((issue) => issue.severity !== 'error'),
+    issues,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function cleanString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isScore(value: unknown): value is AssessmentScoreValue {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4;
+}
+
+function isKnownDimensionCode(value: unknown): value is AssessmentDimensionCode {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES as readonly string[]).includes(value);
+}
+
+function sortedUnique(values: string[]) {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right, 'fr-FR', { sensitivity: 'base' }));
+}
+
+function normalizeDimensionCodes(values: unknown): AssessmentDimensionCode[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return sortedUnique(values.map((value) => cleanString(value)).filter(isKnownDimensionCode)) as AssessmentDimensionCode[];
+}
+
+function normalizeOption(raw: unknown, questionId: string, index: number): SevenoProfessionalAssessmentBankQuestionOption {
+  const source = isRecord(raw) ? raw : {};
+  const id = cleanString(source.id) || `${questionId}-option-${index + 1}-${randomUUID().slice(0, 8)}`;
+  const dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>> = {};
+
+  if (isRecord(source.dimensionScores)) {
+    for (const [key, value] of Object.entries(source.dimensionScores)) {
+      if (isKnownDimensionCode(key) && isScore(value)) {
+        dimensionScores[key] = value;
+      }
+    }
+  }
+
+  return {
+    id,
+    label: cleanString(source.label),
+    order: isPositiveInteger(source.order) ? source.order : index + 1,
+    dimensionScores,
+    adminExplanation: cleanString(source.adminExplanation),
+  };
+}
+
+function normalizeQuestion(raw: unknown, index: number): SevenoProfessionalAssessmentBankQuestion {
+  const source = isRecord(raw) ? raw : {};
+  const questionId = cleanString(source.questionId) || `bank-question-${index + 1}-${randomUUID().slice(0, 8)}`;
+  const options = Array.isArray(source.options)
+    ? source.options.map((option, optionIndex) => normalizeOption(option, questionId, optionIndex))
+    : [];
+
+  return {
+    questionId,
+    path: source.path === 'extended' ? 'extended' : 'essential',
+    situation: cleanString(source.situation),
+    instruction: cleanString(source.instruction),
+    primaryDimensionCodes: normalizeDimensionCodes(source.primaryDimensionCodes),
+    ...(isKnownDimensionCode(source.secondaryDimensionCode) ? { secondaryDimensionCode: source.secondaryDimensionCode } : {}),
+    options,
+    adminRationale: cleanString(source.adminRationale),
+    difficulty: source.difficulty === 'standard' || source.difficulty === 'advanced' ? source.difficulty : 'introductory',
+    ...(Array.isArray(source.internalTags) ? { internalTags: source.internalTags.map((tag) => cleanString(tag)).filter(Boolean) } : {}),
+  };
+}
+
+function normalizeDimensionConfiguration(raw: unknown, index: number): SevenoProfessionalAssessmentBankDimensionConfiguration {
+  const source = isRecord(raw) ? raw : {};
+  const code = isKnownDimensionCode(source.code) ? source.code : SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES[index]!;
+
+  return {
+    code,
+    label: cleanString(source.label),
+    description: cleanString(source.description),
+    weight: isPositiveInteger(source.weight) ? source.weight : 0,
+    displayOrder: isPositiveInteger(source.displayOrder) ? source.displayOrder : index + 1,
+    minimumEssentialObservations: isPositiveInteger(source.minimumEssentialObservations) ? source.minimumEssentialObservations : 1,
+    minimumExtendedObservations: isPositiveInteger(source.minimumExtendedObservations) ? source.minimumExtendedObservations : 1,
+    isActive: typeof source.isActive === 'boolean' ? source.isActive : true,
+  };
+}
+
+function normalizeInterpretationBlock(raw: unknown): SevenoProfessionalAssessmentBankInterpretationBlockGroup {
+  const source = isRecord(raw) ? raw : {};
+  const dimensionCode = isKnownDimensionCode(source.dimensionCode) ? source.dimensionCode : SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES[0]!;
+  const blocks = Array.isArray(source.blocks)
+    ? source.blocks.map((block) => {
+      const blockSource = isRecord(block) ? block : {};
+      return {
+        interpretationCode: cleanString(blockSource.interpretationCode),
+        minScore: isPositiveInteger(blockSource.minScore) || blockSource.minScore === 0 ? Number(blockSource.minScore) : 0,
+        maxScore: isPositiveInteger(blockSource.maxScore) || blockSource.maxScore === 0 ? Number(blockSource.maxScore) : 0,
+        candidateSummary: cleanString(blockSource.candidateSummary),
+        companySummary: cleanString(blockSource.companySummary),
+        ...(isNonEmptyString(blockSource.strengthLabel) ? { strengthLabel: cleanString(blockSource.strengthLabel) } : {}),
+        interviewFocus: cleanString(blockSource.interviewFocus),
+        limitations: Array.isArray(blockSource.limitations) ? blockSource.limitations.map((item) => cleanString(item)).filter(Boolean) : [],
+        interviewQuestionIds: Array.isArray(blockSource.interviewQuestionIds) ? blockSource.interviewQuestionIds.map((item) => cleanString(item)).filter(Boolean) : [],
+      } satisfies AssessmentInterpretationBlock;
+    })
+    : [];
+
+  return { dimensionCode, blocks };
+}
+
+function normalizeInterviewQuestion(raw: unknown): SevenoProfessionalAssessmentBankInterviewQuestion {
+  const source = isRecord(raw) ? raw : {};
+  return {
+    questionId: cleanString(source.questionId),
+    dimensionCode: isKnownDimensionCode(source.dimensionCode) ? source.dimensionCode : SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES[0]!,
+    prompt: cleanString(source.prompt),
+    rationale: cleanString(source.rationale),
+  };
+}
+
+function scanForForbiddenKeys(value: unknown, path = ''): AssessmentValidationIssue[] {
+  const issues: AssessmentValidationIssue[] = [];
+  const forbidden = new Set(['status', 'publishedAt', 'archivedAt', 'activatedAt', 'globalScore', 'overallScore', 'score', 'rank', 'percentile', 'humanReviewStatus', 'decisionFinal']);
+
+  function visit(node: unknown, currentPath: string) {
+    if (!isRecord(node)) {
+      if (typeof node === 'string' && node.includes('\uFFFD')) {
+        issues.push(createIssue('bank_utf8_corruption', currentPath, 'Le JSON importé contient un caractère UTF-8 invalide.'));
+      }
+      return;
+    }
+
+    for (const [key, child] of Object.entries(node)) {
+      const childPath = currentPath ? `${currentPath}.${key}` : key;
+      if (forbidden.has(key)) {
+        issues.push(createIssue('bank_forbidden_publication_field', childPath, 'Le JSON importé ne doit pas définir de champ de publication ou de score global.'));
+      }
+
+      if (typeof child === 'string') {
+        if (child.includes('\uFFFD')) {
+          issues.push(createIssue('bank_utf8_corruption', childPath, 'Le JSON importé contient un caractère UTF-8 invalide.'));
+        }
+
+        if (/(https?:\/\/|www\.|@|\blinkedin\b|\bcv\b|\bcurriculum vitae\b|\b\d{2,}[\s.-]?\d{2,})/i.test(child)) {
+          issues.push(createIssue('bank_sensitive_data_detected', childPath, 'Le JSON importé semble contenir des données sensibles.'));
+        }
+      } else if (Array.isArray(child) || isRecord(child)) {
+        visit(child, childPath);
+      }
+    }
+  }
+
+  visit(value, path);
+  return issues;
+}
+
+function normalizeBankDocument(raw: unknown): SevenoProfessionalAssessmentBankDocument {
+  const source = isRecord(raw) ? raw : {};
+  const versionMetadata = isRecord(source.versionMetadata) ? source.versionMetadata : {};
+  return {
+    versionMetadata: {
+      name: cleanString(versionMetadata.name),
+      version: cleanString(versionMetadata.version),
+      description: cleanString(versionMetadata.description),
+      generatedPromptVersion: cleanString(versionMetadata.generatedPromptVersion) || SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
+      essentialPoolSize: isPositiveInteger(versionMetadata.essentialPoolSize)
+        ? Number(versionMetadata.essentialPoolSize)
+        : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE,
+      extendedPoolSize: isPositiveInteger(versionMetadata.extendedPoolSize)
+        ? Number(versionMetadata.extendedPoolSize)
+        : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
+      essentialDrawSize: isPositiveInteger(versionMetadata.essentialDrawSize)
+        ? Number(versionMetadata.essentialDrawSize)
+        : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
+      extendedDrawSize: isPositiveInteger(versionMetadata.extendedDrawSize)
+        ? Number(versionMetadata.extendedDrawSize)
+        : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+    },
+    essentialQuestionPool: Array.isArray(source.essentialQuestionPool) ? source.essentialQuestionPool.map((question, index) => normalizeQuestion(question, index)) : [],
+    extendedQuestionPool: Array.isArray(source.extendedQuestionPool) ? source.extendedQuestionPool.map((question, index) => normalizeQuestion(question, index)) : [],
+    dimensionConfigurations: Array.isArray(source.dimensionConfigurations)
+      ? source.dimensionConfigurations.map((dimension, index) => normalizeDimensionConfiguration(dimension, index))
+      : [],
+    interpretationBlocks: Array.isArray(source.interpretationBlocks)
+      ? source.interpretationBlocks.map((block) => normalizeInterpretationBlock(block))
+      : [],
+    interviewQuestions: Array.isArray(source.interviewQuestions)
+      ? source.interviewQuestions.map((item) => normalizeInterviewQuestion(item))
+      : [],
+  } satisfies SevenoProfessionalAssessmentBankDocument;
+}
+
+function uniqueKeySetsMatch(options: SevenoProfessionalAssessmentBankQuestionOption[]) {
+  if (options.length !== 4) {
+    return false;
+  }
+
+  const firstSet = JSON.stringify(sortedUnique(Object.keys(options[0]!.dimensionScores ?? {})));
+  return options.every((option) => JSON.stringify(sortedUnique(Object.keys(option.dimensionScores ?? {}))) === firstSet);
+}
+
+function optionFingerprint(option: SevenoProfessionalAssessmentBankQuestionOption) {
+  return JSON.stringify({
+    label: option.label,
+    order: option.order,
+    dimensionScores: Object.fromEntries(Object.entries(option.dimensionScores).sort(([left], [right]) => left.localeCompare(right, 'fr-FR', { sensitivity: 'base' }))),
+    adminExplanation: option.adminExplanation,
+  });
+}
+
+function questionFingerprint(question: SevenoProfessionalAssessmentBankQuestion) {
+  return JSON.stringify({
+    path: question.path,
+    situation: question.situation,
+    instruction: question.instruction,
+    primaryDimensionCodes: [...question.primaryDimensionCodes].sort(),
+    secondaryDimensionCode: question.secondaryDimensionCode ?? null,
+    options: question.options.map((option) => optionFingerprint(option)),
+    adminRationale: question.adminRationale,
+    difficulty: question.difficulty,
+    internalTags: [...(question.internalTags ?? [])].sort(),
+  });
+}
+
+function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, context: string) {
+  const issues: AssessmentValidationIssue[] = [];
+
+  if (!isNonEmptyString(question.questionId)) {
+    issues.push(createIssue('bank_question_missing_id', `${context}.questionId`, 'Chaque question doit contenir un identifiant.'));
+  }
+
+  if (question.path !== 'essential' && question.path !== 'extended') {
+    issues.push(createIssue('bank_question_invalid_path', `${context}.path`, 'Chaque question doit appartenir au parcours essentiel ou approfondi.'));
+  }
+
+  if (!isNonEmptyString(question.situation)) {
+    issues.push(createIssue('bank_question_missing_situation', `${context}.situation`, 'La situation de la question est obligatoire.'));
+  }
+
+  if (!isNonEmptyString(question.instruction)) {
+    issues.push(createIssue('bank_question_missing_instruction', `${context}.instruction`, 'La consigne de la question est obligatoire.'));
+  }
+
+  if (!Array.isArray(question.options) || question.options.length !== 4) {
+    issues.push(createIssue('bank_question_invalid_option_count', `${context}.options`, 'Chaque question doit proposer exactement quatre options.'));
+    return issues;
+  }
+
+  const optionIds = question.options.map((option) => option.id);
+  const duplicateOptionIds = optionIds.filter((id, index) => optionIds.indexOf(id) !== index);
+  if (duplicateOptionIds.length > 0) {
+    issues.push(createIssue('bank_question_duplicate_option_ids', `${context}.options`, 'Les identifiants des options doivent être uniques.'));
+  }
+
+  const normalizedDimensionKeys = question.options.map((option, index) => {
+    if (!isNonEmptyString(option.id)) {
+      issues.push(createIssue('bank_option_missing_id', `${context}.options[${index}].id`, 'Une option doit contenir un identifiant.'));
+    }
+
+    if (!isNonEmptyString(option.label)) {
+      issues.push(createIssue('bank_option_missing_label', `${context}.options[${index}].label`, 'Une option doit contenir un libellé.'));
+    }
+
+    if (!isPositiveInteger(option.order)) {
+      issues.push(createIssue('bank_option_invalid_order', `${context}.options[${index}].order`, 'L ordre de l option doit être un entier positif.'));
+    }
+
+    if (!isNonEmptyString(option.adminExplanation)) {
+      issues.push(createIssue('bank_option_missing_admin_explanation', `${context}.options[${index}].adminExplanation`, 'Chaque option doit expliquer son intention administrateur.'));
+    }
+
+    for (const [dimensionCode, score] of Object.entries(option.dimensionScores ?? {})) {
+      if (!isKnownDimensionCode(dimensionCode)) {
+        issues.push(createIssue('bank_option_unknown_dimension', `${context}.options[${index}].dimensionScores.${dimensionCode}`, 'Une dimension inconnue a été trouvée.'));
+      }
+
+      if (!isScore(score)) {
+        issues.push(createIssue('bank_option_invalid_score', `${context}.options[${index}].dimensionScores.${dimensionCode}`, 'Les scores doivent être compris entre 0 et 4.'));
+      }
+    }
+
+    return JSON.stringify(sortedUnique(Object.keys(option.dimensionScores ?? {})));
+  });
+
+  if (normalizedDimensionKeys.some((key) => key !== normalizedDimensionKeys[0])) {
+    issues.push(createIssue('bank_question_option_dimension_mismatch', `${context}.options`, 'Les quatre options doivent scorer les mêmes dimensions.'));
+  }
+
+  if (!uniqueKeySetsMatch(question.options)) {
+    issues.push(createIssue('bank_question_dimension_key_mismatch', `${context}.options`, 'Les options doivent partager exactement les mêmes dimensions de score.'));
+  }
+
+  if (!Array.isArray(question.primaryDimensionCodes) || question.primaryDimensionCodes.length < 1 || question.primaryDimensionCodes.length > 2) {
+    issues.push(createIssue('bank_question_invalid_primary_dimensions', `${context}.primaryDimensionCodes`, 'Une question doit avoir une ou deux dimensions principales.'));
+  }
+
+  if (question.secondaryDimensionCode && question.primaryDimensionCodes.includes(question.secondaryDimensionCode)) {
+    issues.push(createIssue('bank_question_dimension_overlap', `${context}.secondaryDimensionCode`, 'Une dimension secondaire ne peut pas être aussi principale.'));
+  }
+
+  if (!isNonEmptyString(question.adminRationale)) {
+    issues.push(createIssue('bank_question_missing_rationale', `${context}.adminRationale`, 'La justification administrateur est obligatoire.'));
+  }
+
+  if (question.difficulty !== 'introductory' && question.difficulty !== 'standard' && question.difficulty !== 'advanced') {
+    issues.push(createIssue('bank_question_invalid_difficulty', `${context}.difficulty`, 'La difficulté de la question est invalide.'));
+  }
+
+  if (Array.isArray(question.internalTags)) {
+    for (const [index, tag] of question.internalTags.entries()) {
+      if (!isNonEmptyString(tag)) {
+        issues.push(createIssue('bank_question_invalid_internal_tag', `${context}.internalTags[${index}]`, 'Les balises internes doivent être des chaînes non vides.'));
+      }
+    }
+  }
+
+  return issues;
+}
+
+function bankQuestionToAssessmentQuestion(
+  question: SevenoProfessionalAssessmentBankQuestion,
+  versionId: string,
+  position: number,
+): AssessmentQuestion {
+  return {
+    id: question.questionId,
+    code: question.questionId,
+    assessmentVersionId: versionId,
+    path: question.path,
+    position,
+    situation: question.situation,
+    instruction: question.instruction,
+    options: question.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      position: option.order,
+      dimensionScores: { ...option.dimensionScores },
+      adminExplanation: option.adminExplanation,
+    })),
+    primaryDimensionCodes: [...question.primaryDimensionCodes],
+    ...(question.secondaryDimensionCode ? { secondaryDimensionCodes: [question.secondaryDimensionCode] } : {}),
+    difficulty: question.difficulty,
+    estimatedReadingSeconds: question.path === 'essential' ? 30 : 45,
+    adminRationale: question.adminRationale,
+    isActive: true,
+  };
+}
+
+function buildVersionDimensions(
+  dimensionConfigurations: SevenoProfessionalAssessmentBankDimensionConfiguration[],
+  interpretationBlocks: SevenoProfessionalAssessmentBankInterpretationBlockGroup[],
+  interviewQuestions: SevenoProfessionalAssessmentBankInterviewQuestion[],
+): AssessmentDimensionDefinition[] {
+  return dimensionConfigurations
+    .slice()
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((dimension) => {
+      const interpretationGroup = interpretationBlocks.find((group) => group.dimensionCode === dimension.code);
+      const questionIds = interviewQuestions.filter((question) => question.dimensionCode === dimension.code).map((question) => question.questionId);
+
+      return {
+        code: dimension.code,
+        label: dimension.label,
+        description: dimension.description,
+        weight: dimension.weight,
+        displayOrder: dimension.displayOrder,
+        minimumEssentialObservations: dimension.minimumEssentialObservations,
+        minimumExtendedObservations: dimension.minimumExtendedObservations,
+        interpretationThresholds: [...(interpretationGroup?.blocks ?? [])],
+        interviewQuestionIds: questionIds,
+        isActive: dimension.isActive,
+      };
+    });
+}
+
+function hashRank(seed: string, value: string) {
+  return createHash('sha256').update(`${seed}:${value}`).digest('hex');
+}
+
+function drawStratifiedQuestions(
+  pool: SevenoProfessionalAssessmentBankQuestion[],
+  seed: string,
+  totalQuestions: number,
+  targetCounts = SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DRAW_PROFILE,
+) {
+  const grouped = new Map<AssessmentDimensionCode, SevenoProfessionalAssessmentBankQuestion[]>();
+  for (const code of SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES) {
+    grouped.set(code, []);
+  }
+
+  for (const question of pool) {
+    const primary = question.primaryDimensionCodes[0] ?? question.secondaryDimensionCode ?? null;
+    if (!primary) {
+      continue;
+    }
+
+    grouped.get(primary)?.push(question);
+  }
+
+  const selected = new Map<string, SevenoProfessionalAssessmentBankQuestion>();
+  for (const [dimensionCode, count] of Object.entries(targetCounts) as Array<[AssessmentDimensionCode, number]>) {
+    const bucket = [...(grouped.get(dimensionCode) ?? [])].sort((left, right) => hashRank(seed, `${dimensionCode}:${left.questionId}`).localeCompare(hashRank(seed, `${dimensionCode}:${right.questionId}`)));
+    for (const question of bucket) {
+      if (selected.size >= totalQuestions) {
+        break;
+      }
+      if (!selected.has(question.questionId) && selected.size < totalQuestions) {
+        selected.set(question.questionId, question);
+      }
+      if ([...selected.values()].filter((item) => (item.primaryDimensionCodes[0] ?? item.secondaryDimensionCode ?? '') === dimensionCode).length >= count) {
+        break;
+      }
+    }
+  }
+
+  if (selected.size < totalQuestions) {
+    const remaining = [...pool].sort((left, right) => hashRank(seed, left.questionId).localeCompare(hashRank(seed, right.questionId)));
+    for (const question of remaining) {
+      if (selected.size >= totalQuestions) {
+        break;
+      }
+      if (!selected.has(question.questionId)) {
+        selected.set(question.questionId, question);
+      }
+    }
+  }
+
+  return [...selected.values()].slice(0, totalQuestions);
+}
+
+function buildBankPromptQuestionExample(question: AssessmentQuestion): SevenoProfessionalAssessmentBankQuestion {
+  return {
+    questionId: question.id,
+    path: question.path,
+    situation: question.situation,
+    instruction: question.instruction,
+    primaryDimensionCodes: [...question.primaryDimensionCodes],
+    ...(question.secondaryDimensionCodes?.[0] ? { secondaryDimensionCode: question.secondaryDimensionCodes[0] } : {}),
+    options: question.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      order: option.position,
+      dimensionScores: { ...option.dimensionScores },
+      adminExplanation: option.adminExplanation,
+    })),
+    adminRationale: question.adminRationale,
+    difficulty: question.difficulty,
+  };
+}
+
+function buildBankPromptDimensionExample(dimension: AssessmentDimensionDefinition): SevenoProfessionalAssessmentBankDimensionConfiguration {
+  return {
+    code: dimension.code,
+    label: dimension.label,
+    description: dimension.description,
+    weight: dimension.weight,
+    displayOrder: dimension.displayOrder,
+    minimumEssentialObservations: dimension.minimumEssentialObservations,
+    minimumExtendedObservations: dimension.minimumExtendedObservations,
+    isActive: dimension.isActive,
+  };
+}
+
+function buildBankPromptInterpretationGroupExample(dimension: AssessmentDimensionDefinition): SevenoProfessionalAssessmentBankInterpretationBlockGroup {
+  return {
+    dimensionCode: dimension.code,
+    blocks: dimension.interpretationThresholds.map((threshold) => ({
+      interpretationCode: threshold.interpretationCode,
+      minScore: threshold.minScore,
+      maxScore: threshold.maxScore,
+      candidateSummary: threshold.candidateSummary,
+      companySummary: threshold.companySummary,
+      ...(threshold.strengthLabel ? { strengthLabel: threshold.strengthLabel } : {}),
+      interviewFocus: threshold.interviewFocus,
+      limitations: [...threshold.limitations],
+      interviewQuestionIds: [...threshold.interviewQuestionIds],
+    })),
+  };
+}
+
+function buildBankPromptInterviewQuestionExample(
+  version: AssessmentVersionDescriptor,
+  dimension: AssessmentDimensionDefinition,
+): SevenoProfessionalAssessmentBankInterviewQuestion {
+  const interviewQuestionId = dimension.interviewQuestionIds[0]
+    ?? dimension.interpretationThresholds.flatMap((threshold) => threshold.interviewQuestionIds)[0]
+    ?? `${dimension.code}-interview-01`;
+
+  return {
+    questionId: interviewQuestionId,
+    dimensionCode: dimension.code,
+    prompt: version.interviewQuestionCatalog?.[interviewQuestionId] ?? `Comment observer ${dimension.label.toLowerCase()} en entretien ?`,
+    rationale: `Question d'entretien pour ${dimension.label}.`,
+  };
+}
+
+function buildBankPromptExample(version: AssessmentVersionDescriptor) {
+  const sortedDimensions = [...version.dimensions].sort((left, right) => left.displayOrder - right.displayOrder);
+  const essentialQuestion = version.questions.find((question) => question.path === 'essential') ?? version.questions[0];
+  const extendedQuestion = version.questions.find((question) => question.path === 'extended') ?? version.questions[0];
+  const interpretationDimension = sortedDimensions.find((dimension) => dimension.interpretationThresholds.length > 0) ?? sortedDimensions[0];
+  const interviewDimension = sortedDimensions.find(
+    (dimension) => dimension.interviewQuestionIds.length > 0
+      || dimension.interpretationThresholds.some((threshold) => threshold.interviewQuestionIds.length > 0),
+  ) ?? interpretationDimension;
+
+  return {
+    versionMetadata: {
+      name: version.name,
+      version: version.version,
+      description: version.description,
+      generatedPromptVersion: version.generatedPromptVersion ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
+      essentialPoolSize: version.essentialPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE,
+      extendedPoolSize: version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
+      essentialDrawSize: version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
+      extendedDrawSize: version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+    },
+    essentialQuestionPool: essentialQuestion ? [buildBankPromptQuestionExample(essentialQuestion)] : [],
+    extendedQuestionPool: extendedQuestion ? [buildBankPromptQuestionExample(extendedQuestion)] : [],
+    dimensionConfigurations: sortedDimensions.map((dimension) => buildBankPromptDimensionExample(dimension)),
+    interpretationBlocks: interpretationDimension ? [buildBankPromptInterpretationGroupExample(interpretationDimension)] : [],
+    interviewQuestions: interviewDimension ? [buildBankPromptInterviewQuestionExample(version, interviewDimension)] : [],
+  };
+}
+
+function buildBankPromptRules(version: AssessmentVersionDescriptor) {
+  const dimensionLines = version.dimensions
+    .slice()
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((dimension) => `- ${dimension.code}: ${dimension.label}`);
+
+  const allowedDimensionCodes = version.dimensions
+    .slice()
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map((dimension) => dimension.code)
+    .join(', ');
+
+  const drawProfile = Object.entries(SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DRAW_PROFILE)
+    .map(([code, count]) => `${code}: ${count}`)
+    .join(', ');
+
+  return [
+    `Version technique du brouillon: ${version.version}`,
+    `Nom du brouillon: ${version.name}`,
+    `Description du brouillon: ${version.description}`,
+    `Version du générateur attendue: ${version.generatedPromptVersion ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION}`,
+    'Tu dois répondre uniquement par un objet JSON valide, sans Markdown, sans bloc de code, sans commentaire et sans texte avant ni après.',
+    'Le JSON doit contenir exactement les clés suivantes: versionMetadata, essentialQuestionPool, extendedQuestionPool, dimensionConfigurations, interpretationBlocks, interviewQuestions.',
+    'Aucun champ supplémentaire inconnu ne doit être ajouté.',
+    'Aucune valeur undefined ne doit être produite.',
+    'Les guillemets doubles sont obligatoires et aucun trailing comma n est autorisé.',
+    'Les champs de publication et de score global sont interdits: status, publishedAt, archivedAt, activatedAt, humanReviewStatus, decisionFinal, globalScore, overallScore, score, rank, percentile.',
+    'Aucun champ de précision calculée n est attendu dans cette banque: les niveaux de précision sont calculés ensuite par le moteur SevenO.',
+    'Le JSON ne doit contenir aucune donnée sensible, aucun email, aucun téléphone, aucune URL, aucun CV, aucun lien LinkedIn, aucun secret, aucun token ni aucune clé.',
+    `Les pools doivent contenir exactement ${version.essentialPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE} questions essentielles et ${version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE} questions approfondies.`,
+    `Le système tirera ensuite exactement ${version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE} questions essentielles et ${version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE} questions approfondies.`,
+    `La répartition cible des pools doit permettre le tirage suivant: ${drawProfile}.`,
+    'Chaque question doit proposer exactement 4 options.',
+    'Chaque option doit contenir: id, order, label, dimensionScores, adminExplanation.',
+    'Les scores de dimension doivent être des entiers compris entre 0 et 4 inclus.',
+    'Les quatre options d une même question doivent scorer exactement les mêmes dimensions.',
+    'Aucune paire de questions ne doit partager le même ensemble complet de quatre réponses.',
+    'Les questions essential et extended ne doivent pas réutiliser les mêmes quatre options.',
+    'Les réponses doivent rester spécifiques à la situation et être rédigées avant l attribution du barème.',
+    'Chaque score doit être expliqué par adminExplanation.',
+    'Éviter les réponses manifestement parfaites ou absurdes.',
+    'Chaque question doit contenir: questionId, path, situation, instruction, primaryDimensionCodes, secondaryDimensionCode optionnel, difficulty, adminRationale, options, internalTags optionnel.',
+    'path doit valoir essential ou extended.',
+    'difficulty doit valoir introductory, standard ou advanced.',
+    'primaryDimensionCodes doit contenir une ou deux dimensions.',
+    'secondaryDimensionCode, si présent, doit être différent des dimensions principales.',
+    'Chaque dimensionConfiguration doit contenir: code, label, description, weight, displayOrder, minimumEssentialObservations, minimumExtendedObservations, isActive.',
+    `Les codes de dimensions autorisés sont fermés: ${allowedDimensionCodes}.`,
+    ...dimensionLines,
+    'Chaque interpretationBlocks group doit contenir: dimensionCode et blocks.',
+    'Chaque dimension doit avoir exactement 5 blocs d interprétation couvrant 0-39, 40-59, 60-74, 75-89 et 90-100.',
+    'Chaque bloc d interprétation doit contenir: interpretationCode, minScore, maxScore, candidateSummary, companySummary, strengthLabel optionnel, interviewFocus, limitations, interviewQuestionIds.',
+    'Chaque interviewQuestion doit contenir: questionId, dimensionCode, prompt, rationale.',
+    'Exemple complet minimal de structure à respecter, fourni pour illustrer le schéma et ne pas copier textuellement:',
+    JSON.stringify(buildBankPromptExample(version), null, 2),
+  ];
+}
+
+export function buildSevenoProfessionalAssessmentBankPrompt(version: AssessmentVersionDescriptor) {
+  const lines = [
+    'Tu es un générateur de banque d analyse professionnelle SevenO.',
+    'Produis un JSON strictement conforme au schéma demandé.',
+    '',
+    ...buildBankPromptRules(version),
+    '',
+    'Rappels:',
+    '- Conserver le contenu centré sur des situations professionnelles concrètes.',
+    '- Ne pas publier la banque dans cet état.',
+    '- Ne pas ajouter de score global ni de recommandation automatique.',
+    '- Ne jamais ajouter de statut de publication défini par l IA.',
+  ];
+
+  return lines.join('\n');
+}
+
+function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfessionalAssessmentBankDocument) {
+  const issues: AssessmentValidationIssue[] = [];
+
+  issues.push(...scanForForbiddenKeys(rawDocument));
+
+  if (!isRecord(rawDocument)) {
+    issues.push(createIssue('bank_document_invalid_root', 'root', 'Le JSON importé doit être un objet.'));
+    return issues;
+  }
+
+  const metadata = isRecord(rawDocument.versionMetadata) ? rawDocument.versionMetadata : {};
+  if (!isNonEmptyString(metadata.name)) {
+    issues.push(createIssue('bank_missing_version_name', 'versionMetadata.name', 'Le nom de la version est obligatoire.'));
+  }
+
+  if (!isNonEmptyString(metadata.version) || !/^\d+\.\d+\.\d+$/.test(cleanString(metadata.version))) {
+    issues.push(createIssue('bank_invalid_version_number', 'versionMetadata.version', 'La version doit suivre une numérotation sémantique stable.'));
+  }
+
+  if (!isNonEmptyString(metadata.description)) {
+    issues.push(createIssue('bank_missing_version_description', 'versionMetadata.description', 'La description de la version est obligatoire.'));
+  }
+
+  if (!isPositiveInteger(document.versionMetadata.essentialPoolSize) || document.versionMetadata.essentialPoolSize !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE) {
+    issues.push(createIssue('bank_invalid_essential_pool_size', 'versionMetadata.essentialPoolSize', `La banque doit contenir exactement ${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE} questions essentielles.`));
+  }
+
+  if (!isPositiveInteger(document.versionMetadata.extendedPoolSize) || document.versionMetadata.extendedPoolSize !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE) {
+    issues.push(createIssue('bank_invalid_extended_pool_size', 'versionMetadata.extendedPoolSize', `La banque doit contenir exactement ${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE} questions approfondies.`));
+  }
+
+  if (!isPositiveInteger(document.versionMetadata.essentialDrawSize) || document.versionMetadata.essentialDrawSize !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE) {
+    issues.push(createIssue('bank_invalid_essential_draw_size', 'versionMetadata.essentialDrawSize', `Le tirage essentiel doit contenir exactement ${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE} questions.`));
+  }
+
+  if (!isPositiveInteger(document.versionMetadata.extendedDrawSize) || document.versionMetadata.extendedDrawSize !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE) {
+    issues.push(createIssue('bank_invalid_extended_draw_size', 'versionMetadata.extendedDrawSize', `Le tirage approfondi doit contenir exactement ${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE} questions.`));
+  }
+
+  if (document.dimensionConfigurations.length !== SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.length) {
+    issues.push(createIssue('bank_dimension_configuration_count', 'dimensionConfigurations', 'La banque doit couvrir exactement sept dimensions.'));
+  }
+
+  const dimensionCodes = document.dimensionConfigurations.map((dimension) => dimension.code);
+  const duplicateDimensionCodes = dimensionCodes.filter((code, index) => dimensionCodes.indexOf(code) !== index);
+  if (duplicateDimensionCodes.length > 0) {
+    issues.push(createIssue('bank_dimension_duplicate_code', 'dimensionConfigurations', 'Les codes de dimensions doivent être uniques.'));
+  }
+
+  const unknownDimensionCodes = dimensionCodes.filter((code) => !SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.includes(code));
+  if (unknownDimensionCodes.length > 0) {
+    issues.push(createIssue('bank_dimension_unknown_code', 'dimensionConfigurations', 'Une dimension inconnue a été détectée.'));
+  }
+
+  const weightedSum = document.dimensionConfigurations.reduce((sum, dimension) => sum + (Number.isFinite(dimension.weight) ? dimension.weight : 0), 0);
+  if (weightedSum !== 100) {
+    issues.push(createIssue('bank_dimension_weight_sum_invalid', 'dimensionConfigurations', 'La somme des poids des dimensions doit être égale à 100.'));
+  }
+
+  const interpretationCodes = document.interpretationBlocks.map((group) => group.dimensionCode);
+  if (interpretationCodes.length !== SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.length) {
+    issues.push(createIssue('bank_interpretation_group_count', 'interpretationBlocks', 'Chaque dimension doit disposer de ses blocs d interprétation.'));
+  }
+
+  const questionPools = [
+    ...document.essentialQuestionPool.map((question) => ({ question, pool: 'essential' as const })),
+    ...document.extendedQuestionPool.map((question) => ({ question, pool: 'extended' as const })),
+  ];
+
+  if (document.essentialQuestionPool.length !== document.versionMetadata.essentialPoolSize) {
+    issues.push(createIssue('bank_essential_pool_size_mismatch', 'essentialQuestionPool', 'Le nombre de questions essentielles ne correspond pas aux paramètres de la banque.'));
+  }
+
+  if (document.extendedQuestionPool.length !== document.versionMetadata.extendedPoolSize) {
+    issues.push(createIssue('bank_extended_pool_size_mismatch', 'extendedQuestionPool', 'Le nombre de questions approfondies ne correspond pas aux paramètres de la banque.'));
+  }
+
+  const questionIds = questionPools.map((entry) => entry.question.questionId);
+  const duplicateQuestionIds = questionIds.filter((id, index) => questionIds.indexOf(id) !== index);
+  if (duplicateQuestionIds.length > 0) {
+    issues.push(createIssue('bank_duplicate_question_ids', 'questions', 'Les identifiants des questions doivent être uniques.'));
+  }
+
+  const seenFingerprints = new Map<string, string>();
+  const seenOptionFingerprints = new Map<string, string>();
+  const coveredDimensions = new Set<AssessmentDimensionCode>();
+
+  for (const { question, pool } of questionPools) {
+    const context = `${pool}QuestionPool.${question.questionId}`;
+    issues.push(...validateQuestion(question, context));
+
+    for (const code of [...question.primaryDimensionCodes, ...(question.secondaryDimensionCode ? [question.secondaryDimensionCode] : [])]) {
+      coveredDimensions.add(code);
+    }
+
+    const fingerprint = questionFingerprint(question);
+    const previousFingerprint = seenFingerprints.get(fingerprint);
+    if (previousFingerprint) {
+      issues.push(createIssue('bank_duplicate_question_content', context, `La question ${question.questionId} duplique le contenu de ${previousFingerprint}.`));
+    } else {
+      seenFingerprints.set(fingerprint, question.questionId);
+    }
+
+    const optionSetFingerprint = JSON.stringify(question.options.map((option) => optionFingerprint(option)));
+    const previousOptionFingerprint = seenOptionFingerprints.get(optionSetFingerprint);
+    if (previousOptionFingerprint) {
+      issues.push(createIssue('bank_duplicate_option_set', context, `La question ${question.questionId} duplique le paquet d options de ${previousOptionFingerprint}.`));
+    } else {
+      seenOptionFingerprints.set(optionSetFingerprint, question.questionId);
+    }
+  }
+
+  for (const dimensionCode of SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES) {
+    if (!coveredDimensions.has(dimensionCode)) {
+      issues.push(createIssue('bank_missing_dimension_coverage', 'questions', `La dimension ${dimensionCode} doit être couverte au moins une fois dans la banque.`));
+    }
+  }
+
+  const essentialSignatures = new Set(document.essentialQuestionPool.map((question) => questionFingerprint(question)));
+  for (const question of document.extendedQuestionPool) {
+    if (essentialSignatures.has(questionFingerprint(question))) {
+      issues.push(createIssue('bank_cross_pool_duplicate', `extendedQuestionPool.${question.questionId}`, 'Une question approfondie duplique une question essentielle.'));
+    }
+  }
+
+  const documentBytes = Buffer.byteLength(JSON.stringify(document), 'utf8');
+  if (documentBytes >= SEVENO_PROFESSIONAL_ASSESSMENT_BANK_MAX_DOCUMENT_BYTES) {
+    issues.push(createIssue('bank_document_too_large', 'root', 'Le document de banque dépasse la taille maximale interne.'));
+  }
+
+  return issues;
+}
+
+export function validateSevenoProfessionalAssessmentBankDocument(rawDocument: unknown): AssessmentValidationResult {
+  const normalized = normalizeBankDocument(rawDocument);
+  return resultFromIssues(collectBankValidationIssues(rawDocument, normalized));
+}
+
+export function parseSevenoProfessionalAssessmentBankDocument(jsonText: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new AssessmentModelError('Le JSON importé est invalide.', [createIssue('bank_invalid_json', 'root', 'Le JSON importé est invalide.')]);
+  }
+
+  const normalized = normalizeBankDocument(parsed);
+  const validation = validateSevenoProfessionalAssessmentBankDocument(parsed);
+  if (!validation.valid) {
+    throw new AssessmentModelError('Le JSON importé ne respecte pas le schéma de banque IA.', validation.issues);
+  }
+
+  return normalized;
+}
+
+export function buildSevenoProfessionalAssessmentDraftFromBankDocument(
+  document: SevenoProfessionalAssessmentBankDocument,
+  options: { createdBy?: string; now?: Date } = {},
+): SevenoAssessmentStoredVersion {
+  const now = options.now ?? new Date();
+  const nowIso = now.toISOString();
+  const versionSeed = `${document.versionMetadata.version}:${document.versionMetadata.generatedPromptVersion}`;
+  const versionId = `seveno-professional-assessment-bank-${createHash('sha256').update(versionSeed).digest('hex').slice(0, 12)}`;
+  const versionCode = `seveno_professional_assessment_bank_${document.versionMetadata.version.replaceAll('.', '_')}_${createHash('sha1').update(versionSeed).digest('hex').slice(0, 8)}`;
+  const essentialQuestions = document.essentialQuestionPool.map((question, index) => bankQuestionToAssessmentQuestion(question, versionId, index + 1));
+  const extendedQuestions = document.extendedQuestionPool.map((question, index) => bankQuestionToAssessmentQuestion(question, versionId, essentialQuestions.length + index + 1));
+  const questions = [
+    ...essentialQuestions,
+    ...extendedQuestions,
+  ];
+  const dimensions = buildVersionDimensions(document.dimensionConfigurations, document.interpretationBlocks, document.interviewQuestions);
+
+  return {
+    id: versionId,
+    code: versionCode,
+    version: document.versionMetadata.version,
+    status: 'draft',
+    name: document.versionMetadata.name,
+    description: document.versionMetadata.description,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    publishedAt: null,
+    archivedAt: null,
+    createdBy: options.createdBy ?? 'phase-4d-bank-import',
+    generatedPromptVersion: document.versionMetadata.generatedPromptVersion,
+    essentialPoolSize: document.versionMetadata.essentialPoolSize,
+    extendedPoolSize: document.versionMetadata.extendedPoolSize,
+    essentialDrawSize: document.versionMetadata.essentialDrawSize,
+    extendedDrawSize: document.versionMetadata.extendedDrawSize,
+    dimensions,
+    questions,
+    essentialQuestionCount: essentialQuestions.length,
+    extendedQuestionCount: extendedQuestions.length,
+    estimatedEssentialDurationMinutes: Math.max(1, Math.round(essentialQuestions.length * 0.8)),
+    estimatedExtendedDurationMinutes: Math.max(1, Math.round(extendedQuestions.length * 0.8)),
+    scoringEngineVersion: '1.0.0',
+    interpretationEngineVersion: '1.0.0',
+    legalNoticeVersion: 'seveno_professional_assessment_bank_v1',
+    revisionNotes: ['DO_NOT_PUBLISH', 'HUMAN_REVIEW_REQUIRED'],
+    interviewQuestionCatalog: Object.fromEntries(
+      document.interviewQuestions.map((question) => [question.questionId, `${question.prompt} ${question.rationale}`.trim()] as const),
+    ),
+    revisionNumber: 1,
+    schemaVersion: 1,
+    sourceVersionId: null,
+    hasStartedSessions: false,
+  } satisfies SevenoAssessmentStoredVersion;
+}
+
+export function buildSevenoProfessionalAssessmentBankDraw(
+  document: SevenoProfessionalAssessmentBankDocument,
+  seed: string,
+): SevenoProfessionalAssessmentBankDrawResult {
+  const essentialQuestions = drawStratifiedQuestions(document.essentialQuestionPool, `${seed}:essential`, document.versionMetadata.essentialDrawSize);
+  const extendedQuestions = drawStratifiedQuestions(document.extendedQuestionPool, `${seed}:extended`, document.versionMetadata.extendedDrawSize);
+
+  return {
+    essentialQuestionIds: essentialQuestions.map((question) => question.questionId),
+    extendedQuestionIds: extendedQuestions.map((question) => question.questionId),
+    essentialQuestions,
+    extendedQuestions,
+  };
+}
+
+export function simulateSevenoProfessionalAssessmentDraws(
+  document: SevenoProfessionalAssessmentBankDocument,
+  runs = 1000,
+) {
+  const uniqueEssentialDraws = new Set<string>();
+  const uniqueExtendedDraws = new Set<string>();
+  const uniquePairDraws = new Set<string>();
+  let crossPoolOverlapCount = 0;
+
+  const reference = buildSevenoProfessionalAssessmentBankDraw(document, `${document.versionMetadata.version}:reference`);
+  const referenceAgain = buildSevenoProfessionalAssessmentBankDraw(document, `${document.versionMetadata.version}:reference`);
+  const seedStabilityMatches = JSON.stringify(reference.essentialQuestionIds) === JSON.stringify(referenceAgain.essentialQuestionIds)
+    && JSON.stringify(reference.extendedQuestionIds) === JSON.stringify(referenceAgain.extendedQuestionIds)
+    ? 1
+    : 0;
+
+  for (let index = 0; index < runs; index += 1) {
+    const draw = buildSevenoProfessionalAssessmentBankDraw(document, `${document.versionMetadata.version}:simulation:${index}`);
+    const essentialSignature = draw.essentialQuestionIds.join('|');
+    const extendedSignature = draw.extendedQuestionIds.join('|');
+    uniqueEssentialDraws.add(essentialSignature);
+    uniqueExtendedDraws.add(extendedSignature);
+    uniquePairDraws.add(`${essentialSignature}::${extendedSignature}`);
+
+    const overlap = draw.essentialQuestionIds.some((questionId) => draw.extendedQuestionIds.includes(questionId));
+    if (overlap) {
+      crossPoolOverlapCount += 1;
+    }
+  }
+
+  return {
+    runs,
+    uniqueEssentialDraws: uniqueEssentialDraws.size,
+    uniqueExtendedDraws: uniqueExtendedDraws.size,
+    uniquePairDraws: uniquePairDraws.size,
+    crossPoolOverlapCount,
+    seedStabilityMatches,
+  } satisfies SevenoProfessionalAssessmentBankSimulationSummary;
+}

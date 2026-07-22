@@ -1,6 +1,14 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { AuthenticatedAppShell } from '@/components/navigation/AuthenticatedAppShell';
 import { COMPANY_NAVIGATION } from '@/lib/seveno-navigation';
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function EntrepriseLayout({ children }: { children: ReactNode }) {
   return (

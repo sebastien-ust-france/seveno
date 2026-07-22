@@ -50,14 +50,12 @@ export async function createOrUpdateCandidateProfile(
   jobChanged: boolean;
   verificationReset: boolean;
   activationDowngraded: boolean;
-  assessmentRequired: boolean;
   identityMissingFields: CandidateIdentityRequiredField[];
 }> {
   const result = await fetchSevenoMatchApi<{
     jobChanged: boolean;
     verificationReset: boolean;
     activationDowngraded: boolean;
-    assessmentRequired: boolean;
     identityMissingFields: CandidateIdentityRequiredField[];
   }>(
     authUser,
@@ -78,7 +76,6 @@ export async function createOrUpdateCandidateProfile(
     jobChanged: result.jobChanged,
     verificationReset: result.verificationReset,
     activationDowngraded: result.activationDowngraded,
-    assessmentRequired: result.assessmentRequired,
     identityMissingFields: result.identityMissingFields ?? [],
   };
 }

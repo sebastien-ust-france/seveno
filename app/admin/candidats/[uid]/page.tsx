@@ -42,7 +42,7 @@ function PrivateField({
 
 export default function AdminCandidateDetailPage() {
   const params = useParams<{ uid: string }>();
-  const uid = typeof params.uid === 'string' ? params.uid : '';
+  const uid = typeof params?.uid === 'string' ? params.uid : '';
   const [data, setData] = useState<AdminCandidateDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingUid, setSavingUid] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export default function AdminCandidateDetailPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Fiche privee candidat"
       description="Cette vue combine le profil anonymise et les donnees privees du compte candidat. L acces est journalise dans admin_logs."
       actions={
@@ -203,7 +203,7 @@ export default function AdminCandidateDetailPage() {
                     disabled={savingUid === uid || candidate.profileStatus === 'active'}
                     className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {savingUid === uid && candidate.profileStatus !== 'active' ? 'Mise a jour...' : 'Activer'}
+                    {savingUid === uid && candidate.profileStatus !== 'active' ? 'Mise à jour...' : 'Activer'}
                   </button>
                   <button
                     type="button"
@@ -212,7 +212,7 @@ export default function AdminCandidateDetailPage() {
                     className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingUid === uid && candidate.profileStatus !== 'paused'
-                      ? 'Mise a jour...'
+                      ? 'Mise à jour...'
                       : 'Mettre en pause'}
                   </button>
                   <button
@@ -222,7 +222,7 @@ export default function AdminCandidateDetailPage() {
                     className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingUid === uid && candidate.profileStatus !== 'draft'
-                      ? 'Mise a jour...'
+                      ? 'Mise à jour...'
                       : 'Repasser en brouillon'}
                   </button>
                 </div>
@@ -232,7 +232,7 @@ export default function AdminCandidateDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Identite privee</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Compte utilisateur et donnees privees</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-300">
-                  Ces donnees proviennent du compte `users/{params.uid}` et restent invisibles cote entreprise.
+                  Ces donnees proviennent du compte `users/{uid}` et restent invisibles cote entreprise.
                 </p>
 
                 <div className="mt-5 grid gap-3">
@@ -276,7 +276,7 @@ export default function AdminCandidateDetailPage() {
                       <p className="mt-2 text-sm font-medium text-white">{latestTestResult.questionBankCode}</p>
                     </article>
                     <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Verifie le</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Vérifié le</p>
                       <p className="mt-2 text-sm font-medium text-white">{formatDateTime(latestTestResult.verifiedAt)}</p>
                     </article>
                   </div>
@@ -304,7 +304,7 @@ export default function AdminCandidateDetailPage() {
                         <p className="mt-3 text-sm leading-6 text-slate-300">
                           {request.proposedJobTitle ?? request.jobRoleId} - {request.proposedLocation ?? 'A definir'}
                         </p>
-                        <p className="mt-2 text-xs text-slate-500">Creee {formatDateTime(request.createdAt)}</p>
+                        <p className="mt-2 text-xs text-slate-500">Créée {formatDateTime(request.createdAt)}</p>
                       </article>
                     ))
                   ) : (

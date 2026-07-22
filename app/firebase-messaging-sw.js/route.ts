@@ -14,19 +14,34 @@ function buildFirebaseConfig() {
   };
 }
 
-function escapeForJavaScript(value: string) {
+function toJavaScriptLiteral(value: string) {
   return JSON.stringify(value);
 }
 
 export async function GET() {
   const config = buildFirebaseConfig();
+  const firebaseAppCompatUrl = toJavaScriptLiteral('https://www.gstatic.com/firebasejs/12.0.0/firebase-app-compat.js');
+  const firebaseMessagingCompatUrl = toJavaScriptLiteral('https://www.gstatic.com/firebasejs/12.0.0/firebase-messaging-compat.js');
+  const availabilityNotificationTitleLiteral = toJavaScriptLiteral("Seven’O — Disponibilité");
+  const availabilityNotificationBodyLiteral = toJavaScriptLiteral('Êtes-vous toujours disponible immédiatement ?');
+  const availabilityFallbackPathLiteral = toJavaScriptLiteral('/candidat/disponibilite');
+  const testNotificationTitleLiteral = toJavaScriptLiteral("Seven’O — Test de notification");
+  const testNotificationBodyLiteral = toJavaScriptLiteral('Les notifications sont correctement activées sur cet appareil.');
+  const testNotificationTagLiteral = toJavaScriptLiteral('seveno-notification-test');
+  const testNotificationClickPathLiteral = toJavaScriptLiteral('/candidat');
+  const availabilityYesActionTitleLiteral = toJavaScriptLiteral('Oui');
+  const availabilityNoActionTitleLiteral = toJavaScriptLiteral('Non');
   const script = `
-    importScripts('https://www.gstatic.com/firebasejs/12.0.0/firebase-app-compat.js');
-    importScripts('https://www.gstatic.com/firebasejs/12.0.0/firebase-messaging-compat.js');
+    importScripts(${firebaseAppCompatUrl});
+    importScripts(${firebaseMessagingCompatUrl});
 
-    const availabilityNotificationTitle = ${escapeForJavaScript("Seven'O - Disponibilite")};
-    const availabilityNotificationBody = ${escapeForJavaScript("Etes-vous toujours disponible immediatement ?")};
-    const availabilityFallbackPath = ${escapeForJavaScript('/candidat/disponibilite')};
+    const availabilityNotificationTitle = ${availabilityNotificationTitleLiteral};
+    const availabilityNotificationBody = ${availabilityNotificationBodyLiteral};
+    const availabilityFallbackPath = ${availabilityFallbackPathLiteral};
+    const testNotificationTitle = ${testNotificationTitleLiteral};
+    const testNotificationBody = ${testNotificationBodyLiteral};
+    const testNotificationTag = ${testNotificationTagLiteral};
+    const testNotificationClickPath = ${testNotificationClickPathLiteral};
     const firebaseConfig = ${JSON.stringify(config)};
 
     function buildFallbackUrl(data, decision) {
@@ -84,24 +99,41 @@ export async function GET() {
       messaging.onBackgroundMessage((payload) => {
         const data = payload && payload.data ? payload.data : {};
         const notification = payload && payload.notification ? payload.notification : null;
-        const title = notification && notification.title ? notification.title : availabilityNotificationTitle;
-        const options = {
-          body: notification && notification.body ? notification.body : availabilityNotificationBody,
-          icon: '/images/favicon-seveno.png',
-          badge: '/images/favicon-seveno.png',
-          data: {
-            requestId: data.requestId || '',
-            token: data.token || '',
-            clickUrl: buildFallbackUrl(data),
-            yesUrl: buildFallbackUrl(data, 'yes'),
-            noUrl: buildFallbackUrl(data, 'no'),
-          },
-          actions: [
-            { action: 'availability_yes', title: 'Oui' },
-            { action: 'availability_no', title: 'Non' },
-          ],
-          requireInteraction: true,
-        };
+        const isTestNotification = data && data.kind === 'test';
+        const title = notification && notification.title
+          ? notification.title
+          : isTestNotification
+            ? testNotificationTitle
+            : availabilityNotificationTitle;
+        const options = isTestNotification
+          ? {
+              body: notification && notification.body ? notification.body : testNotificationBody,
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+              tag: testNotificationTag,
+              renotify: true,
+              data: {
+                clickUrl: data.clickUrl || testNotificationClickPath,
+              },
+              requireInteraction: true,
+            }
+          : {
+              body: notification && notification.body ? notification.body : availabilityNotificationBody,
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+              data: {
+                requestId: data.requestId || '',
+                token: data.token || '',
+                clickUrl: buildFallbackUrl(data),
+                yesUrl: buildFallbackUrl(data, 'yes'),
+                noUrl: buildFallbackUrl(data, 'no'),
+              },
+              actions: [
+                { action: 'availability_yes', title: ${availabilityYesActionTitleLiteral} },
+                { action: 'availability_no', title: ${availabilityNoActionTitleLiteral} },
+              ],
+              requireInteraction: true,
+            };
 
         self.registration.showNotification(title, options);
       });
@@ -151,4 +183,3 @@ export async function GET() {
     },
   });
 }
-

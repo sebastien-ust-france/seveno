@@ -76,7 +76,7 @@ function UsageCard({ usage }: { usage: AdminPrerequisiteSuggestionUsageSummary }
       </div>
 
       <p className="mt-4 text-sm leading-6 text-slate-300">
-        Cree le {formatDateTime(usage.createdAt)}
+        Créé le {formatDateTime(usage.createdAt)}
         {' '}
         - maj le {formatDateTime(usage.updatedAt)}
         {usage.endedAt ? ` - termine le ${formatDateTime(usage.endedAt)}` : ''}
@@ -201,7 +201,7 @@ export default function AdminPrerequisiteSuggestionDetailPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Detail de suggestion privee"
       description="Lecture seule. Ce niveau affiche le detail anonymise d une suggestion, sans identite entreprise ni offre source."
       containerClassName="max-w-7xl"

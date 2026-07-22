@@ -41,7 +41,6 @@ export async function signInWithGoogle(): Promise<User> {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   const result = await signInWithPopup(auth, provider);
-  await result.user.getIdToken();
 
   return result.user;
 }

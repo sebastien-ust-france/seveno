@@ -61,7 +61,7 @@ export default function AdminLogsPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Journal admin"
       description="Tracabilite des acces sensibles et des changements de statut. Les vues privees candidat doivent toujours laisser une trace."
       containerClassName="max-w-7xl"

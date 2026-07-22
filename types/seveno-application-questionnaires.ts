@@ -46,6 +46,7 @@ export interface CompanyApplicationQuestionnaireProjection {
   title: string;
   instructions: string;
   durationMinutes: number | null;
+  questionTimeSeconds: number;
   status: CompanyApplicationQuestionnaireStatus;
   questions: CompanyApplicationQuestionnaireQuestion[];
 }
@@ -55,6 +56,7 @@ export interface CompanyApplicationQuestionnaireAnswerRecord {
   questionType: CompanyQuestionType;
   answerValue: string | string[] | boolean | number | null;
   answeredAt: string | null;
+  timedOutAt?: string | null;
   automaticResult?: CompanyApplicationQuestionnaireAutomaticResult;
   awardedPoints?: number | null;
   manualReviewStatus?: CompanyApplicationQuestionnaireManualReviewStatus;
@@ -70,6 +72,11 @@ export interface CompanyApplicationQuestionnaireAttemptSummary {
   durationMinutes: number | null;
   totalQuestions: number;
   answerCount: number;
+  questionTimeSeconds: number | null;
+  currentQuestionId: string | null;
+  currentQuestionIndex: number;
+  currentQuestionStartedAt: string | null;
+  currentQuestionExpiresAt: string | null;
 }
 
 export interface CompanyApplicationAssessmentSummary {
@@ -80,6 +87,7 @@ export interface CompanyApplicationAssessmentSummary {
   manualReviewRequired: boolean;
   manualReviewStatus: CompanyApplicationQuestionnaireManualReviewStatus;
   finalScore: number | null;
+  minimumPassingScorePercent: number | null;
   questionnaireVersion: string;
   completedAt: FirestoreDateValue | null;
   startedAt: FirestoreDateValue | null;
@@ -117,6 +125,7 @@ export interface CompanyApplicationQuestionnaireReviewProjection {
   title: string;
   instructions: string;
   durationMinutes: number | null;
+  questionTimeSeconds: number;
   status: CompanyApplicationQuestionnaireStatus;
   questions: CompanyQuestion[];
 }
@@ -132,5 +141,9 @@ export interface CompanyApplicationQuestionnaireReviewView {
 
 export interface CompanyApplicationQuestionnaireSubmissionPayload {
   sessionId: string;
-  answers: Record<string, string | string[] | boolean | number | null>;
+  questionId?: string;
+  answer?: string | string[] | boolean | number | null;
+  answers?: Record<string, string | string[] | boolean | number | null>;
+  timeout?: boolean;
+  finish?: boolean;
 }

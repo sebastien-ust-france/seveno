@@ -1,0 +1,305 @@
+import type { FirestoreDateValue } from '@/types/seveno';
+
+export type AssessmentProfileVersionStatus = 'draft' | 'pilot' | 'active' | 'archived';
+export type AssessmentPath = 'essential' | 'extended';
+export type AssessmentDimensionCode =
+  | 'information_understanding'
+  | 'organization_prioritization'
+  | 'problem_solving'
+  | 'autonomy_initiative'
+  | 'adaptability'
+  | 'collaboration'
+  | 'rigor_reliability';
+export type AssessmentQuestionDifficulty = 'introductory' | 'standard' | 'advanced';
+export type AssessmentValidationSeverity = 'error' | 'warning';
+export type AssessmentSessionStatus = 'not_started' | 'in_progress' | 'submitted' | 'expired' | 'abandoned' | 'cancelled';
+export type AssessmentDimensionResultStatus = 'measured' | 'insufficient_data' | 'not_measured';
+export type AssessmentPrecisionLevel = 'caution' | 'standard' | 'reinforced';
+export type AssessmentScoreValue = 0 | 1 | 2 | 3 | 4;
+
+export interface AssessmentValidationIssue {
+  code: string;
+  path: string;
+  message: string;
+  severity: AssessmentValidationSeverity;
+}
+
+export interface AssessmentValidationResult {
+  valid: boolean;
+  issues: AssessmentValidationIssue[];
+}
+
+export interface AssessmentInterpretationBlock {
+  interpretationCode: string;
+  minScore: number;
+  maxScore: number;
+  candidateSummary: string;
+  companySummary: string;
+  strengthLabel?: string;
+  interviewFocus: string;
+  limitations: string[];
+  interviewQuestionIds: string[];
+}
+
+export interface AssessmentDimensionDefinition {
+  code: AssessmentDimensionCode;
+  label: string;
+  description: string;
+  weight: number;
+  displayOrder: number;
+  minimumEssentialObservations: number;
+  minimumExtendedObservations: number;
+  interpretationThresholds: AssessmentInterpretationBlock[];
+  interviewQuestionIds: string[];
+  isActive: boolean;
+}
+
+export interface AssessmentQuestionOption {
+  id: string;
+  label: string;
+  position: number;
+  dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
+  adminExplanation: string;
+}
+
+export interface AssessmentQuestion {
+  id: string;
+  code: string;
+  assessmentVersionId: string;
+  path: AssessmentPath;
+  position: number;
+  situation: string;
+  instruction: string;
+  options: AssessmentQuestionOption[];
+  primaryDimensionCodes: AssessmentDimensionCode[];
+  secondaryDimensionCodes?: AssessmentDimensionCode[];
+  difficulty: AssessmentQuestionDifficulty;
+  estimatedReadingSeconds: number;
+  adminRationale: string;
+  isActive: boolean;
+}
+
+export interface AssessmentVersionDescriptor {
+  id: string;
+  code: string;
+  version: string;
+  status: AssessmentProfileVersionStatus;
+  name: string;
+  description: string;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+  publishedAt: FirestoreDateValue | null;
+  archivedAt: FirestoreDateValue | null;
+  activatedAt?: FirestoreDateValue | null;
+  createdBy: string;
+  generatedPromptVersion?: string;
+  essentialPoolSize?: number;
+  extendedPoolSize?: number;
+  essentialDrawSize?: number;
+  extendedDrawSize?: number;
+  dimensions: AssessmentDimensionDefinition[];
+  questions: AssessmentQuestion[];
+  essentialQuestionCount: number;
+  extendedQuestionCount: number;
+  estimatedEssentialDurationMinutes: number;
+  estimatedExtendedDurationMinutes: number;
+  scoringEngineVersion: string;
+  interpretationEngineVersion: string;
+  legalNoticeVersion: string;
+  revisionNotes: string[];
+  interviewQuestionCatalog?: Record<string, string>;
+}
+
+export interface AssessmentVersionSnapshot {
+  id: string;
+  code: string;
+  version: string;
+  status: AssessmentProfileVersionStatus;
+  name: string;
+  description?: string;
+}
+
+export interface AssessmentResponse {
+  questionId: string;
+  optionId: string;
+  answeredAt: FirestoreDateValue;
+  responseOrder: number;
+  sessionId: string;
+  responseDurationSeconds?: number | null;
+}
+
+export interface AssessmentSession {
+  id: string;
+  candidateUid: string;
+  assessmentVersionId: string;
+  assessmentVersion: string;
+  path: AssessmentPath;
+  status: AssessmentSessionStatus;
+  startedAt: FirestoreDateValue;
+  expiresAt: FirestoreDateValue;
+  submittedAt: FirestoreDateValue | null;
+  questionIds: string[];
+  essentialSessionId?: string | null;
+  responses: AssessmentResponse[];
+  scoringEngineVersion: string;
+  interpretationEngineVersion: string;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+}
+
+export interface AssessmentCoverageSnapshot {
+  path: AssessmentPath;
+  totalQuestions: number;
+  answeredQuestions: number;
+  expectedMinimumObservations: number;
+  coverageRatio: number;
+}
+
+export interface AssessmentDimensionResult {
+  dimensionCode: AssessmentDimensionCode;
+  score?: number;
+  status: AssessmentDimensionResultStatus;
+  observationsCount: number;
+  expectedObservationsCount: number;
+  coverageRatio: number;
+  precisionLevel: AssessmentPrecisionLevel;
+  interpretationCode: string;
+  evidenceCodes: string[];
+  limitations: string[];
+}
+
+export interface AssessmentReportStrength {
+  code: string;
+  dimensionCode: AssessmentDimensionCode;
+  label: string;
+  candidateSummary: string;
+  companySummary: string;
+  interviewQuestionIds: string[];
+  limitations: string[];
+}
+
+export interface AssessmentReportFocusArea {
+  code: string;
+  dimensionCode: AssessmentDimensionCode;
+  label: string;
+  candidateSummary: string;
+  companySummary: string;
+  interviewQuestionIds: string[];
+  limitations: string[];
+}
+
+export interface AssessmentProjectionStrength {
+  code: string;
+  dimensionCode: AssessmentDimensionCode;
+  label: string;
+  summary: string;
+  interviewQuestionIds: string[];
+  limitations: string[];
+}
+
+export interface AssessmentProjectionFocusArea {
+  code: string;
+  dimensionCode: AssessmentDimensionCode;
+  label: string;
+  summary: string;
+  interviewQuestionIds: string[];
+  limitations: string[];
+}
+
+export interface AssessmentSuggestedInterviewQuestion {
+  id: string;
+  dimensionCode: AssessmentDimensionCode;
+  prompt: string;
+  rationale: string;
+}
+
+export interface SevenoProfessionalAssessmentReport {
+  assessmentVersion: AssessmentVersionSnapshot;
+  completedPath: AssessmentPath;
+  precisionLevel: AssessmentPrecisionLevel;
+  completedAt: FirestoreDateValue;
+  dimensionResults: AssessmentDimensionResult[];
+  strengths: AssessmentReportStrength[];
+  interviewFocusAreas: AssessmentReportFocusArea[];
+  suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
+  candidateSummary: string;
+  companySummary: string;
+  limitations: string[];
+  legalNoticeCode: string;
+  scoringEngineVersion: string;
+  interpretationEngineVersion: string;
+}
+
+export interface AssessmentCalculationAlert {
+  code: string;
+  path: string;
+  message: string;
+  severity: AssessmentValidationSeverity;
+}
+
+export interface AssessmentCalculationOutcome {
+  report: SevenoProfessionalAssessmentReport;
+  coverage: {
+    essential: AssessmentCoverageSnapshot;
+    extended: AssessmentCoverageSnapshot;
+  };
+  observationsCount: number;
+  alerts: AssessmentCalculationAlert[];
+}
+
+export interface AssessmentProjectionDimensionResult {
+  dimensionCode: AssessmentDimensionCode;
+  score?: number;
+  status: AssessmentDimensionResultStatus;
+  precisionLevel: AssessmentPrecisionLevel;
+  interpretationCode: string;
+  limitations: string[];
+}
+
+export interface AssessmentCandidateProjection {
+  assessmentVersion: AssessmentVersionSnapshot;
+  completedPath: AssessmentPath;
+  precisionLevel: AssessmentPrecisionLevel;
+  completedAt: FirestoreDateValue;
+  dimensionResults: AssessmentProjectionDimensionResult[];
+  strengths: AssessmentProjectionStrength[];
+  interviewFocusAreas: AssessmentProjectionFocusArea[];
+  suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
+  candidateSummary: string;
+  limitations: string[];
+  legalNoticeCode: string;
+  scoringEngineVersion: string;
+  interpretationEngineVersion: string;
+}
+
+export interface AssessmentCompanyProjection {
+  assessmentVersion: AssessmentVersionSnapshot;
+  completedPath: AssessmentPath;
+  precisionLevel: AssessmentPrecisionLevel;
+  completedAt: FirestoreDateValue;
+  dimensionResults: AssessmentProjectionDimensionResult[];
+  strengths: AssessmentProjectionStrength[];
+  interviewFocusAreas: AssessmentProjectionFocusArea[];
+  suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
+  companySummary: string;
+  limitations: string[];
+  legalNoticeCode: string;
+  scoringEngineVersion: string;
+  interpretationEngineVersion: string;
+}
+
+export interface AssessmentEngineRequest {
+  version: AssessmentVersionDescriptor;
+  completedPath: AssessmentPath;
+  questions: AssessmentQuestion[];
+  responses: AssessmentResponse[];
+  completedAt?: FirestoreDateValue;
+}
+
+export interface AssessmentVersionEditOptions {
+  hasStartedSessions?: boolean;
+}
+
+export interface AssessmentVersionValidationOptions extends AssessmentVersionEditOptions {
+  mode?: 'definition' | 'edit';
+}

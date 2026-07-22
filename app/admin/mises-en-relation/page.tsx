@@ -83,7 +83,7 @@ export default function AdminMatchRequestsPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Mises en relation"
       description="Vue de moderation des demandes de contact. L admin peut fermer une demande sans jamais devenir partie prenante du message."
       containerClassName="max-w-7xl"
@@ -118,7 +118,7 @@ export default function AdminMatchRequestsPage() {
 
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                        Creee {formatDateTime(request.createdAt)}
+                        Créée {formatDateTime(request.createdAt)}
                       </span>
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
                         Echeance {formatDateTime(request.expiresAt)}
@@ -161,7 +161,7 @@ export default function AdminMatchRequestsPage() {
                       disabled={savingId === request.id || request.status === 'cancelled'}
                       className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {savingId === request.id && request.status !== 'cancelled' ? 'Mise a jour...' : 'Annuler'}
+                      {savingId === request.id && request.status !== 'cancelled' ? 'Mise à jour...' : 'Annuler'}
                     </button>
                     <button
                       type="button"
@@ -169,7 +169,7 @@ export default function AdminMatchRequestsPage() {
                       disabled={savingId === request.id || request.status === 'expired'}
                       className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {savingId === request.id && request.status !== 'expired' ? 'Mise a jour...' : 'Marquer expiree'}
+                      {savingId === request.id && request.status !== 'expired' ? 'Mise à jour...' : 'Marquer expirée'}
                     </button>
                   </div>
                 </SevenoPanel>

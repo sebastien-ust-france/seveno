@@ -1,6 +1,49 @@
 export interface SevenoAdminApiErrorPayload {
   error?: string;
   message?: string;
+  issues?: unknown;
+}
+
+export class SevenoAdminApiError extends Error {
+  readonly status: number;
+
+  readonly code?: string;
+
+  readonly issues?: unknown;
+
+  readonly payload: SevenoAdminApiErrorPayload | null;
+
+  constructor(status: number, payload: SevenoAdminApiErrorPayload | null, fallbackMessage: string) {
+    super(payload?.message?.trim() || fallbackMessage);
+    this.name = 'SevenoAdminApiError';
+    this.status = status;
+    this.code = payload?.error;
+    this.issues = payload?.issues;
+    this.payload = payload;
+  }
+}
+
+function extractErrorPayload(payload: unknown): SevenoAdminApiErrorPayload | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const candidate = payload as SevenoAdminApiErrorPayload;
+  const result: SevenoAdminApiErrorPayload = {};
+
+  if (typeof candidate.error === 'string' && candidate.error.trim().length > 0) {
+    result.error = candidate.error;
+  }
+
+  if (typeof candidate.message === 'string' && candidate.message.trim().length > 0) {
+    result.message = candidate.message;
+  }
+
+  if ('issues' in candidate) {
+    result.issues = candidate.issues;
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 function extractErrorMessage(payload: unknown, fallbackMessage: string) {
@@ -33,9 +76,8 @@ export async function fetchSevenoAdminApi<T>(path: string, init: RequestInit = {
 
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(extractErrorMessage(payload, 'La requete admin a echoue.'));
+    throw new SevenoAdminApiError(response.status, extractErrorPayload(payload), extractErrorMessage(payload, 'La requete admin a echoue.'));
   }
 
   return payload as T;
 }
-

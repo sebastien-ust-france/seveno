@@ -13,6 +13,10 @@ function getPrivateKey() {
   return privateKey.replace(/\\n/g, '\n');
 }
 
+function hasLocalFirestoreEmulator() {
+  return Boolean(process.env.FIRESTORE_EMULATOR_HOST?.trim());
+}
+
 function hasAdminCredentials() {
   return Boolean(
     (process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) &&
@@ -21,7 +25,7 @@ function hasAdminCredentials() {
   );
 }
 
-export const isFirebaseAdminConfigured = hasAdminCredentials();
+export const isFirebaseAdminConfigured = hasAdminCredentials() || hasLocalFirestoreEmulator();
 
 let adminDbInitError: unknown = null;
 
@@ -32,6 +36,12 @@ function getAdminApp() {
 
   if (getApps().length > 0) {
     return getApp();
+  }
+
+  if (hasLocalFirestoreEmulator()) {
+    return initializeApp({
+      projectId,
+    });
   }
 
   return initializeApp({

@@ -33,7 +33,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new SevenoApplicationQuestionnaireError('invalid_session_id', 400, 'La session du questionnaire est invalide.');
     }
 
-    const answers = body?.answers;
+    const answers = typeof body?.questionId === 'string'
+      ? body
+      : body?.answers ?? body;
     return NextResponse.json(
       await submitCandidateApplicationQuestionnaire(token.uid, applicationId, sessionId, answers),
     );

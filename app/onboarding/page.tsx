@@ -10,15 +10,16 @@ import {
   ensureSevenoUser,
   getSevenoUser,
   resolveSevenoRedirect,
+  COMPANY_INVITE_ONLY_MESSAGE,
   updateSevenoUserRole,
 } from '@/lib/seveno-users';
-import type { PublicUserRole, SevenoUser } from '@/types/seveno';
+import type { SevenoUser } from '@/types/seveno';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<SevenoUser | null>(null);
-  const [savingRole, setSavingRole] = useState<PublicUserRole | null>(null);
+  const [savingCandidateRole, setSavingCandidateRole] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,20 +96,21 @@ export default function OnboardingPage() {
     };
   }, [router]);
 
-  async function handleRoleSelection(role: PublicUserRole) {
+  async function handleCandidateSelection() {
     if (!user) {
       return;
     }
 
-    setSavingRole(role);
+    setSavingCandidateRole(true);
     setError(null);
 
     try {
-      const updatedUser = await updateSevenoUserRole(user.uid, role);
+      const updatedUser = await updateSevenoUserRole(user.uid, 'candidate');
       router.replace(resolveSevenoRedirect(updatedUser));
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le rôle n a pas pu etre enregistre.');
-      setSavingRole(null);
+      setError(thrownError instanceof Error ? thrownError.message : "Le rôle candidat n a pas pu etre enregistré.");
+    } finally {
+      setSavingCandidateRole(false);
     }
   }
 
@@ -132,6 +134,9 @@ export default function OnboardingPage() {
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
                 Le rôle est choisi après la première connexion. Le rôle admin n est pas proposé publiquement.
               </p>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
+                {COMPANY_INVITE_ONLY_MESSAGE}
+              </p>
             </div>
 
             <button
@@ -148,11 +153,11 @@ export default function OnboardingPage() {
               Vérification de votre compte...
             </div>
           ) : (
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="mt-8 grid gap-4">
               <button
                 type="button"
-                onClick={() => void handleRoleSelection('candidate')}
-                disabled={savingRole !== null}
+                onClick={() => void handleCandidateSelection()}
+                disabled={savingCandidateRole}
                 className="group rounded-[24px] border border-cyan-400/10 bg-[linear-gradient(180deg,rgba(9,17,32,0.96),rgba(8,15,28,0.92))] p-5 text-left transition hover:-translate-y-0.5 hover:border-cyan-300/25 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Candidat</p>
@@ -161,23 +166,7 @@ export default function OnboardingPage() {
                   Vous souhaitez construire votre profil anonyme et préparer vos prochaines étapes.
                 </p>
                 <span className="mt-5 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100">
-                  {savingRole === 'candidate' ? 'Enregistrement...' : 'Continuer'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleRoleSelection('company')}
-                disabled={savingRole !== null}
-                className="group rounded-[24px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.92))] p-5 text-left transition hover:-translate-y-0.5 hover:border-violet-300/25 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-200/80">Entreprise</p>
-                <h2 className="mt-3 text-xl font-semibold text-white">Je représente une entreprise</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  Vous souhaitez recruter et accéder aux profils anonymisés visibles côté entreprise.
-                </p>
-                <span className="mt-5 inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-medium text-violet-100">
-                  {savingRole === 'company' ? 'Enregistrement...' : 'Continuer'}
+                  {savingCandidateRole ? 'Enregistrement...' : 'Continuer'}
                 </span>
               </button>
             </div>

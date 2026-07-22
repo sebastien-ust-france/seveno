@@ -1,12 +1,13 @@
 import 'server-only';
 
+import { unstable_cache } from 'next/cache';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 
 export type PublicStudyResponseCount = {
   totalResponses: number;
 };
 
-export async function getPublicStudyResponseCount(): Promise<PublicStudyResponseCount> {
+async function readPublicStudyResponseCount(): Promise<PublicStudyResponseCount> {
   if (!isFirebaseAdminConfigured || !adminDb) {
     return { totalResponses: 0 };
   }
@@ -21,4 +22,16 @@ export async function getPublicStudyResponseCount(): Promise<PublicStudyResponse
   } catch {
     return { totalResponses: 0 };
   }
+}
+
+const cachedReadPublicStudyResponseCount = unstable_cache(
+  readPublicStudyResponseCount,
+  ['public-study-response-count'],
+  {
+    revalidate: 900,
+  },
+);
+
+export async function getPublicStudyResponseCount(): Promise<PublicStudyResponseCount> {
+  return cachedReadPublicStudyResponseCount();
 }

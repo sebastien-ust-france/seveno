@@ -6,11 +6,13 @@ import { SevenoPanel } from '@/components/seveno/SevenoLayout';
 
 const ADMIN_SECTION_LINKS = [
   { href: '/admin', label: 'Tableau de bord' },
+  { href: '/admin/evaluation-seveno', label: 'Analyse professionnelle' },
   { href: '/admin/etude', label: 'Etude' },
   { href: '/admin/candidats', label: 'Candidats' },
   { href: '/admin/entreprises', label: 'Entreprises' },
   { href: '/admin/tests', label: 'Tests' },
-  { href: '/admin/prerequis', label: 'Prerequis' },
+  { href: '/admin/recommandations', label: 'Recommandations' },
+  { href: '/admin/prerequis', label: 'Prérequis' },
   { href: '/admin/mises-en-relation', label: 'Mises en relation' },
   { href: '/admin/journal', label: 'Journal' },
 ] as const;
@@ -20,7 +22,7 @@ function isActivePath(pathname: string, href: string) {
 }
 
 export default function AdminSectionNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   return (
     <SevenoPanel tone="neutral" className="p-3">

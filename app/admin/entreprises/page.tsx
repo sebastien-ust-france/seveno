@@ -90,7 +90,7 @@ export default function AdminCompaniesPage() {
 
   return (
     <SevenoSurface
-      eyebrow="Administration Seven'O"
+      eyebrow="Administration Seven’O"
       title="Entreprises"
       description="Les profils entreprises restent publics dans leur forme autorisee. Les actions admin portent seulement sur le statut et la verification."
       containerClassName="max-w-7xl"
@@ -167,7 +167,7 @@ export default function AdminCompaniesPage() {
                         disabled={savingUid === company.uid || company.profileStatus === 'active'}
                         className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {savingUid === company.uid && company.profileStatus !== 'active' ? 'Mise a jour...' : 'Activer'}
+                        {savingUid === company.uid && company.profileStatus !== 'active' ? 'Mise à jour...' : 'Activer'}
                       </button>
                       <button
                         type="button"
@@ -176,7 +176,7 @@ export default function AdminCompaniesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === company.uid && company.profileStatus !== 'suspended'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Suspendre'}
                       </button>
                       <button
@@ -186,8 +186,8 @@ export default function AdminCompaniesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === company.uid && company.verificationStatus !== 'verified'
-                          ? 'Mise a jour...'
-                          : 'Verifier'}
+                          ? 'Mise à jour...'
+                          : 'Vérifier'}
                       </button>
                       <button
                         type="button"
@@ -196,7 +196,7 @@ export default function AdminCompaniesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === company.uid && company.verificationStatus !== 'pending'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Mettre en attente'}
                       </button>
                       <button
@@ -206,7 +206,7 @@ export default function AdminCompaniesPage() {
                         className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingUid === company.uid && company.verificationStatus !== 'rejected'
-                          ? 'Mise a jour...'
+                          ? 'Mise à jour...'
                           : 'Rejeter'}
                       </button>
                     </div>

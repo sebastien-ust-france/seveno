@@ -12,6 +12,7 @@ import {
   respondToJobApplicationInvitationClient,
 } from '@/lib/seveno-job-applications';
 import { getCandidateApplicationQuestionnaireClient } from '@/lib/seveno-application-questionnaires';
+import { buildQuestionnaireScoreSummary } from '@/lib/seveno-company-questionnaire-thresholds';
 import { useSevenoCandidateSession } from '@/lib/use-seveno-candidate-session';
 import type { CompanyApplicationQuestionnaireView } from '@/types/seveno-application-questionnaires';
 import type { SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
@@ -32,7 +33,7 @@ const APPLICATION_STATUS_LABELS: Record<string, string> = {
   questionnaire_completed: 'Questionnaire terminé',
   shortlisted: 'Sélectionnée',
   rejected: 'Refusée',
-  contact_requested: 'Contact demandé',
+  contact_requested: 'Mise en relation proposée',
   conversation_open: 'Conversation ouverte',
   candidate_declined: 'Invitation refusée',
   company_declined: 'Relation refusée',
@@ -156,21 +157,31 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
 
   const questionnaireState = formatQuestionnaireState(questionnaireView);
   const assessment = questionnaireView?.assessment ?? application?.companyAssessment ?? null;
+  const questionnaireScoreSummary = buildQuestionnaireScoreSummary(
+    assessment?.finalScore ?? assessment?.automaticScorePercent ?? null,
+    assessment?.minimumPassingScorePercent ?? null,
+    'candidate',
+  );
   const automaticScorePercent = assessment?.automaticScorePercent ?? null;
   const submittedAt = assessment?.submittedAt ?? null;
   const isInvitation = application?.origin === 'company' && application?.status === 'invited';
+  const isProposal = application?.status === 'contact_requested';
   const canShowConversation = application?.conversationStatus === 'open';
 
   async function handleInvitationDecision(decision: 'accepted' | 'declined') {
-    if (!authUser || !application || !isInvitation) {
+    if (!authUser || !application || (!isInvitation && !isProposal)) {
       return;
     }
 
     if (
       !window.confirm(
-        decision === 'accepted'
-          ? 'Accepter cette invitation ouvre la suite du parcours. Vos coordonnées restent privées tant que la relation n est pas validée.'
-          : 'Refuser cette invitation clôture cette proposition.',
+        isProposal
+          ? decision === 'accepted'
+            ? 'Accepter cette mise en relation ouvre la conversation sécurisée avec l entreprise.'
+            : 'Confirmez-vous le refus de cette mise en relation ?'
+          : decision === 'accepted'
+            ? 'Accepter cette invitation ouvre la suite du parcours. Vos coordonnées restent privées tant que la relation n est pas validée.'
+            : 'Refuser cette invitation clôture cette proposition.',
       )
     ) {
       return;
@@ -184,9 +195,13 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
       const payload = await respondToJobApplicationInvitationClient(authUser, application.id, decision);
       setApplication(payload.application);
       setDecisionMessage(
-        decision === 'accepted'
-          ? 'Invitation acceptée. Vous pouvez maintenant compléter les réponses liées à cette offre.'
-          : 'Invitation refusée. Aucun échange n a été ouvert.',
+        isProposal
+          ? decision === 'accepted'
+            ? 'Mise en relation acceptée. Vous pouvez maintenant ouvrir la conversation.'
+            : 'Mise en relation refusée. Aucun échange n a été ouvert.'
+          : decision === 'accepted'
+            ? 'Invitation acceptée. Vous pouvez maintenant compléter les réponses liées à cette offre.'
+            : 'Invitation refusée. Aucun échange n a été ouvert.',
       );
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'La décision n a pas pu etre enregistrée.');
@@ -315,6 +330,17 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                   </article>
                 </div>
 
+                {questionnaireScoreSummary ? (
+                  <div className="mt-5 rounded-[22px] border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-50">
+                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-100/80">Votre resultat</p>
+                    <p className="mt-2 font-semibold text-white">{questionnaireScoreSummary.label}</p>
+                    <p className="mt-2 text-xs text-cyan-50/80">
+                      {questionnaireScoreSummary.scoreLabel} · {questionnaireScoreSummary.thresholdLabel}
+                    </p>
+                    <p className="mt-2 text-xs text-cyan-50/80">{questionnaireScoreSummary.note}</p>
+                  </div>
+                ) : null}
+
                 <div className="mt-6 flex flex-wrap gap-3">
                   {questionnaireView?.access.available ||
                   questionnaireView?.access.status === 'in_progress' ||
@@ -335,7 +361,26 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                     </span>
                   )}
 
-                  {isInvitation ? (
+                  {isProposal ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={decisionLoading !== null}
+                        onClick={() => void handleInvitationDecision('accepted')}
+                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {decisionLoading === 'accepted' ? 'Validation...' : 'Accepter la mise en relation'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={decisionLoading !== null}
+                        onClick={() => void handleInvitationDecision('declined')}
+                        className="inline-flex items-center justify-center rounded-full border border-rose-300/20 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {decisionLoading === 'declined' ? 'Refus...' : 'Refuser'}
+                      </button>
+                    </>
+                  ) : isInvitation ? (
                     <>
                       <button
                         type="button"
@@ -356,6 +401,17 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                     </>
                   ) : null}
                 </div>
+
+                {canShowConversation ? (
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Link
+                      href="#conversation-securisee"
+                      className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                    >
+                      Ouvrir la conversation
+                    </Link>
+                  </div>
+                ) : null}
               </SevenoPanel>
 
               <CandidatePrivacyNotice
@@ -365,16 +421,18 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
             </div>
 
             {canShowConversation && authUser ? (
-              <JobApplicationConversationThread
-                authUser={authUser}
-                applicationId={application.id}
-                applicationStatus={application.status}
-                conversationStatus={application.conversationStatus}
-                title="Conversation avec l entreprise"
-                description="Les échanges deviennent disponibles une fois la relation ouverte des deux côtés."
-                emptyMessage="Aucun message n a encore été envoyé."
-                onApplicationChange={setApplication}
-              />
+              <div id="conversation-securisee">
+                <JobApplicationConversationThread
+                  authUser={authUser}
+                  applicationId={application.id}
+                  applicationStatus={application.status}
+                  conversationStatus={application.conversationStatus}
+                  title="Conversation avec l entreprise"
+                  description="Les échanges deviennent disponibles une fois la relation ouverte des deux côtés."
+                  emptyMessage="Aucun message n a encore été envoyé."
+                  onApplicationChange={setApplication}
+                />
+              </div>
             ) : null}
           </>
         ) : null}

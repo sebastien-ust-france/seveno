@@ -33,9 +33,12 @@ const AVAILABILITY_PUSH_DEVICES_COLLECTION = 'devices';
 const AVAILABILITY_REQUEST_TOKEN_BYTES = 24;
 const AVAILABILITY_REQUEST_EXPIRY_HOURS = 36;
 const AVAILABILITY_BATCH_SIZE = 40;
-const AVAILABILITY_NOTIFICATION_TITLE = "Seven'O - Disponibilite";
-const AVAILABILITY_NOTIFICATION_BODY = "Etes-vous toujours disponible immediatement ?";
+const AVAILABILITY_NOTIFICATION_TITLE = 'Seven’O — Disponibilité';
+const AVAILABILITY_NOTIFICATION_BODY = 'Êtes-vous toujours disponible immédiatement ?';
+const AVAILABILITY_TEST_NOTIFICATION_TITLE = 'Seven’O — Test de notification';
+const AVAILABILITY_TEST_NOTIFICATION_BODY = 'Les notifications sont correctement activées sur cet appareil.';
 const AVAILABILITY_NOTIFICATION_CLICK_PATH = '/candidat/disponibilite';
+const AVAILABILITY_TEST_NOTIFICATION_CLICK_PATH = '/candidat';
 
 type FirestoreRecord = Record<string, unknown>;
 
@@ -56,7 +59,7 @@ function requireAdminDatabase() {
     throw new SevenoAvailabilityError(
       'firebase_admin_missing',
       500,
-      'Firebase Admin n est pas configure pour gerer la disponibilite.',
+      'Firebase Admin n’est pas configuré pour gérer la disponibilité.',
     );
   }
 
@@ -369,7 +372,7 @@ async function ensureCandidateProfileExists(uid: string) {
   }
 
   if (profile.role !== 'candidate') {
-    throw new SevenoAvailabilityError('forbidden_role', 403, 'Seuls les candidats peuvent utiliser cette fonctionnalite.');
+    throw new SevenoAvailabilityError('forbidden_role', 403, 'Seuls les candidats peuvent utiliser cette fonctionnalité.');
   }
 
   if (profile.profileStatus !== 'active') {
@@ -468,8 +471,6 @@ export async function setCandidateAvailabilityNotifications(
       : false,
     ...(input.permission ? { availabilityPushPermission: input.permission } : {}),
   });
-
-  await writeAvailabilityEvent(uid, input.enabled ? 'confirmed' : 'unavailable', input.source);
   return loadCandidateProfile(uid);
 }
 
@@ -489,7 +490,7 @@ export async function registerCandidateAvailabilityDevice(
   const deviceId = cleanText(input.deviceId);
   const token = cleanText(input.token);
   if (!deviceId || !token) {
-    throw new SevenoAvailabilityError('invalid_payload', 400, 'Les donnees de notification sont invalides.');
+    throw new SevenoAvailabilityError('invalid_payload', 400, 'Les données de notification sont invalides.');
   }
 
   const permission = assertAllowedPushPermission(input.permission);
@@ -578,38 +579,71 @@ async function sendAvailabilityNotificationToDevices(
   requestId: string,
   token: string,
   devices: CandidatePushSubscriptionDevice[],
+  input?: {
+    kind?: 'availability' | 'test';
+  },
 ) {
   if (getApps().length === 0) {
     return { sent: 0, failed: devices.length, invalidDeviceIds: devices.map((device) => device.deviceId) };
   }
 
+  const isTestNotification = input?.kind === 'test';
   const messaging = getMessaging(getApp());
   const tokens = devices.map((device) => device.token);
   const message: MulticastMessage = {
     tokens,
     notification: {
-      title: AVAILABILITY_NOTIFICATION_TITLE,
-      body: AVAILABILITY_NOTIFICATION_BODY,
+      title: isTestNotification ? AVAILABILITY_TEST_NOTIFICATION_TITLE : AVAILABILITY_NOTIFICATION_TITLE,
+      body: isTestNotification ? AVAILABILITY_TEST_NOTIFICATION_BODY : AVAILABILITY_NOTIFICATION_BODY,
     },
     data: {
-      requestId,
-      token,
-      candidateUid: profile.uid,
-      publicCandidateId: profile.publicCandidateId,
-      actionUrl: buildAvailabilityNotificationUrl(requestId, token),
-      yesUrl: buildAvailabilityNotificationUrl(requestId, token, 'yes'),
-      noUrl: buildAvailabilityNotificationUrl(requestId, token, 'no'),
+      kind: isTestNotification ? 'test' : 'availability',
+      ...(isTestNotification
+        ? {
+            clickUrl: AVAILABILITY_TEST_NOTIFICATION_CLICK_PATH,
+            candidateUid: profile.uid,
+            publicCandidateId: profile.publicCandidateId,
+          }
+        : {
+            requestId,
+            token,
+            candidateUid: profile.uid,
+            publicCandidateId: profile.publicCandidateId,
+            actionUrl: buildAvailabilityNotificationUrl(requestId, token),
+            yesUrl: buildAvailabilityNotificationUrl(requestId, token, 'yes'),
+            noUrl: buildAvailabilityNotificationUrl(requestId, token, 'no'),
+          }),
     },
     webpush: {
       notification: {
-        title: AVAILABILITY_NOTIFICATION_TITLE,
-        body: AVAILABILITY_NOTIFICATION_BODY,
+        title: isTestNotification ? AVAILABILITY_TEST_NOTIFICATION_TITLE : AVAILABILITY_NOTIFICATION_TITLE,
+        body: isTestNotification ? AVAILABILITY_TEST_NOTIFICATION_BODY : AVAILABILITY_NOTIFICATION_BODY,
+        ...(isTestNotification
+          ? {
+              tag: 'seveno-notification-test',
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+              renotify: true,
+            }
+          : {
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+            }),
         requireInteraction: true,
-        actions: [
-          { action: 'availability_yes', title: 'Oui' },
-          { action: 'availability_no', title: 'Non' },
-        ],
+        ...(isTestNotification
+          ? {}
+          : {
+              actions: [
+                { action: 'availability_yes', title: 'Oui' },
+                { action: 'availability_no', title: 'Non' },
+              ],
+            }),
       },
+      fcmOptions: isTestNotification
+        ? {
+            link: AVAILABILITY_TEST_NOTIFICATION_CLICK_PATH,
+          }
+        : undefined,
     },
   };
 
@@ -628,6 +662,38 @@ async function sendAvailabilityNotificationToDevices(
     sent: response.successCount,
     failed: response.failureCount,
     invalidDeviceIds,
+  };
+}
+
+export async function sendCandidateAvailabilityTestNotification(input: {
+  uid: string;
+  source: AvailabilityNotificationSource;
+}) {
+  const profile = await ensureCandidateProfileExists(input.uid);
+  const activeDevices = await loadActiveDevices(input.uid);
+  if (activeDevices.length === 0) {
+    throw new SevenoAvailabilityError('no_active_device', 409, 'Aucun appareil de notification actif n’a été trouvé.');
+  }
+
+  const requestId = buildRequestId(input.uid, `test-${Timestamp.now().toMillis()}`);
+  const token = buildRequestToken();
+  const result = await sendAvailabilityNotificationToDevices(profile, requestId, token, activeDevices, { kind: 'test' });
+  if (result.sent === 0) {
+    throw new SevenoAvailabilityError('notification_send_failed', 409, 'Aucune notification de test n’a pu être envoyée.');
+  }
+
+  await updateCandidateAvailabilityProfile(input.uid, {
+    hasActiveAvailabilityPushSubscription: true,
+  });
+
+  await writeAvailabilityEvent(input.uid, 'notification_sent', input.source, requestId);
+
+  return {
+    sent: result.sent,
+    failed: result.failed,
+    invalidDeviceIds: result.invalidDeviceIds,
+    hasActiveAvailabilityPushSubscription: result.sent > 0,
+    profile: await loadCandidateProfile(input.uid),
   };
 }
 
@@ -682,7 +748,7 @@ export async function respondToAvailabilityConfirmationRequest(input: {
     throw new SevenoAvailabilityError(
       'request_already_processed',
       409,
-      'Cette demande a deja ete traitee.',
+      'Cette demande a déjà été traitée.',
     );
   }
 
@@ -693,7 +759,7 @@ export async function respondToAvailabilityConfirmationRequest(input: {
       updatedAt: Timestamp.now(),
     });
     await writeAvailabilityEvent(storedCandidateUid, 'expired', input.source, requestId);
-    throw new SevenoAvailabilityError('request_expired', 410, 'La demande de confirmation a expire.');
+    throw new SevenoAvailabilityError('request_expired', 410, 'La demande de confirmation a expiré.');
   }
 
   if (!requestTokenHash || hashToken(token) !== requestTokenHash) {
@@ -800,8 +866,6 @@ export async function updateCandidateAvailabilityPreferences(input: {
       : false,
     ...(input.permission ? { availabilityPushPermission: input.permission } : {}),
   });
-
-  await writeAvailabilityEvent(input.uid, enabled ? 'confirmed' : 'unavailable', input.source);
 
   return {
     profile: await loadCandidateProfile(input.uid),

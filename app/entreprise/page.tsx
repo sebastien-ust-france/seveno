@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import AnonymousCandidateCard from '@/components/entreprise/AnonymousCandidateCard';
+import { Select } from '@/components/ui/Select';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS, findSectorLabel, getFamiliesBySector, getRolesByFamily } from '@/lib/job-taxonomy';
 import { getCompanyProfile } from '@/lib/seveno-companies';
@@ -11,12 +12,11 @@ import {
   buildCandidateSearchParams,
   searchVisibleCandidateProfiles,
 } from '@/lib/seveno-company-candidates';
-import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import { ensureSevenoUser, hasSevenoTermsAcceptance, resolveSevenoRedirect } from '@/lib/seveno-users';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
   CandidateSearchFilters,
-  SevenoAssessmentFilter,
   CompanyProfile,
   CompanyProfileStatus,
   CompanySize,
@@ -63,8 +63,6 @@ const EXPERIENCE_OPTIONS: Array<{ value: CandidateExperienceLevel; label: string
   { value: 'expert', label: 'Expert' },
 ];
 
-const MIN_SCORE_OPTIONS = [50, 60, 70, 80, 90];
-
 function parseCandidateSearchFilters(params: URLSearchParams): CandidateSearchFilters | null {
   const sectorId = params.get('sectorId')?.trim() ?? '';
   const jobFamilyId = params.get('jobFamilyId')?.trim() ?? '';
@@ -79,20 +77,12 @@ function parseCandidateSearchFilters(params: URLSearchParams): CandidateSearchFi
   const locationArea = params.get('locationArea')?.trim() ?? '';
   const availabilityValue = params.get('availability')?.trim() ?? '';
   const experienceValue = params.get('experienceLevel')?.trim() ?? '';
-  const minScoreValue = params.get('minScore')?.trim() ?? '';
-  const assessmentValue = params.get('assessment')?.trim() ?? 'all';
-  const assessment: SevenoAssessmentFilter = assessmentValue === 'completed' ? 'completed' : 'all';
   const availability = AVAILABILITY_OPTIONS.some((option) => option.value === availabilityValue)
     ? (availabilityValue as CandidateAvailability)
     : undefined;
   const experienceLevel = EXPERIENCE_OPTIONS.some((option) => option.value === experienceValue)
     ? (experienceValue as CandidateExperienceLevel)
     : undefined;
-  const parsedMinScore = minScoreValue ? Number(minScoreValue) : undefined;
-  const minSevenoAssessmentScore =
-    parsedMinScore !== undefined && Number.isInteger(parsedMinScore) && parsedMinScore >= 0 && parsedMinScore <= 100
-      ? parsedMinScore
-      : undefined;
 
   return {
     sectorId,
@@ -101,8 +91,6 @@ function parseCandidateSearchFilters(params: URLSearchParams): CandidateSearchFi
     ...(locationArea ? { locationArea } : {}),
     ...(availability ? { availability } : {}),
     ...(experienceLevel ? { experienceLevel } : {}),
-    ...(minSevenoAssessmentScore !== undefined ? { minSevenoAssessmentScore } : {}),
-    assessment,
   };
 }
 
@@ -163,8 +151,6 @@ export default function CompanyDashboardPage() {
   const [locationArea, setLocationArea] = useState('');
   const [availability, setAvailability] = useState<CandidateAvailability | ''>('');
   const [experienceLevel, setExperienceLevel] = useState<CandidateExperienceLevel | ''>('');
-  const [minSevenoAssessmentScore, setMinSevenoAssessmentScore] = useState('');
-  const [assessmentFilter, setAssessmentFilter] = useState<SevenoAssessmentFilter>('all');
   const [candidateError, setCandidateError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,6 +184,11 @@ export default function CompanyDashboardPage() {
           return;
         }
 
+        if (sevenoUser.onboardingCompleted && !hasSevenoTermsAcceptance(sevenoUser, 'company_first_access')) {
+          router.replace('/cgu');
+          return;
+        }
+
         const companyProfile = await getCompanyProfile(sevenoUser.uid);
         if (!active) {
           return;
@@ -226,10 +217,6 @@ export default function CompanyDashboardPage() {
           setLocationArea(restoredFilters.locationArea ?? '');
           setAvailability(restoredFilters.availability ?? '');
           setExperienceLevel(restoredFilters.experienceLevel ?? '');
-          setMinSevenoAssessmentScore(
-            restoredFilters.minSevenoAssessmentScore === undefined ? '' : String(restoredFilters.minSevenoAssessmentScore),
-          );
-          setAssessmentFilter(restoredFilters.assessment ?? 'all');
           setSearchStarted(true);
           setSearchLoading(true);
           setActiveSearchFilters(restoredFilters);
@@ -306,7 +293,6 @@ export default function CompanyDashboardPage() {
       return;
     }
 
-    const parsedMinScore = minSevenoAssessmentScore ? Number(minSevenoAssessmentScore) : undefined;
     const filters: CandidateSearchFilters = {
       sectorId: selectedSector.code,
       jobFamilyId: selectedFamily.code,
@@ -314,8 +300,6 @@ export default function CompanyDashboardPage() {
       ...(locationArea ? { locationArea } : {}),
       ...(availability ? { availability } : {}),
       ...(experienceLevel ? { experienceLevel } : {}),
-      ...(parsedMinScore !== undefined ? { minSevenoAssessmentScore: parsedMinScore } : {}),
-      assessment: parsedMinScore !== undefined ? 'completed' : assessmentFilter,
     };
     const searchHref = `/entreprise?${buildCandidateSearchParams(filters).toString()}`;
     window.history.replaceState(null, '', searchHref);
@@ -469,7 +453,7 @@ export default function CompanyDashboardPage() {
                     Recherche de candidats
                   </p>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                    Rechercher des profils vérifiés
+                    Rechercher des profils anonymes
                   </h2>
                   <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
                     Sélectionnez un métier et vos principaux critères pour consulter les profils anonymes
@@ -503,7 +487,7 @@ export default function CompanyDashboardPage() {
                         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Secteur *</span>
-                            <select
+                            <Select
                               value={sectorId}
                               onChange={(event) => {
                                 setSectorId(event.target.value);
@@ -511,7 +495,6 @@ export default function CompanyDashboardPage() {
                                 setJobRoleId('');
                               }}
                               required
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
                             >
                               <option value="">Sélectionner un secteur</option>
                               {JOB_SECTORS.map((sector) => (
@@ -519,12 +502,12 @@ export default function CompanyDashboardPage() {
                                   {sector.label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Famille métier *</span>
-                            <select
+                            <Select
                               value={jobFamilyId}
                               onChange={(event) => {
                                 setJobFamilyId(event.target.value);
@@ -532,7 +515,6 @@ export default function CompanyDashboardPage() {
                               }}
                               required
                               disabled={!selectedSector}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <option value="">Sélectionner une famille métier</option>
                               {familyOptions.map((family) => (
@@ -540,17 +522,16 @@ export default function CompanyDashboardPage() {
                                   {family.label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Métier précis *</span>
-                            <select
+                            <Select
                               value={jobRoleId}
                               onChange={(event) => setJobRoleId(event.target.value)}
                               required
                               disabled={!selectedFamily}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <option value="">Sélectionner un métier</option>
                               {roleOptions.map((role) => (
@@ -558,15 +539,14 @@ export default function CompanyDashboardPage() {
                                   {role.label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Zone de recrutement</span>
-                            <select
+                            <Select
                               value={locationArea}
                               onChange={(event) => setLocationArea(event.target.value)}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
                             >
                               <option value="">Toutes les zones</option>
                               {recruitmentAreas.map((area) => (
@@ -574,15 +554,14 @@ export default function CompanyDashboardPage() {
                                   {area}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
-                            <span className="font-medium text-white">Disponibilite</span>
-                            <select
+                            <span className="font-medium text-white">Disponibilité</span>
+                            <Select
                               value={availability}
                               onChange={(event) => setAvailability(event.target.value as CandidateAvailability | '')}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
                             >
                               <option value="">Toutes les disponibilites</option>
                               {AVAILABILITY_OPTIONS.map((option) => (
@@ -590,17 +569,16 @@ export default function CompanyDashboardPage() {
                                   {option.label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Niveau d experience</span>
-                            <select
+                            <Select
                               value={experienceLevel}
                               onChange={(event) =>
                                 setExperienceLevel(event.target.value as CandidateExperienceLevel | '')
                               }
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
                             >
                               <option value="">Tous les niveaux</option>
                               {EXPERIENCE_OPTIONS.map((option) => (
@@ -608,39 +586,9 @@ export default function CompanyDashboardPage() {
                                   {option.label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
 
-                          <label className="space-y-2 text-sm text-slate-200">
-                            <span className="font-medium text-white">Evaluation Seven&apos;O</span>
-                            <select
-                              value={assessmentFilter}
-                              onChange={(event) => setAssessmentFilter(event.target.value as SevenoAssessmentFilter)}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
-                            >
-                              <option value="all">Tous les profils actifs</option>
-                              <option value="completed">Questionnaire Seven&apos;O termine</option>
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 text-sm text-slate-200">
-                            <span className="font-medium text-white">Indice Seven&apos;O minimal</span>
-                            <select
-                              value={minSevenoAssessmentScore}
-                              onChange={(event) => {
-                                setMinSevenoAssessmentScore(event.target.value);
-                                if (event.target.value) setAssessmentFilter('completed');
-                              }}
-                              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40"
-                            >
-                              <option value="">Aucun minimum</option>
-                              {MIN_SCORE_OPTIONS.map((score) => (
-                                <option key={score} value={score}>
-                                  {score}% et plus
-                                </option>
-                              ))}
-                            </select>
-                          </label>
                         </div>
 
                         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -665,7 +613,7 @@ export default function CompanyDashboardPage() {
                         </div>
                       ) : !searchStarted ? (
                         <div className="mt-6 rounded-[22px] border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(9,17,32,0.95),rgba(8,15,28,0.9))] p-5 shadow-[0_18px_60px_rgba(2,6,23,0.22)]">
-                          <p className="text-base font-semibold text-white">Rechercher des profils vérifiés</p>
+                          <p className="text-base font-semibold text-white">Rechercher des profils anonymes</p>
                           <p className="mt-2 text-sm leading-7 text-slate-300">
                             Sélectionnez un métier et vos principaux critères pour consulter les profils anonymes
                             correspondants.

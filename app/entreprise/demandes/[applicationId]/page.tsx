@@ -16,6 +16,7 @@ import {
   activateCompanyQuestionnaireClient,
   getCompanyQuestionnaireClient,
 } from '@/lib/seveno-company-questionnaires';
+import { buildQuestionnaireScoreSummary } from '@/lib/seveno-company-questionnaire-thresholds';
 import { getCompanyApplicationQuestionnaireReviewClient } from '@/lib/seveno-application-questionnaires';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
 import type { CompanyApplicationQuestionnaireReviewView } from '@/types/seveno-application-questionnaires';
@@ -35,7 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
   questionnaire_completed: 'Questionnaire terminé',
   shortlisted: 'Sélectionnée',
   rejected: 'Refusée',
-  contact_requested: 'Contact demandé',
+  contact_requested: 'Mise en relation proposée',
   conversation_open: 'Conversation ouverte',
   candidate_declined: 'Invitation refusée',
   company_declined: 'Relation refusée',
@@ -60,6 +61,11 @@ function formatQuestionnaireSummary(
   if (assessment.status === 'not_started' && score === null) {
     return null;
   }
+  const scoreSummary = buildQuestionnaireScoreSummary(
+    score,
+    assessment.minimumPassingScorePercent ?? null,
+    'company',
+  );
   const statusLabel = assessment.status === 'completed'
     ? 'Termine'
     : assessment.status === 'submitted'
@@ -73,16 +79,18 @@ function formatQuestionnaireSummary(
             : 'Non demarre';
 
   return {
-    label: score !== null ? `Resultat : ${Math.round(score)} %` : statusLabel,
-    note: assessment.manualReviewRequired
-      ? assessment.manualReviewStatus === 'completed'
-        ? 'Validation manuelle terminee.'
-        : 'Correction manuelle requise avant validation finale.'
-      : assessment.status === 'completed'
-        ? 'Resultat valide par le serveur.'
-        : assessment.status === 'submitted' || assessment.status === 'in_progress'
-          ? 'Le questionnaire a ete transmis au candidat.'
-          : 'Aucun resultat disponible.',
+    label: scoreSummary?.label ?? (score !== null ? `Resultat : ${Math.round(score)} %` : statusLabel),
+    note: scoreSummary
+      ? `${scoreSummary.scoreLabel} · ${scoreSummary.thresholdLabel}`
+      : assessment.manualReviewRequired
+        ? assessment.manualReviewStatus === 'completed'
+          ? 'Validation manuelle terminee.'
+          : 'Correction manuelle requise avant validation finale.'
+        : assessment.status === 'completed'
+          ? 'Resultat valide par le serveur.'
+          : assessment.status === 'submitted' || assessment.status === 'in_progress'
+            ? 'Le questionnaire a ete transmis au candidat.'
+            : 'Aucun resultat disponible.',
   };
 }
 
@@ -90,9 +98,9 @@ export default function CompanyApplicationDetailPage() {
   const { authUser, profile, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
   const params = useParams<{ applicationId: string }>();
   const applicationId =
-    typeof params.applicationId === 'string'
+    typeof params?.applicationId === 'string'
       ? params.applicationId
-      : Array.isArray(params.applicationId)
+      : Array.isArray(params?.applicationId)
         ? params.applicationId[0]
         : '';
   const [application, setApplication] = useState<SerializedCandidateJobApplication | null>(null);
@@ -183,7 +191,7 @@ export default function CompanyApplicationDetailPage() {
     if (
       !window.confirm(
         decision === 'interested'
-          ? 'Valider ce dossier ouvre la conversation sécurisée avec le candidat.'
+          ? 'Proposer la mise en relation enverra une demande de confirmation au candidat.'
           : 'Refuser ce dossier clôturera la relation.',
       )
     ) {
@@ -199,7 +207,7 @@ export default function CompanyApplicationDetailPage() {
       setApplication(payload.application);
       setDecisionMessage(
         decision === 'interested'
-          ? 'Dossier validé. La conversation est désormais ouverte.'
+          ? 'Proposition envoyee. En attente de la reponse du candidat.'
           : 'Dossier refusé. La relation est maintenant clôturée.',
       );
     } catch (thrownError) {
@@ -268,12 +276,14 @@ export default function CompanyApplicationDetailPage() {
       && (!questionnaireRequired || questionnaireCompleted)
     : false;
   const canShowConversation = application?.conversationStatus === 'open';
+  const proposalPending = application?.status === 'contact_requested';
+  const proposalRefused = application?.status === 'candidate_declined';
 
   return (
     <SevenoSurface
       eyebrow="Mise en relation"
       title="Détail du dossier"
-      description="Examinez le dossier, validez-le si nécessaire puis poursuivez la discussion dans la conversation sécurisée."
+      description="Examinez le dossier, proposez la mise en relation si nécessaire puis poursuivez la discussion dans la conversation sécurisée."
       footer={profile ? <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entreprise : {profile.companyName}</p> : null}
       containerClassName="max-w-[86.4rem]"
     >
@@ -428,7 +438,22 @@ export default function CompanyApplicationDetailPage() {
               {questionnaireRequired && !questionnaireCompleted ? (
                 <div className="mt-6 rounded-2xl border border-orange-300/20 bg-orange-400/10 px-4 py-4 text-sm leading-7 text-orange-100">
                   Le questionnaire associé à cette offre doit être renseigné puis envoyé au candidat avant la validation
-                  du dossier. Ouvrez-le ci-dessus, puis revenez ici pour valider le candidat et ouvrir la discussion.
+                  du dossier. Ouvrez-le ci-dessus, puis revenez ici pour proposer la mise en relation.
+                </div>
+              ) : null}
+
+              {proposalPending ? (
+                <div className="mt-6 space-y-3">
+                  <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-4 text-sm leading-7 text-cyan-100">
+                    Proposition envoyee. En attente de la reponse du candidat.
+                  </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
+                  >
+                    En attente de la reponse du candidat
+                  </button>
                 </div>
               ) : null}
 
@@ -440,7 +465,7 @@ export default function CompanyApplicationDetailPage() {
                     onClick={() => void review('interested')}
                     className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {decisionLoading === 'interested' ? 'Validation...' : 'Valider le dossier'}
+                    {decisionLoading === 'interested' ? 'Validation...' : 'Proposer la mise en relation'}
                   </button>
                   <button
                     type="button"
@@ -458,7 +483,7 @@ export default function CompanyApplicationDetailPage() {
                     disabled
                     className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
                   >
-                    Valider le dossier
+                    Proposer la mise en relation
                   </button>
                   <button
                     type="button"
@@ -469,26 +494,50 @@ export default function CompanyApplicationDetailPage() {
                   </button>
                 </div>
               ) : null}
+
+              {proposalRefused ? (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm leading-7 text-slate-300">
+                  <p className="font-medium text-white">Mise en relation refusee par le candidat.</p>
+                  <p className="mt-2">La relation est cloturee sans ouverture de conversation.</p>
+                </div>
+              ) : null}
+
+              {canShowConversation ? (
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    href="#conversation-securisee"
+                    className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                  >
+                    Ouvrir la conversation
+                  </Link>
+                </div>
+              ) : null}
             </SevenoPanel>
 
             {canShowConversation && authUser ? (
-              <JobApplicationConversationThread
-                authUser={authUser}
-                applicationId={application.id}
-                applicationStatus={application.status}
-                conversationStatus={application.conversationStatus}
-                title="Conversation sécurisée"
-                description="Les échanges deviennent disponibles après acceptation explicite du dossier."
-                emptyMessage="Aucun message n a encore été envoyé."
-                onApplicationChange={setApplication}
-              />
+              <div id="conversation-securisee">
+                <JobApplicationConversationThread
+                  authUser={authUser}
+                  applicationId={application.id}
+                  applicationStatus={application.status}
+                  conversationStatus={application.conversationStatus}
+                  title="Conversation sécurisée"
+                  description="Les échanges deviennent disponibles après acceptation explicite du dossier."
+                  emptyMessage="Aucun message n a encore été envoyé."
+                  onApplicationChange={setApplication}
+                />
+              </div>
             ) : (
               <SevenoPanel tone="neutral" className="p-5 text-sm leading-7 text-slate-300">
                 <p className="font-medium text-white">Conversation fermée</p>
                 <p className="mt-3">
-                  {application.status === 'invited'
-                    ? 'Le candidat doit d abord accepter votre invitation avant l ouverture de la conversation.'
-                    : 'La relation n est pas encore ouverte à la discussion sécurisée.'}
+                  {application.status === 'contact_requested'
+                    ? 'En attente de la reponse du candidat.'
+                    : application.status === 'candidate_declined'
+                      ? 'Le candidat n a pas souhaite poursuivre cette mise en relation.'
+                      : application.status === 'invited'
+                        ? 'Le candidat doit d abord accepter votre invitation avant l ouverture de la conversation.'
+                        : 'La relation n est pas encore ouverte à la discussion sécurisée.'}
                 </p>
               </SevenoPanel>
             )}

@@ -12,8 +12,6 @@ import type {
   CandidateExperienceLevel,
   CandidateSearchFilters,
   CandidateTargetJob,
-  SevenoAssessmentScores,
-  SevenoAssessmentStatus,
 } from '@/types/seveno';
 
 const CANDIDATE_PROFILES_COLLECTION = 'candidate_profiles';
@@ -39,7 +37,7 @@ const EXPERIENCE_VALUES: CandidateExperienceLevel[] = [
 type FirestoreRecord = Record<string, unknown>;
 
 type CandidateSearchCursor = {
-  sevenoAssessmentOverallScore: number | null;
+  updatedAtMillis: number;
   publicCandidateId: string;
 };
 
@@ -55,11 +53,9 @@ export interface SerializedVisibleCandidateProfile {
   availabilityValidUntil: string | null;
   locationArea: string;
   experienceLevel: CandidateExperienceLevel;
-  sevenoAssessmentStatus: SevenoAssessmentStatus;
-  sevenoAssessmentOverallScore: number | null;
-  sevenoAssessmentDimensions: SevenoAssessmentScores;
-  sevenoAssessmentVersion: string | null;
-  sevenoAssessmentCompletedAt: string | null;
+  professionalSelfDescription: string | null;
+  professionalReputationDescription: string | null;
+  recommendationVisibleCount: number;
   profileStatus: 'active';
 }
 
@@ -115,22 +111,17 @@ function toAnonymousProjection(
   const locationArea = cleanText(data.locationArea);
   const availability = data.availability as CandidateAvailability;
   const experienceLevel = data.experienceLevel as CandidateExperienceLevel;
-  const assessmentScore = data.sevenoAssessmentOverallScore;
-  const assessmentCompletedAt = toTimestamp(data.sevenoAssessmentCompletedAt);
-  const assessmentVersion = cleanText(data.sevenoAssessmentVersion);
   const availabilityAvailableFromAt = toTimestamp(data.availabilityAvailableFromAt);
   const availabilityConfirmedAt = toTimestamp(data.availabilityConfirmedAt);
   const availabilityValidUntil = toTimestamp(data.availabilityValidUntil);
-  const assessmentDimensions = data.sevenoAssessmentDimensions && typeof data.sevenoAssessmentDimensions === 'object'
-    ? data.sevenoAssessmentDimensions as SevenoAssessmentScores
-    : {};
-  const assessmentCompleted = data.sevenoAssessmentStatus === 'completed'
-    && typeof assessmentScore === 'number'
-    && Number.isFinite(assessmentScore)
-    && assessmentScore >= 0
-    && assessmentScore <= 100
-    && Boolean(assessmentCompletedAt)
-    && Boolean(assessmentVersion);
+  const updatedAt = toTimestamp(data.updatedAt);
+  const professionalSelfDescription = cleanText(data.professionalSelfDescription);
+  const professionalReputationDescription = cleanText(data.professionalReputationDescription);
+  const recommendationVisibleCount = typeof data.recommendationVisibleCount === 'number'
+    && Number.isFinite(data.recommendationVisibleCount)
+    && data.recommendationVisibleCount >= 0
+    ? data.recommendationVisibleCount
+    : 0;
 
   if (
     data.role !== 'candidate'
@@ -139,6 +130,7 @@ function toAnonymousProjection(
     || targetJobs.length < 1
     || targetJobs.length > 3
     || !selectedJob
+    || !updatedAt
     || !locationArea
     || !AVAILABILITY_VALUES.includes(availability)
     || !EXPERIENCE_VALUES.includes(experienceLevel)
@@ -158,11 +150,9 @@ function toAnonymousProjection(
     availabilityValidUntil: availabilityValidUntil?.toDate().toISOString() ?? null,
     locationArea,
     experienceLevel,
-    sevenoAssessmentStatus: assessmentCompleted ? 'completed' : data.sevenoAssessmentStatus === 'in_progress' ? 'in_progress' : 'not_started',
-    sevenoAssessmentOverallScore: assessmentCompleted ? assessmentScore as number : null,
-    sevenoAssessmentDimensions: assessmentCompleted ? assessmentDimensions : {},
-    sevenoAssessmentVersion: assessmentCompleted ? assessmentVersion : null,
-    sevenoAssessmentCompletedAt: assessmentCompletedAt?.toDate().toISOString() ?? null,
+    professionalSelfDescription: professionalSelfDescription || null,
+    professionalReputationDescription: professionalReputationDescription || null,
+    recommendationVisibleCount,
     profileStatus: 'active',
   };
 }
@@ -179,12 +169,10 @@ function decodeCursor(value: string | null | undefined): CandidateSearchCursor |
   try {
     const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<CandidateSearchCursor>;
     if (
-      (parsed.sevenoAssessmentOverallScore !== null && (
-        typeof parsed.sevenoAssessmentOverallScore !== 'number'
-        || !Number.isFinite(parsed.sevenoAssessmentOverallScore)
-        || parsed.sevenoAssessmentOverallScore < 0
-        || parsed.sevenoAssessmentOverallScore > 100
-      ))
+      typeof parsed.updatedAtMillis !== 'number'
+      || !Number.isFinite(parsed.updatedAtMillis)
+      || parsed.updatedAtMillis < 0
+      || !Number.isSafeInteger(parsed.updatedAtMillis)
       || typeof parsed.publicCandidateId !== 'string'
       || !PUBLIC_CANDIDATE_ID_PATTERN.test(parsed.publicCandidateId)
     ) {
@@ -192,7 +180,7 @@ function decodeCursor(value: string | null | undefined): CandidateSearchCursor |
     }
 
     return {
-      sevenoAssessmentOverallScore: parsed.sevenoAssessmentOverallScore,
+      updatedAtMillis: parsed.updatedAtMillis,
       publicCandidateId: parsed.publicCandidateId,
     };
   } catch {
@@ -205,19 +193,12 @@ export async function searchVisibleCandidateProfiles(
   cursorValue?: string | null,
 ) {
   const firestore = requireAdminDatabase();
-  let query: Query = firestore
+  const query: Query = firestore
     .collection(CANDIDATE_PROFILES_COLLECTION)
     .where('profileStatus', '==', 'active')
-    .where('targetJobRoleIds', 'array-contains', filters.jobRoleId);
-
-  if (filters.assessment === 'completed' || filters.minSevenoAssessmentScore !== undefined) {
-    query = query.where('sevenoAssessmentStatus', '==', 'completed');
-  }
-  if (filters.minSevenoAssessmentScore !== undefined) {
-    query = query.where('sevenoAssessmentOverallScore', '>=', filters.minSevenoAssessmentScore);
-  }
-
-  query = query.orderBy('sevenoAssessmentOverallScore', 'desc').orderBy('publicCandidateId', 'asc');
+    .where('targetJobRoleIds', 'array-contains', filters.jobRoleId)
+    .orderBy('updatedAt', 'desc')
+    .orderBy('publicCandidateId', 'asc');
 
   const candidates: SerializedVisibleCandidateProfile[] = [];
   let scanCursor = decodeCursor(cursorValue);
@@ -229,7 +210,7 @@ export async function searchVisibleCandidateProfiles(
     let pageQuery = query;
     if (scanCursor) {
       pageQuery = pageQuery.startAfter(
-        scanCursor.sevenoAssessmentOverallScore,
+        Timestamp.fromMillis(scanCursor.updatedAtMillis),
         scanCursor.publicCandidateId,
       );
     }
@@ -243,14 +224,14 @@ export async function searchVisibleCandidateProfiles(
 
     hasMore = snapshot.docs.length > CANDIDATE_SEARCH_SCAN_BATCH_SIZE;
     for (const document of documents) {
-      const score = document.get('sevenoAssessmentOverallScore');
       const publicCandidateId = cleanText(document.get('publicCandidateId'));
+      const updatedAt = toTimestamp(document.get('updatedAt'));
       scanned += 1;
-      if (score !== null && (typeof score !== 'number' || !Number.isFinite(score))) {
+      if (!updatedAt) {
         continue;
       }
 
-      scanCursor = { sevenoAssessmentOverallScore: score, publicCandidateId };
+      scanCursor = { updatedAtMillis: updatedAt.toMillis(), publicCandidateId };
       if (!PUBLIC_CANDIDATE_ID_PATTERN.test(publicCandidateId)) continue;
       lastProcessedCursor = scanCursor;
       const profile = toAnonymousProjection(document.data(), filters.jobRoleId);

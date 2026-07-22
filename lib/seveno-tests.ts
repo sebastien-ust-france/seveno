@@ -354,7 +354,7 @@ function scoreSevenoGeneralAssessment(
 
   for (const question of bank.questions) {
     if (!question.dimension) {
-      throw new SevenoTestError('invalid_questionnaire', 500, "Une question Seven'O ne porte aucune dimension.");
+      throw new SevenoTestError('invalid_questionnaire', 500, "Une question Seven’O ne porte aucune dimension.");
     }
 
     const selectedOption = question.options.find((option) => option.id === answers[question.id]);

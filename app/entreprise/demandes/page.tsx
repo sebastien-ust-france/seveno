@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
+import { buildQuestionnaireScoreSummary } from '@/lib/seveno-company-questionnaire-thresholds';
 import { listCompanyApplicationsClient } from '@/lib/seveno-job-applications';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
-import type { SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
+import type { CompanyApplicationPrioritySelection, SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
@@ -20,7 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
   questionnaire_completed: 'Questionnaire terminé',
   shortlisted: 'Sélectionnée',
   rejected: 'Refusée',
-  contact_requested: 'Contact demandé',
+  contact_requested: 'Mise en relation proposée',
   conversation_open: 'Conversation ouverte',
   candidate_declined: 'Invitation refusée',
   company_declined: 'Relation refusée',
@@ -38,6 +39,7 @@ function isActiveApplication(application: SerializedCandidateJobApplication) {
     'submitted',
     'questionnaire_pending',
     'questionnaire_completed',
+    'contact_requested',
     'conversation_open',
   ].includes(application.status);
 }
@@ -47,11 +49,13 @@ function formatCompanyLabel(application: SerializedCandidateJobApplication) {
 }
 
 function ApplicationCard({ application }: { application: SerializedCandidateJobApplication }) {
-  const primaryAction = application.conversationStatus === 'open'
-    ? 'Ouvrir la conversation'
-    : application.status === 'submitted' || application.status === 'questionnaire_completed'
-      ? 'Évaluer le dossier'
-      : 'Voir le dossier';
+  const primaryAction = application.status === 'contact_requested'
+    ? 'En attente du candidat'
+    : application.conversationStatus === 'open'
+      ? 'Ouvrir la conversation'
+      : application.status === 'submitted' || application.status === 'questionnaire_completed'
+        ? 'Évaluer le dossier'
+        : 'Voir le dossier';
 
   return (
     <SevenoPanel tone="neutral" className="p-5">
@@ -134,11 +138,13 @@ export default function CompanyApplicationsPage() {
   const { authUser, profile, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
   const [applications, setApplications] = useState<SerializedCandidateJobApplication[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [prioritySelection, setPrioritySelection] = useState<CompanyApplicationPrioritySelection | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offerFilter, setOfferFilter] = useState('');
 
-  async function load(append = false, cursor?: string | null) {
+  async function load(append = false, cursor?: string | null, offerId: string | null = offerFilter) {
     if (!authUser) {
       return;
     }
@@ -149,9 +155,12 @@ export default function CompanyApplicationsPage() {
       setLoading(true);
     }
     try {
-      const payload = await listCompanyApplicationsClient(authUser, cursor);
+      const payload = await listCompanyApplicationsClient(authUser, cursor, undefined, offerId || undefined);
       setApplications((current) => (append ? [...current, ...payload.applications] : payload.applications));
       setNextCursor(payload.nextCursor);
+      if (!append) {
+        setPrioritySelection(payload.prioritySelection ?? null);
+      }
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'Les dossiers entreprise n ont pas pu etre charges.');
     } finally {
@@ -164,8 +173,11 @@ export default function CompanyApplicationsPage() {
   }
 
   useEffect(() => {
+    const parsedOfferFilter = new URLSearchParams(window.location.search).get('offerId')?.trim() ?? '';
+    setOfferFilter(parsedOfferFilter);
+    setPrioritySelection(null);
     if (authUser) {
-      void load();
+      void load(false, undefined, parsedOfferFilter);
     }
     // Authentication is the only automatic loading trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,6 +203,69 @@ export default function CompanyApplicationsPage() {
           <SevenoPanel tone="orange" className="p-4">
             <p className="text-sm text-orange-100">{sessionError ?? error}</p>
           </SevenoPanel>
+        ) : null}
+
+        {offerFilter ? (
+          <SevenoPanel tone="cyan" className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                  Filtre actif
+                </p>
+                <p className="mt-2 text-sm text-cyan-100">
+                  Cette liste affiche les candidatures liées à l offre selectionnee.
+                </p>
+              </div>
+              <Link
+                href="/entreprise/demandes"
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+              >
+                Voir toutes les candidatures
+              </Link>
+            </div>
+          </SevenoPanel>
+        ) : null}
+
+        {offerFilter && prioritySelection ? (
+          <section className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Sélection prioritaire</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">
+                {prioritySelection.applications.length > 0
+                  ? `${prioritySelection.applications.length} profil(s) à prioriser`
+                  : 'Aucun profil à prioriser'}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                {prioritySelection.eligibleCount > 0
+                  ? 'Les profils atteignant le seuil apparaissent en priorité. Les profils proches du seuil ne complètent la sélection que si moins de 5 profils qualifiés sont disponibles. La liste complète des candidatures reste affichée plus bas.'
+                  : 'Aucun dossier ne dépasse le seuil minimum pour cette offre.'}
+              </p>
+            </div>
+            <div className="space-y-4">
+              {prioritySelection.applications.map((item) => {
+                const scoreSummary = buildQuestionnaireScoreSummary(
+                  item.application.companyAssessment?.finalScore ?? item.application.companyAssessment?.automaticScorePercent ?? null,
+                  item.application.companyAssessment?.minimumPassingScorePercent ?? null,
+                  'company',
+                );
+                return (
+                  <div key={`priority-${item.application.id}`} className="space-y-3">
+                    {scoreSummary ? (
+                      <SevenoPanel tone="neutral" className="p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Profil prioritaire</p>
+                        <p className="mt-2 text-base font-semibold text-white">{scoreSummary.label}</p>
+                        <p className="mt-2 text-xs text-slate-300">
+                          {scoreSummary.scoreLabel} · {scoreSummary.thresholdLabel}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-400">{scoreSummary.note}</p>
+                      </SevenoPanel>
+                    ) : null}
+                    <ApplicationCard application={item.application} />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-3">

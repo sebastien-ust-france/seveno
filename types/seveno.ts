@@ -10,6 +10,32 @@ export type CandidateIdentityRequiredField = 'firstName' | 'lastName' | 'email' 
 export type CandidateProfileStatus = 'draft' | 'active' | 'paused';
 export type CandidateSkillVerificationStatus = 'not_tested' | 'verified' | 'failed';
 export type CandidateVerificationFilter = 'all' | 'verified';
+export type RecommendationRelationType =
+  | 'former_employer'
+  | 'former_manager'
+  | 'hr_manager'
+  | 'executive'
+  | 'professional_client'
+  | 'other_professional_manager';
+export type RecommendationInvitationStatus = 'draft' | 'sent' | 'viewed' | 'submitted' | 'expired' | 'revoked';
+export type RecommendationVerificationStatus =
+  | 'not_started'
+  | 'verification_pending'
+  | 'verified'
+  | 'verification_rejected';
+export type RecommendationVisibilityStatus = 'hidden' | 'visible';
+export type RecommendationWouldRehire = 'yes' | 'depends_on_position' | 'no' | 'prefer_not_to_answer';
+export type RecommendationRatingLevel =
+  | 'not_evaluated'
+  | 'needs_improvement'
+  | 'satisfactory'
+  | 'very_satisfactory'
+  | 'excellent';
+export type RecommendationEmailDomainClassification = 'professional_domain' | 'public_email_provider';
+export type TermsAcceptanceContext =
+  | 'candidate_account'
+  | 'company_first_access'
+  | 'professional_recommendation';
 export type AssessmentType = 'seveno_general' | 'company_application' | 'legacy_job';
 export type SevenoAssessmentStatus = 'not_started' | 'in_progress' | 'completed';
 export type SevenoAssessmentFilter = 'all' | 'completed';
@@ -55,9 +81,16 @@ export interface SevenoUser {
   postalCode?: string;
   city?: string;
   country?: string;
+  termsAcceptance?: Partial<Record<TermsAcceptanceContext, TermsAcceptance>>;
   onboardingCompleted: boolean;
   createdAt: FirestoreDateValue;
   updatedAt: FirestoreDateValue;
+}
+
+export interface TermsAcceptance {
+  cguVersion: '1.0';
+  acceptedAt: FirestoreDateValue;
+  context: TermsAcceptanceContext;
 }
 
 /**
@@ -110,6 +143,8 @@ export interface CandidateProfile {
   role: 'candidate';
   targetJobRoleIds: string[];
   targetJobs: CandidateTargetJob[];
+  professionalSelfDescription?: string | null;
+  professionalReputationDescription?: string | null;
   /** @deprecated Temporary mirror of the first target job during migration. */
   sectorId: string;
   /** @deprecated Temporary mirror of the first target job during migration. */
@@ -138,6 +173,10 @@ export interface CandidateProfile {
   sevenoAssessmentSessionId?: string | null;
   sevenoAssessmentResultId?: string | null;
   profileStatus: CandidateProfileStatus;
+  recommendationInvitationCount?: number | null;
+  recommendationVerificationPendingCount?: number | null;
+  recommendationVerifiedCount?: number | null;
+  recommendationVisibleCount?: number | null;
   dailyAvailabilityConfirmationEnabled?: boolean;
   nextAvailabilityReminderAt?: FirestoreDateValue | null;
   lastAvailabilityNotificationAt?: FirestoreDateValue | null;
@@ -155,6 +194,8 @@ export interface CandidateProfile {
 export interface VisibleCandidateProfile {
   publicCandidateId: string;
   targetJobs: CandidateTargetJob[];
+  professionalSelfDescription?: string | null;
+  professionalReputationDescription?: string | null;
   sectorId: string;
   jobFamilyId: string;
   jobRoleId: string;
@@ -164,12 +205,145 @@ export interface VisibleCandidateProfile {
   availabilityValidUntil?: FirestoreDateValue | null;
   locationArea: string;
   experienceLevel: CandidateExperienceLevel;
-  sevenoAssessmentStatus: SevenoAssessmentStatus;
-  sevenoAssessmentOverallScore: number | null;
-  sevenoAssessmentDimensions: SevenoAssessmentScores;
-  sevenoAssessmentVersion: string | null;
-  sevenoAssessmentCompletedAt: FirestoreDateValue | null;
+  recommendationVisibleCount?: number | null;
   profileStatus: 'active';
+}
+
+export interface CandidateRecommendationRequest {
+  id: string;
+  candidateUid: string;
+  publicCandidateId: string;
+  respondentFirstName: string;
+  respondentLastName: string;
+  respondentTitle: string;
+  respondentCompanyName: string;
+  respondentWebsite?: string | null;
+  respondentSiret?: string | null;
+  respondentEmail: string;
+  respondentEmailDomainClassification: RecommendationEmailDomainClassification;
+  relationType: RecommendationRelationType;
+  candidateJobTitle: string;
+  collaborationPeriodLabel: string;
+  collaborationStartLabel?: string | null;
+  collaborationEndLabel?: string | null;
+  tokenHash: string;
+  tokenCreatedAt: FirestoreDateValue;
+  tokenExpiresAt: FirestoreDateValue;
+  status: RecommendationInvitationStatus;
+  verificationStatus: RecommendationVerificationStatus;
+  emailOwnershipVerified: boolean;
+  verificationReason?: string | null;
+  verifiedByAdminUid?: string | null;
+  verifiedAt?: FirestoreDateValue | null;
+  viewedAt?: FirestoreDateValue | null;
+  submittedAt?: FirestoreDateValue | null;
+  revokedAt?: FirestoreDateValue | null;
+  lastSentAt?: FirestoreDateValue | null;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+}
+
+/**
+ * Public invitation projection exposed on the recommendation link page.
+ * It intentionally omits the respondent email, token hash and other private-only metadata.
+ */
+export interface PublicCandidateRecommendationInvitation {
+  id: string;
+  publicCandidateId: string;
+  respondentFirstName: string;
+  respondentLastName: string;
+  respondentTitle: string;
+  respondentCompanyName: string;
+  respondentWebsite?: string | null;
+  respondentSiret?: string | null;
+  respondentEmailDomainClassification: RecommendationEmailDomainClassification;
+  relationType: RecommendationRelationType;
+  candidateJobTitle: string;
+  collaborationPeriodLabel: string;
+  collaborationStartLabel?: string | null;
+  collaborationEndLabel?: string | null;
+  status: RecommendationInvitationStatus;
+  verificationStatus: RecommendationVerificationStatus;
+  emailOwnershipVerified: boolean;
+  viewedAt?: FirestoreDateValue | null;
+  submittedAt?: FirestoreDateValue | null;
+  revokedAt?: FirestoreDateValue | null;
+  lastSentAt?: FirestoreDateValue | null;
+  tokenCreatedAt: FirestoreDateValue;
+  tokenExpiresAt: FirestoreDateValue;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+}
+
+export interface CandidateRecommendationRatingSet {
+  reliability: RecommendationRatingLevel;
+  autonomy: RecommendationRatingLevel;
+  teamwork: RecommendationRatingLevel;
+  communication: RecommendationRatingLevel;
+  adaptability: RecommendationRatingLevel;
+}
+
+export interface CandidateRecommendation {
+  id: string;
+  requestId: string;
+  candidateUid: string;
+  publicCandidateId: string;
+  respondentFirstName: string;
+  respondentLastName: string;
+  respondentTitle: string;
+  respondentCompanyName: string;
+  respondentWebsite?: string | null;
+  respondentSiret?: string | null;
+  respondentEmail: string;
+  respondentEmailDomainClassification: RecommendationEmailDomainClassification;
+  relationType: RecommendationRelationType;
+  candidateJobTitle: string;
+  collaborationPeriodLabel: string;
+  collaborationStartLabel?: string | null;
+  collaborationEndLabel?: string | null;
+  qualities: string[];
+  ratings: CandidateRecommendationRatingSet;
+  comment?: string | null;
+  wouldRehire: RecommendationWouldRehire;
+  candidateVisibility: RecommendationVisibilityStatus;
+  consentToRevealIdentity: boolean;
+  consentToRevealIdentityAt?: FirestoreDateValue | null;
+  certificationAccepted: boolean;
+  certificationAcceptedAt?: FirestoreDateValue | null;
+  emailOwnershipVerified: boolean;
+  verificationStatus: RecommendationVerificationStatus;
+  verifiedByAdminUid?: string | null;
+  verifiedAt?: FirestoreDateValue | null;
+  verificationReason?: string | null;
+  termsAcceptanceVersion?: string | null;
+  termsAcceptanceAcceptedAt?: FirestoreDateValue | null;
+  termsAcceptanceContext?: TermsAcceptanceContext | null;
+  termsAcceptanceGoodFaith?: boolean;
+  publishedAt?: FirestoreDateValue | null;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+}
+
+export interface CandidateRecommendationDashboard {
+  invitationCount: number;
+  verificationPendingCount: number;
+  verifiedCount: number;
+  visibleCount: number;
+  requests: CandidateRecommendationRequest[];
+  recommendations: CandidateRecommendation[];
+}
+
+export interface PublicCandidateRecommendationSummary {
+  id: string;
+  relationLabel: string;
+  companySectorLabel?: string | null;
+  collaborationPeriodLabel: string;
+  candidateJobTitle: string;
+  qualities: string[];
+  ratings: CandidateRecommendationRatingSet;
+  comment?: string | null;
+  wouldRehire: RecommendationWouldRehire;
+  badgeLabel: string;
 }
 
 export interface CandidateSearchFilters {
@@ -179,8 +353,6 @@ export interface CandidateSearchFilters {
   locationArea?: string;
   availability?: CandidateAvailability;
   experienceLevel?: CandidateExperienceLevel;
-  minSevenoAssessmentScore?: number;
-  assessment?: SevenoAssessmentFilter;
 }
 
 export interface CandidateSearchPage {
@@ -194,8 +366,58 @@ export interface CandidateProfileUpsertData {
   availabilityAvailableFromAt?: string | null;
   locationArea: string;
   experienceLevel: CandidateExperienceLevel;
+  professionalSelfDescription?: string | null;
+  professionalReputationDescription?: string | null;
   profileStatus: CandidateProfileStatus;
   anonymousVisibilityConsent: boolean;
+}
+
+export interface CandidateRecommendationInvitationInput {
+  respondentFirstName: string;
+  respondentLastName: string;
+  respondentTitle: string;
+  respondentCompanyName: string;
+  respondentWebsite?: string | null;
+  respondentSiret?: string | null;
+  respondentEmail: string;
+  relationType: RecommendationRelationType;
+  candidateJobTitle: string;
+  collaborationPeriodLabel: string;
+  collaborationStartLabel?: string | null;
+  collaborationEndLabel?: string | null;
+}
+
+export interface CandidateRecommendationSubmissionInput {
+  qualities: string[];
+  ratings: CandidateRecommendationRatingSet;
+  comment?: string | null;
+  wouldRehire: RecommendationWouldRehire;
+  consentToRevealIdentity: boolean;
+  certificationAccepted: boolean;
+}
+
+export interface CandidateRecommendationDashboardPayload {
+  invitationCount: number;
+  verificationPendingCount: number;
+  verifiedCount: number;
+  visibleCount: number;
+  requests: CandidateRecommendationRequest[];
+  recommendations: CandidateRecommendation[];
+}
+
+export interface CandidateRecommendationPublicBundle {
+  candidate: VisibleCandidateProfile | null;
+  invitation?: PublicCandidateRecommendationInvitation | null;
+  recommendations: PublicCandidateRecommendationSummary[];
+}
+
+export interface CandidatePrivateRecommendationData {
+  uid: string;
+  invitationCount: number;
+  verificationPendingCount: number;
+  verifiedCount: number;
+  visibleCount: number;
+  updatedAt: FirestoreDateValue;
 }
 
 export type CandidateAvailabilityConfirmationAction = 'yes' | 'no';

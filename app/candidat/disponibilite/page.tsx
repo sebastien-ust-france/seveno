@@ -54,8 +54,8 @@ export default function CandidateAvailabilityPage() {
 
       setSuccess(
         nextAction === 'yes'
-          ? 'Disponibilite confirmee pour 24 heures.'
-          : 'Disponibilite immediate desactivee.',
+          ? 'Disponibilité confirmée pour 24 heures.'
+          : 'Disponibilité immédiate désactivée.',
       );
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'La confirmation a echoue.');
@@ -68,7 +68,7 @@ export default function CandidateAvailabilityPage() {
     <CandidateShell
       title={title}
       description="Cette page permet de repondre a la demande de disponibilite sans ouvrir votre tableau de bord."
-      footer={<p className="text-xs uppercase tracking-[0.24em] text-slate-500">Seven&apos;O - Disponibilite</p>}
+      footer={<p className="text-xs uppercase tracking-[0.24em] text-slate-500">Seven’O - Disponibilité</p>}
     >
       <div className="space-y-5">
         <SevenoPanel tone="cyan" className="p-5">

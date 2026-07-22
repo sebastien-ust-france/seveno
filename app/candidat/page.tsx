@@ -9,7 +9,7 @@ import { getCurrentAuthUser } from '@/lib/auth';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
 import { getCandidateProfile } from '@/lib/seveno-candidates';
 import { isCandidateIdentityComplete } from '@/lib/seveno-candidate-identity';
-import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import { ensureSevenoUser, hasSevenoTermsAcceptance, resolveSevenoRedirect } from '@/lib/seveno-users';
 import { CandidateProgress, type CandidateProgressState } from '@/components/candidate/CandidateProgress';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
@@ -18,11 +18,13 @@ import {
   confirmCandidateAvailabilityFromDashboard,
   registerCandidateAvailabilityDevice,
   requestCandidateAvailabilityPushToken,
+  sendCandidateAvailabilityTestNotification,
   updateCandidateAvailabilityNotifications,
 } from '@/lib/seveno-candidate-availability-client';
-import { getCandidateAvailabilityView } from '@/lib/seveno-candidate-availability';
-import { listApplicationsClient } from '@/lib/seveno-job-applications';
-import type { SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
+import {
+  getCandidateAvailabilityView,
+  isProfileVisibleToCompanies as isCandidateProfileVisibleToCompanies,
+} from '@/lib/seveno-candidate-availability';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
@@ -59,13 +61,6 @@ type CandidateSummaryCard = {
   value: string;
   note: string;
   action?: ReactNode;
-};
-
-type CandidateAssessmentSummary = {
-  status: 'completed';
-  overallScore: number;
-  questionnaireVersion: string;
-  completedAt: string;
 };
 
 function formatPublicStatusLabel(value: CandidateProfileStatus) {
@@ -131,22 +126,9 @@ function isCandidateProfileComplete(profile: CandidateProfile) {
   );
 }
 
-function hasCompletedSevenoAssessment(profile: CandidateProfile) {
-  return profile.sevenoAssessmentStatus === 'completed'
-    && typeof profile.sevenoAssessmentOverallScore === 'number'
-    && Number.isFinite(profile.sevenoAssessmentOverallScore)
-    && toDateValue(profile.sevenoAssessmentCompletedAt) !== null
-    && Boolean(profile.sevenoAssessmentVersion)
-    && Boolean(profile.sevenoAssessmentResultId)
-    && Boolean(profile.sevenoAssessmentSessionId);
-}
-
 function getProgressState(
   profile: CandidateProfile,
-  invitationCount: number,
-  acceptedRelationsCount: number,
   profileComplete: boolean,
-  assessmentCompleted: boolean,
 ): {
   steps: Array<{ label: string; description: string; state: CandidateProgressState }>;
 } {
@@ -158,13 +140,6 @@ function getProgressState(
           ? 'Vos informations métier obligatoires sont renseignées.'
           : 'Complétez les informations obligatoires de votre profil.',
         state: profileComplete ? 'done' : 'current',
-      },
-      {
-        label: "Évaluation Seven'O",
-        description: assessmentCompleted
-          ? "Votre questionnaire général Seven'O est terminé."
-          : "Répondez au questionnaire général Seven'O.",
-        state: assessmentCompleted ? 'done' : 'current',
       },
       {
         label: 'Métiers recherchés',
@@ -184,16 +159,6 @@ function getProgressState(
               ? 'blocked'
               : 'todo',
       },
-      {
-        label: 'Mises en relation',
-        description:
-          acceptedRelationsCount > 0
-            ? 'Une relation est déjà ouverte.'
-            : invitationCount > 0
-              ? 'Une invitation vous attend.'
-              : 'Les invitations arrivent ici.',
-        state: acceptedRelationsCount > 0 ? 'done' : invitationCount > 0 ? 'current' : 'todo',
-      },
     ],
   };
 }
@@ -208,6 +173,55 @@ function getProfileAction(
   };
 }
 
+type AvailabilityPushSupport = Awaited<ReturnType<typeof requestCandidateAvailabilityPushToken>>;
+
+function logAvailabilityTestStep(step: string, details?: Record<string, unknown>) {
+  console.info('[SevenO availability dashboard]', {
+    step,
+    ...details,
+  });
+}
+
+function getAvailabilityTestFailureMessage(
+  support: AvailabilityPushSupport | null,
+  hasActiveDevice: boolean | null,
+  serverError: unknown = null,
+) {
+  if (!support) {
+    return 'Impossible de vérifier les notifications.';
+  }
+
+  if (!support.supported) {
+    return 'Ce navigateur ne prend pas en charge les notifications.';
+  }
+
+  if (!support.serviceWorkerRegistration || !support.serviceWorkerRegistration.active) {
+    return 'Le service de notifications n’est pas encore actif.';
+  }
+
+  if (support.permission !== 'granted') {
+    return 'Les notifications ne sont pas autorisées dans Chrome.';
+  }
+
+  if (!support.token) {
+    if (support.vapidKeyPresent === false) {
+      return 'La clé VAPID Firebase est manquante.';
+    }
+
+    return 'Impossible de créer l’abonnement Firebase.';
+  }
+
+  if (hasActiveDevice === false) {
+    return 'Cet appareil n’est pas enregistré.';
+  }
+
+  if (serverError) {
+    return 'L’envoi de test a échoué côté serveur.';
+  }
+
+  return 'La notification de test a échoué.';
+}
+
 export default function CandidateDashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -215,10 +229,8 @@ export default function CandidateDashboardPage() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [user, setUser] = useState<SevenoUser | null>(null);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
-  const [assessmentSummary, setAssessmentSummary] = useState<CandidateAssessmentSummary | null>(null);
-  const [applications, setApplications] = useState<SerializedCandidateJobApplication[]>([]);
   const [availabilityAction, setAvailabilityAction] = useState<
-    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications' | null
+    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications' | 'send_test_notification' | null
   >(null);
   const [availabilityNotice, setAvailabilityNotice] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -253,28 +265,12 @@ export default function CandidateDashboardPage() {
           return;
         }
 
-        const [candidateProfile, assessmentResponse] = await Promise.all([
-          getCandidateProfile(sevenoUser.uid),
-          authUser.getIdToken().then((token) => fetch('/api/seveno/tests/start', {
-            headers: { Authorization: `Bearer ${token}` },
-          })),
-        ]);
-        if (!active) {
+        if (sevenoUser.onboardingCompleted && !hasSevenoTermsAcceptance(sevenoUser, 'candidate_account')) {
+          router.replace('/cgu');
           return;
         }
 
-        const assessmentPayload = assessmentResponse.ok
-          ? await assessmentResponse.json() as { assessment?: CandidateAssessmentSummary | null }
-          : { assessment: null };
-
-        let candidateApplications: SerializedCandidateJobApplication[] = [];
-        try {
-          const payload = await listApplicationsClient(authUser);
-          candidateApplications = payload.applications ?? [];
-        } catch {
-          candidateApplications = [];
-        }
-
+        const candidateProfile = await getCandidateProfile(sevenoUser.uid);
         if (!active) {
           return;
         }
@@ -282,8 +278,6 @@ export default function CandidateDashboardPage() {
         setUser(sevenoUser);
         setAuthUser(authUser);
         setProfile(candidateProfile);
-        setAssessmentSummary(assessmentPayload.assessment ?? null);
-        setApplications(candidateApplications);
         setLoading(false);
       } catch (thrownError) {
         if (!active) {
@@ -305,15 +299,7 @@ export default function CandidateDashboardPage() {
   const sectorLabel = profile ? findSectorLabel(profile.sectorId) ?? profile.sectorId : null;
   const familyLabel = profile ? findFamilyLabel(profile.jobFamilyId) ?? profile.jobFamilyId : null;
   const roleLabel = profile ? findRoleLabel(profile.jobRoleId) ?? profile.jobRoleId : null;
-  const invitationApplications = applications.filter((item) => item.origin === 'company' && item.status === 'invited');
-  const invitationCount = invitationApplications.length;
-  const acceptedRelationsCount = applications.filter((item) => item.conversationStatus === 'open').length;
-  const draftApplicationsCount = applications.filter((item) => ['draft', 'prerequisites_in_progress', 'eligible', 'ineligible'].includes(item.status)).length;
-  const submittedApplicationsCount = applications.filter((item) => item.status === 'submitted').length;
-  const withdrawnApplicationsCount = applications.filter((item) => item.status === 'withdrawn').length;
   const profileComplete = profile ? isCandidateProfileComplete(profile) : false;
-  const assessmentCompleted = profile ? hasCompletedSevenoAssessment(profile) : assessmentSummary?.status === 'completed';
-  const assessmentScore = profile?.sevenoAssessmentOverallScore ?? assessmentSummary?.overallScore ?? null;
   const targetJobs = profile
     ? Array.isArray(profile.targetJobs) && profile.targetJobs.length > 0
       ? profile.targetJobs
@@ -330,8 +316,12 @@ export default function CandidateDashboardPage() {
   const identityLocation = [user?.postalCode?.trim(), user?.city?.trim()].filter(Boolean).join(' ');
   const profileCompletenessLabel = profileComplete ? 'Profil complet' : 'Profil incomplet';
   const profileStatusLabel = profile ? formatPublicStatusLabel(profile.profileStatus) : 'Brouillon';
-  const testStateLabel = assessmentCompleted ? "Questionnaire Seven'O terminé" : "Questionnaire Seven'O à compléter";
+  const testStateLabel = 'Lancement candidat en cours';
   const availabilityView = profile ? getCandidateAvailabilityView(profile) : null;
+  const profileVisibleToCompanies = profile
+    ? isCandidateProfileVisibleToCompanies(profile) && profileComplete
+    : false;
+  const immediateAvailabilityConfirmed = availabilityView?.isImmediateAvailabilityConfirmed ?? false;
   const availabilityNotificationsEnabled = profile?.dailyAvailabilityConfirmationEnabled === true;
   const profileActivationAction = profile && profileComplete && profile.profileStatus === 'draft'
     ? {
@@ -339,8 +329,6 @@ export default function CandidateDashboardPage() {
         label: 'Activer mon profil',
       }
     : null;
-  const showAssessmentCallout = profile ? !assessmentCompleted : false;
-
   async function handleAvailabilityConfirmation(action: 'confirm_yes' | 'confirm_no' | 'declare_immediate') {
     if (!authUser || !profile || !user) {
       return;
@@ -358,10 +346,10 @@ export default function CandidateDashboardPage() {
       setProfile(result.profile ?? await getCandidateProfile(user.uid));
       setAvailabilityNotice(
         action === 'confirm_no'
-          ? 'Disponibilite immediate desactivee.'
+          ? 'Disponibilité immédiate désactivée.'
           : action === 'declare_immediate'
             ? 'Vous etes maintenant declare disponible immediatement.'
-            : 'Disponibilite confirmee pour 24 heures.',
+            : 'Disponibilité confirmée pour 24 heures.',
       );
     } catch (thrownError) {
       setAvailabilityError(thrownError instanceof Error ? thrownError.message : 'La confirmation a echoue.');
@@ -422,16 +410,121 @@ export default function CandidateDashboardPage() {
     }
   }
 
+  async function handleSendAvailabilityTestNotification() {
+    if (!authUser || !profile || !user) {
+      setAvailabilityError('Le profil candidat n’est pas encore chargé.');
+      return;
+    }
+
+    setAvailabilityAction('send_test_notification');
+    setAvailabilityError(null);
+    setAvailabilityNotice(null);
+
+    let support: AvailabilityPushSupport | null = null;
+    let hasActiveDevice: boolean | null = null;
+
+    try {
+      logAvailabilityTestStep('button_clicked', {
+        hasAuthUser: Boolean(authUser),
+        hasProfile: Boolean(profile),
+        hasUser: Boolean(user),
+      });
+
+      logAvailabilityTestStep('browser_permission_read', {
+        permission: typeof Notification !== 'undefined' ? Notification.permission : 'unavailable',
+      });
+
+      support = await requestCandidateAvailabilityPushToken();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+
+      logAvailabilityTestStep('push_support_result', {
+        supported: support.supported,
+        permission: support.permission,
+        hasServiceWorkerRegistration: Boolean(support.serviceWorkerRegistration),
+        serviceWorkerActive: Boolean(support.serviceWorkerRegistration?.active),
+        tokenGenerated: Boolean(support.token),
+      });
+
+      if (!support.serviceWorkerRegistration) {
+        throw new Error('Le service de notifications n’est pas encore actif.');
+      }
+
+      if (support.permission !== 'granted') {
+        throw new Error('Les notifications ne sont pas autorisées dans Chrome.');
+      }
+
+      if (!support.token) {
+        throw new Error('Impossible de créer l’abonnement Firebase.');
+      }
+
+      logAvailabilityTestStep('register_device_request', {
+        hasToken: true,
+        permission: support.permission,
+        deviceIdPresent: Boolean(support.deviceId),
+      });
+
+      const registrationResult = await registerCandidateAvailabilityDevice(authUser, {
+        deviceId: support.deviceId,
+        token: support.token,
+        permission: support.permission,
+        timezone,
+        platform: navigator.platform,
+        userAgent: navigator.userAgent,
+        source: 'dashboard',
+      });
+      hasActiveDevice = registrationResult.hasActiveDevice;
+
+      logAvailabilityTestStep('register_device_response', {
+        hasActiveDevice: registrationResult.hasActiveDevice,
+      });
+
+      if (!registrationResult.hasActiveDevice) {
+        throw new Error('Cet appareil n’est pas enregistré.');
+      }
+
+      logAvailabilityTestStep('test_notification_post_request', {
+        source: 'dashboard',
+      });
+
+      const result = await sendCandidateAvailabilityTestNotification(authUser, {
+        source: 'dashboard',
+      });
+
+      logAvailabilityTestStep('test_notification_post_response', {
+        sent: result.sent,
+        failed: result.failed,
+        invalidDeviceIdsCount: result.invalidDeviceIds.length,
+        hasActiveAvailabilityPushSubscription: result.hasActiveAvailabilityPushSubscription,
+      });
+
+      setProfile(result.profile ?? await getCandidateProfile(user.uid));
+      setAvailabilityNotice(
+        `Permission Chrome : ${support.permission}. Service worker : OK. Token FCM : ${support.token ? 'present' : 'absent'}. Appareil actif : ${registrationResult.hasActiveDevice ? 'oui' : 'non'}. Notification de test : ${result.sent > 0 ? 'envoyee' : 'non envoyee'}.`,
+      );
+    } catch (thrownError) {
+      console.error('[SevenO availability dashboard] test notification failed', {
+        message: thrownError instanceof Error ? thrownError.message : String(thrownError),
+      });
+      setAvailabilityError(
+        thrownError instanceof Error && thrownError.message.trim().length > 0
+          ? thrownError.message
+          : getAvailabilityTestFailureMessage(support, hasActiveDevice, thrownError),
+      );
+    } finally {
+      setAvailabilityAction(null);
+    }
+  }
+
+  void availabilityAction;
+  void availabilityNotice;
+  void availabilityError;
+  void handleAvailabilityConfirmation;
+  void handleAvailabilityNotifications;
+  void handleSendAvailabilityTestNotification;
+
+  const recommendationVerifiedCount = profile?.recommendationVerifiedCount ?? 0;
   const summaryCards: CandidateSummaryCard[] = profile
     ? [
-        {
-          tone: 'cyan',
-          label: "Indice Seven'O",
-          value: assessmentCompleted && assessmentScore != null ? `${Math.round(assessmentScore)}%` : 'En attente',
-          note: assessmentCompleted
-            ? 'Synthèse générale calculée côté serveur, indépendante de vos métiers.'
-            : "Répondez au questionnaire général Seven'O.",
-        },
         {
           tone: 'orange',
           label: 'Statut du profil',
@@ -440,7 +533,7 @@ export default function CandidateDashboardPage() {
             !profileComplete
               ? 'Le profil doit encore être complété.'
               : profile.profileStatus === 'active'
-              ? 'Votre profil est visible côté entreprise via la version anonyme.'
+              ? "Votre profil est prêt pour l'ouverture complète."
               : profile.profileStatus === 'paused'
                 ? 'Le profil est mis en pause pour le moment.'
                 : 'Le profil est encore en brouillon.',
@@ -454,25 +547,8 @@ export default function CandidateDashboardPage() {
           ) : undefined,
         },
         {
-          tone: 'neutral',
-          label: 'Invitations reçues',
-          value: String(invitationCount),
-          note:
-            invitationCount > 0
-              ? `${invitationCount} invitation(s) attendent votre décision.`
-              : 'Aucune invitation en attente pour le moment.',
-          action: (
-            <Link
-              href="/candidat/demandes"
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-            >
-              Ouvrir mes demandes
-            </Link>
-          ),
-        },
-        {
           tone: 'cyan',
-          label: 'Mes métiers recherchés',
+          label: 'Métiers ciblés',
           value: `${targetJobs.length}/3`,
           note: targetJobs.map((job) => job.label).join(', '),
           action: (
@@ -484,6 +560,39 @@ export default function CandidateDashboardPage() {
             </Link>
           ),
         },
+        {
+          tone: 'neutral',
+          label: 'Présentation professionnelle',
+          value: profile?.professionalSelfDescription?.trim() ? 'Renseignée' : 'À compléter',
+          note: profile?.professionalSelfDescription?.trim()
+            ? profile.professionalSelfDescription.trim()
+            : 'Présentez ici votre parcours, votre manière de travailler et ce que vous apportez.',
+          action: (
+            <Link
+              href="/candidat/onboarding#presentation"
+              className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Compléter ma présentation
+            </Link>
+          ),
+        },
+        {
+          tone: 'violet',
+          label: 'Recommandations',
+          value: String(recommendationVerifiedCount),
+          note:
+            recommendationVerifiedCount > 0
+              ? `${recommendationVerifiedCount} recommandation(s) vérifiée(s) déjà disponible(s).`
+              : 'Demandez à d anciens employeurs de partager un avis.',
+          action: (
+            <Link
+              href="/candidat/recommandations"
+              className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15"
+            >
+              Gérer mes recommandations
+            </Link>
+          ),
+        },
       ]
     : [];
 
@@ -491,44 +600,28 @@ export default function CandidateDashboardPage() {
     ? [
         {
           tone: 'violet',
-          label: 'Offres pour mes métiers',
-          value: 'Disponibles',
-          note: 'Consultez uniquement les offres publiées correspondant à vos métiers recherchés.',
-          action: (
-            <Link
-              href="/candidat/offres"
-              className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15"
-            >
-              Voir les offres
-            </Link>
-          ),
-        },
-        {
-          tone: 'neutral',
-          label: 'Mes candidatures',
-          value: String(applications.length),
-          note: `${draftApplicationsCount} en cours, ${submittedApplicationsCount} envoyée(s), ${withdrawnApplicationsCount} retirée(s).`,
-          action: (
-            <Link
-              href="/candidat/candidatures"
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-            >
-              Ouvrir mes candidatures
-            </Link>
-          ),
+          label: 'Fonctionnalités à venir',
+          value: 'Masquées',
+          note: 'Les candidatures, les offres et les mises en relation seront ouvertes lors du lancement complet de Seven’O.',
         },
       ]
     : [];
 
   const progress = profile
-    ? getProgressState(profile, invitationCount, acceptedRelationsCount, profileComplete, assessmentCompleted)
+    ? getProgressState(profile, profileComplete)
     : null;
   const profileAction = profile ? getProfileAction(profile, profileComplete) : null;
+  const recommendationInvitationCount = profile?.recommendationInvitationCount ?? 0;
+  const recommendationVerificationPendingCount = profile?.recommendationVerificationPendingCount ?? 0;
+  const recommendationVerifiedCountLater = profile?.recommendationVerifiedCount ?? 0;
+  const recommendationVisibleCount = profile?.recommendationVisibleCount ?? 0;
+  const professionalSelfDescription = profile?.professionalSelfDescription?.trim() || 'Présentez ici votre parcours, votre manière de travailler et ce que vous apportez.';
+  const professionalReputationDescription = profile?.professionalReputationDescription?.trim() || 'Décrivez ce que vos anciens collègues, managers ou clients disent de votre façon de travailler.';
 
   return (
     <CandidateShell
       title="Votre espace candidat"
-      description="Retrouvez votre identité privée, votre profil métier et les prochaines étapes de votre parcours Seven'O."
+      description="Retrouvez votre identité privée, votre profil métier et les prochaines étapes de votre parcours Seven’O."
       actions={(
         <div className="flex items-start justify-end">
           <Image
@@ -557,7 +650,7 @@ export default function CandidateDashboardPage() {
               <div className="max-w-none">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Bonjour</p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                  {displayName}, pilotez votre profil Seven&apos;O.
+                  {displayName}, pilotez votre profil Seven’O.
                 </h2>
                 <div className="mt-5 grid gap-2 text-sm text-slate-300 sm:grid-cols-3">
                   <p>
@@ -616,6 +709,12 @@ export default function CandidateDashboardPage() {
                   >
                     {identityComplete ? 'Modifier mon identité' : 'Compléter mon identité'}
                   </Link>
+                  <Link
+                    href="/candidat/recommandations"
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                  >
+                    Mes recommandations
+                  </Link>
                 </div>
               </div>
 
@@ -627,7 +726,7 @@ export default function CandidateDashboardPage() {
                     <p><span className="text-slate-500">Métiers :</span> {targetJobs.map((job) => job.label).join(', ')}</p>
                     <p><span className="text-slate-500">Profil :</span> {profileCompletenessLabel}</p>
                     <p><span className="text-slate-500">Statut :</span> {profileStatusLabel}</p>
-                    <p className="sm:col-span-2"><span className="text-slate-500">Évaluation :</span> {testStateLabel}</p>
+                    <p className="sm:col-span-2"><span className="text-slate-500">Lancement :</span> {testStateLabel}</p>
                   </div>
                 </article>
               </div>
@@ -637,12 +736,12 @@ export default function CandidateDashboardPage() {
           <SevenoPanel tone="neutral" className="p-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Disponibilite</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Disponibilité</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">
-                  {availabilityView?.label ?? 'Disponibilite a confirmer'}
+                  {availabilityView?.label ?? 'Disponibilité à confirmer'}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  {availabilityView?.detail ?? 'Confirmez votre disponibilite immediatement pour rester visible dans la recherche entreprise.'}
+                  {availabilityView?.detail ?? 'Confirmez votre disponibilité immédiate pour apparaître dans le filtre dédié.'}
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
@@ -667,12 +766,13 @@ export default function CandidateDashboardPage() {
                   {availabilityView?.state === 'available_now'
                     ? 'Disponible immediatement'
                     : availabilityView?.state === 'confirmation_required'
-                      ? 'Disponibilite a confirmer'
+                      ? 'Disponibilité à confirmer'
                       : availabilityView?.state === 'available_from_date'
                         ? 'Disponible a une date future'
                         : 'Non disponible'}
                 </p>
-                <p>Visible entreprise : {availabilityView?.isConfirmedNow ? 'Oui' : 'Non'}</p>
+                <p>Visibilité entreprise : {profileVisibleToCompanies ? 'Oui' : 'Non'}</p>
+                <p>Disponibilité immédiate : {immediateAvailabilityConfirmed ? 'Confirmée' : 'À confirmer'}</p>
                 <p>Etat notifications : {availabilityNotificationsEnabled ? 'Confirmations quotidiennes actives' : 'Confirmations quotidiennes desactivees'}</p>
               </div>
             </div>
@@ -689,77 +789,24 @@ export default function CandidateDashboardPage() {
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              {(availabilityView?.state === 'available_now' || availabilityView?.state === 'confirmation_required') ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleAvailabilityConfirmation('confirm_yes')}
-                    disabled={availabilityAction !== null}
-                    className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {availabilityAction === 'confirm_yes' ? 'Validation...' : 'Oui, toujours disponible'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleAvailabilityConfirmation('confirm_no')}
-                    disabled={availabilityAction !== null}
-                    className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {availabilityAction === 'confirm_no' ? 'Mise a jour...' : 'Non, plus disponible'}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleAvailabilityConfirmation('declare_immediate')}
-                  disabled={availabilityAction !== null}
-                  className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {availabilityAction === 'declare_immediate'
-                    ? 'Activation...'
-                    : 'Me declarer disponible immediatement'}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => void handleAvailabilityNotifications(availabilityNotificationsEnabled ? 'disable_notifications' : 'enable_notifications')}
-                disabled={availabilityAction !== null}
-                className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {availabilityAction === 'enable_notifications' || availabilityAction === 'disable_notifications'
-                  ? 'Mise a jour...'
-                  : availabilityNotificationsEnabled
-                    ? 'Desactiver les notifications'
-                    : 'Activer les confirmations quotidiennes'}
-              </button>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-slate-300">
+              Les confirmations quotidiennes et le bouton de test seront réactivés lors de l&apos;ouverture complète.
             </div>
           </SevenoPanel>
 
           <CandidateProgress steps={progress.steps} />
 
-          {showAssessmentCallout ? (
-            <SevenoPanel tone="violet" className="p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Évaluation Seven&apos;O</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">Questionnaire général en attente</h2>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
-                    Votre questionnaire Seven&apos;O n&apos;est pas encore terminé. Lancez-le quand vous êtes prêt pour actualiser
-                    votre indice et votre statut d&apos;évaluation.
-                  </p>
-                </div>
-
-                <Link
-                  href="/candidat/test"
-                  className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
-                >
-                  Répondre au questionnaire Seven&apos;O
-                </Link>
+          <SevenoPanel tone="violet" className="p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Lancement candidat</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Section neutralisée pendant le lancement candidat</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  Cette zone restera masquée tant que la nouvelle analyse professionnelle ne sera pas réouverte.
+                </p>
               </div>
-            </SevenoPanel>
-          ) : null}
+            </div>
+          </SevenoPanel>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
@@ -773,6 +820,58 @@ export default function CandidateDashboardPage() {
               />
             ))}
           </div>
+
+          <SevenoPanel tone="neutral" className="p-5">
+            <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Présentation professionnelle</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Votre récit professionnel et vos recommandations</h2>
+                <div className="mt-4 grid gap-3">
+                  <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Ce que vous diriez de vous</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-200">{professionalSelfDescription}</p>
+                  </article>
+                  <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Ce que les autres disent de vous</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-200">{professionalReputationDescription}</p>
+                  </article>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link
+                    href="/candidat/onboarding#presentation"
+                    className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                  >
+                    Compléter ma présentation
+                  </Link>
+                  <Link
+                    href="/candidat/recommandations"
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                  >
+                    Gérer mes recommandations
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Invitations</p>
+                  <p className="mt-2 text-sm font-medium text-white">{recommendationInvitationCount}</p>
+                </article>
+                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">En vérification</p>
+                  <p className="mt-2 text-sm font-medium text-white">{recommendationVerificationPendingCount}</p>
+                </article>
+                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Visibles aux entreprises</p>
+                  <p className="mt-2 text-sm font-medium text-white">{recommendationVisibleCount}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {recommendationVerifiedCountLater} recommandation(s) vérifiée(s) au total.
+                  </p>
+                </article>
+              </div>
+            </div>
+          </SevenoPanel>
 
           <SevenoPanel tone="violet" className="p-5">
             <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
@@ -795,10 +894,11 @@ export default function CandidateDashboardPage() {
                     {profile.profileStatus === 'active' ? 'Oui' : 'Non'}
                   </p>
                 </article>
-                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Indice Seven&apos;O</p>
-                  <p className="mt-2 text-sm font-medium text-white">
-                    {assessmentCompleted && assessmentScore != null ? `${Math.round(assessmentScore)}%` : 'En attente'}
+                                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Lancement candidat</p>
+                  <p className="mt-2 text-sm font-medium text-white">Analyse professionnelle masquée</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Cette zone restera neutralisée jusqu&apos;à la réouverture du parcours correspondant.
                   </p>
                 </article>
                 <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
@@ -826,7 +926,7 @@ export default function CandidateDashboardPage() {
         <div className="space-y-5">
           <SevenoPanel tone="cyan" className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Votre parcours</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Construisez votre profil Seven&apos;O</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Construisez votre profil Seven’O</h2>
             <p className="mt-3 text-sm leading-7 text-slate-300">
               Votre identité reste privée. Terminez le questionnaire général, puis choisissez jusqu&apos;à trois métiers recherchés.
             </p>
@@ -835,12 +935,12 @@ export default function CandidateDashboardPage() {
           <SevenoPanel tone="neutral" className="p-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Disponibilite</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Disponibilité</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">
-                  {availabilityView?.label ?? 'Disponibilite a confirmer'}
+                  {availabilityView?.label ?? 'Disponibilité à confirmer'}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  {availabilityView?.detail ?? 'Confirmez votre disponibilite immediatement pour rester visible dans la recherche entreprise.'}
+                  {availabilityView?.detail ?? 'Confirmez votre disponibilité immédiate pour apparaître dans le filtre dédié.'}
                 </p>
               </div>
 
@@ -850,11 +950,13 @@ export default function CandidateDashboardPage() {
                   {availabilityView?.state === 'available_now'
                     ? 'Disponible immediatement'
                     : availabilityView?.state === 'confirmation_required'
-                      ? 'Disponibilite a confirmer'
+                      ? 'Disponibilité à confirmer'
                       : availabilityView?.state === 'available_from_date'
                         ? 'Disponible a une date future'
                         : 'Non disponible'}
                 </p>
+                <p>Visibilité entreprise : {profileVisibleToCompanies ? 'Oui' : 'Non'}</p>
+                <p>Disponibilité immédiate : {immediateAvailabilityConfirmed ? 'Confirmée' : 'À confirmer'}</p>
                 <p>Notifications quotidiennes : {availabilityNotificationsEnabled ? 'Actives' : 'Desactivees'}</p>
               </div>
             </div>
@@ -871,51 +973,8 @@ export default function CandidateDashboardPage() {
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              {(availabilityView?.state === 'available_now' || availabilityView?.state === 'confirmation_required') ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleAvailabilityConfirmation('confirm_yes')}
-                    disabled={availabilityAction !== null}
-                    className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {availabilityAction === 'confirm_yes' ? 'Validation...' : 'Oui, toujours disponible'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleAvailabilityConfirmation('confirm_no')}
-                    disabled={availabilityAction !== null}
-                    className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {availabilityAction === 'confirm_no' ? 'Mise a jour...' : 'Non, plus disponible'}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleAvailabilityConfirmation('declare_immediate')}
-                  disabled={availabilityAction !== null}
-                  className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {availabilityAction === 'declare_immediate'
-                    ? 'Activation...'
-                    : 'Me declarer disponible immediatement'}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => void handleAvailabilityNotifications(availabilityNotificationsEnabled ? 'disable_notifications' : 'enable_notifications')}
-                disabled={availabilityAction !== null}
-                className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {availabilityAction === 'enable_notifications' || availabilityAction === 'disable_notifications'
-                  ? 'Mise a jour...'
-                  : availabilityNotificationsEnabled
-                    ? 'Desactiver les notifications'
-                    : 'Activer les confirmations quotidiennes'}
-              </button>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-slate-300">
+              Les confirmations quotidiennes et le bouton de test seront réactivés lors de l&apos;ouverture complète.
             </div>
           </SevenoPanel>
 
@@ -929,24 +988,23 @@ export default function CandidateDashboardPage() {
             />
             <CandidateStatusCard
               tone="violet"
-              label="Mon évaluation Seven'O"
-              value={assessmentCompleted && assessmentScore != null ? `${Math.round(assessmentScore)}%` : 'À réaliser'}
-              note="Questionnaire général indépendant de tout métier et de toute entreprise."
-              action={<Link href="/candidat/test" className="text-sm font-semibold text-cyan-100">{assessmentCompleted ? "Revoir mon évaluation Seven'O" : "Répondre au questionnaire Seven'O"}</Link>}
+              label="Lancement candidat"
+              value="Masquée"
+              note="Cette section reste neutralisée pendant le lancement candidat."
             />
             <CandidateStatusCard
               tone="orange"
               label="Mes métiers recherchés"
-              value="0/3"
-              note="Sélectionnez entre un et trois métiers issus de la taxonomie Seven'O."
-              action={<Link href="/candidat/onboarding" className="text-sm font-semibold text-cyan-100">Ajouter un métier recherché</Link>}
+              value={`${targetJobs.length}/3`}
+              note={targetJobs.length > 0 ? targetJobs.map((job) => job.label).join(', ') : 'Sélectionnez entre un et trois métiers issus de la taxonomie Seven’O.'}
+              action={<Link href="/candidat/onboarding" className="text-sm font-semibold text-cyan-100">{targetJobs.length < 3 ? 'Ajouter un métier recherché' : 'Modifier mes métiers'}</Link>}
             />
             <CandidateStatusCard
               tone="neutral"
-              label="Mon profil anonyme"
-              value="Brouillon"
-              note="Il pourra être activé après complétion des étapes obligatoires."
-              action={<Link href="/candidat/onboarding" className="text-sm font-semibold text-cyan-100">Compléter mon profil</Link>}
+              label="Statut du profil"
+              value={profileStatusLabel}
+              note={profileComplete ? 'Votre profil anonyme est prêt.' : 'Il pourra être activé après complétion des étapes obligatoires.'}
+              action={<Link href="/candidat/onboarding" className="text-sm font-semibold text-cyan-100">{profileComplete ? 'Modifier mon profil' : 'Compléter mon profil'}</Link>}
             />
           </div>
         </div>

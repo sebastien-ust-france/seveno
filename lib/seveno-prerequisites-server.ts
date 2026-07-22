@@ -757,6 +757,7 @@ export async function createCompanyPrerequisite(
     throw new SevenoPrerequisiteError('offer_mismatch', 400, 'L offre selectionnee est invalide.');
   }
   const label = normalizeCompanyPrerequisiteLabel(raw.label);
+  const candidateHelp = typeof raw.candidateHelp === 'string' ? raw.candidateHelp.trim().replace(/\s+/g, ' ') : '';
   const normalizedLabel = normalizeSearchText(label);
   if (normalizedLabel.length < 2) {
     throw new SevenoPrerequisiteError('invalid_prerequisite_label', 400, 'Le nom du prerequis doit contenir au moins 2 caracteres utiles.');
@@ -798,6 +799,7 @@ export async function createCompanyPrerequisite(
     category: 'other_professional',
     companyLabel: label,
     candidateQuestion: `Le candidat satisfait-il ce prerequis : ${label} ?`,
+    ...(candidateHelp ? { candidateHelp } : {}),
     answerType: 'boolean',
     options: [],
     criterionMode: 'fixed',
