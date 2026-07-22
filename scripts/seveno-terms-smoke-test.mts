@@ -13,6 +13,13 @@ function assertContains(relativePath: string, fragments: string[]) {
   }
 }
 
+function assertNotContains(relativePath: string, fragments: string[]) {
+  const source = readSource(relativePath);
+  for (const fragment of fragments) {
+    assert.ok(!source.includes(fragment), `${relativePath} should not contain ${fragment}`);
+  }
+}
+
 assertContains('app/cgu/page.tsx', [
   'Conditions générales d’utilisation — Seven’O',
   'CguAcceptancePanel',
@@ -58,8 +65,15 @@ assertContains('app/recommandation/[token]/page.tsx', [
   '/cgu#article-15',
 ]);
 
-assertContains('lib/seveno-users.ts', [
+assertContains('lib/seveno-terms-version.ts', [
   'SEVENO_TERMS_VERSION',
+]);
+
+assertNotContains('lib/seveno-users.ts', [
+  'SEVENO_TERMS_VERSION',
+]);
+
+assertContains('lib/seveno-users.ts', [
   'termsAcceptance',
   'candidate_account',
   'company_first_access',
@@ -71,10 +85,11 @@ assertContains('lib/seveno-recommendations-server.ts', [
   'termsAcceptanceAcceptedAt',
   'termsAcceptanceContext',
   'professional_recommendation',
-  'SEVENO_TERMS_VERSION',
+  '@/lib/seveno-terms-version',
 ]);
 
 assertContains('app/api/seveno/terms/acceptance/route.ts', [
+  '@/lib/seveno-terms-version',
   'termsAcceptance.${context}',
   'updatedAt: acceptance.acceptedAt',
 ]);

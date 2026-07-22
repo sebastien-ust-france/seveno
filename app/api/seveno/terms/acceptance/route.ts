@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { getSevenoUserByUid, SevenoMatchRequestError } from '@/lib/seveno-match-requests';
-import { SEVENO_TERMS_VERSION } from '@/lib/seveno-users';
+import { SEVENO_TERMS_VERSION } from '@/lib/seveno-terms-version';
 import type { TermsAcceptance } from '@/types/seveno';
 
 export const runtime = 'nodejs';
@@ -12,6 +12,14 @@ export const dynamic = 'force-dynamic';
 const ACCEPTANCE_COLLECTION = 'users';
 
 function buildAcceptanceRecord(context: TermsAcceptance['context']): TermsAcceptance {
+  if (typeof SEVENO_TERMS_VERSION !== 'string' || SEVENO_TERMS_VERSION.trim().length === 0) {
+    throw new SevenoApiAuthError(
+      'invalid_terms_version',
+      500,
+      'La version des CGU n est pas configuree.',
+    );
+  }
+
   return {
     cguVersion: SEVENO_TERMS_VERSION,
     context,

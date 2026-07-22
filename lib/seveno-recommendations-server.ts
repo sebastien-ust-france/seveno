@@ -7,7 +7,7 @@ import {
   buildRecommendationInvitationEmailPreview,
   queueRecommendationInvitationEmail,
 } from '@/lib/seveno-recommendation-email';
-import { SEVENO_TERMS_VERSION } from '@/lib/seveno-users';
+import { SEVENO_TERMS_VERSION } from '@/lib/seveno-terms-version';
 import {
   MAX_ACTIVE_RECOMMENDATION_INVITATIONS,
   PUBLIC_EMAIL_PROVIDER_DOMAINS,

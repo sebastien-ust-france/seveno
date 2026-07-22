@@ -15,7 +15,6 @@ import type {
 } from '@/types/seveno';
 
 const USERS_COLLECTION = 'users';
-export const SEVENO_TERMS_VERSION = '1.0' as const;
 export const COMPANY_INVITE_ONLY_MESSAGE = "L'accès entreprise est actuellement ouvert sur invitation.";
 
 export interface SevenoTermsAcceptanceResponse {
