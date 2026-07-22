@@ -1656,6 +1656,43 @@ export default function SevenoProfessionalAssessmentEditor() {
               {notice}
             </p>
           ) : null}
+          {prompt ? (
+            <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="max-w-3xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-50/80">Prompt à transmettre à votre IA</p>
+                  <h2 className="mt-2 text-xl font-semibold text-cyan-50">Prompt complet à copier</h2>
+                  <p className="mt-2 text-sm leading-7 text-cyan-50/90">
+                    Copiez ce prompt dans l’IA de votre choix. Collez ensuite uniquement la réponse JSON de l’IA dans la zone d’import ci-dessous.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyPrompt()}
+                  className="rounded-full border border-cyan-100/20 bg-cyan-950/20 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-950/30"
+                >
+                  Copier le prompt
+                </button>
+              </div>
+              <textarea
+                value={prompt}
+                readOnly
+                rows={12}
+                spellCheck={false}
+                className="mt-4 w-full rounded-2xl border border-cyan-100/20 bg-slate-950/80 px-4 py-3 font-mono text-xs leading-6 text-slate-100 outline-none"
+              />
+              <div className="mt-3 space-y-2">
+                <p className="text-sm leading-7 text-cyan-50/90">
+                  Le prompt reste affiché tant qu’un nouveau prompt n’est pas généré.
+                </p>
+                {promptCopyFeedback ? (
+                  <p className="rounded-2xl border border-cyan-100/20 bg-cyan-950/20 p-3 text-sm leading-7 text-cyan-50" aria-live="polite">
+                    {promptCopyFeedback}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {actionIssues?.length ? (
             <div className="mt-4 rounded-2xl border border-orange-300/20 bg-orange-400/10 p-4">
               <p className="text-sm font-semibold text-orange-50">Détails de validation renvoyés par l’API</p>
@@ -1960,44 +1997,6 @@ export default function SevenoProfessionalAssessmentEditor() {
                   {reviewManifest.reviewSeries.map((series) => renderReviewSeries(series))}
                 </div>
               </div>
-            ) : null}
-
-            {prompt ? (
-              <SevenoPanel tone="neutral" className="p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="max-w-3xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Prompt à transmettre à votre IA</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Prompt complet à copier</h2>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">
-                      Copiez ce prompt dans l’IA de votre choix. Collez ensuite uniquement la réponse JSON de l’IA dans la zone d’import ci-dessous.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyPrompt()}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-                  >
-                    Copier le prompt
-                  </button>
-                </div>
-                <textarea
-                  value={prompt}
-                  readOnly
-                  rows={18}
-                  spellCheck={false}
-                  className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-6 text-slate-100 outline-none"
-                />
-                <div className="mt-3 space-y-2">
-                  <p className="text-sm leading-7 text-slate-300">
-                    Le prompt reste affiché tant qu’un nouveau prompt n’est pas généré.
-                  </p>
-                  {promptCopyFeedback ? (
-                    <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm leading-7 text-cyan-50" aria-live="polite">
-                      {promptCopyFeedback}
-                    </p>
-                  ) : null}
-                </div>
-              </SevenoPanel>
             ) : null}
 
             <div className="grid gap-4 lg:grid-cols-2">
