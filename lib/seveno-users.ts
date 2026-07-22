@@ -1,7 +1,7 @@
 'use client';
 
 import type { User } from 'firebase/auth';
-import { deleteField, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
@@ -43,11 +43,6 @@ function userRef(uid: string) {
   return doc(requireFirestoreClient(), USERS_COLLECTION, uid);
 }
 
-function cleanOptionalText(value: string | null | undefined) {
-  const trimmed = value?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
 export function getSevenoTermsAcceptance(
   user: SevenoUser | null,
   context: TermsAcceptanceContext,
@@ -70,37 +65,6 @@ export function canAssignPublicRole(existingRole: UserRoleOrNull, requestedRole:
   return existingRole === 'company';
 }
 
-function resolveAuthProvider(authUser: User) {
-  if (authUser.providerData.some((provider) => provider.providerId === 'google.com')) {
-    return 'google' as const;
-  }
-
-  if (authUser.providerData.some((provider) => provider.providerId === 'password')) {
-    return 'password' as const;
-  }
-
-    throw new Error('Le fournisseur de connexion Firebase n’est pas pris en charge.');
-}
-
-function buildSevenoUserPayload(authUser: User, existing?: Partial<SevenoUser>) {
-  const email = cleanOptionalText(authUser.email) ?? cleanOptionalText(existing?.email);
-  if (!email) {
-    throw new Error('Impossible de créer le document utilisateur sans adresse email.');
-  }
-
-  return {
-    uid: authUser.uid,
-    role: existing?.role ?? null,
-    authProvider: existing?.authProvider ?? resolveAuthProvider(authUser),
-    email,
-    emailVerified: authUser.emailVerified,
-    ...(cleanOptionalText(authUser.displayName) ? { displayName: cleanOptionalText(authUser.displayName) } : {}),
-    ...(cleanOptionalText(authUser.photoURL) ? { photoURL: cleanOptionalText(authUser.photoURL) } : {}),
-    onboardingCompleted: existing?.onboardingCompleted ?? false,
-    createdAt: existing?.createdAt ?? serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-}
 
 export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
   if (!isFirebaseConfigured || !db) {
@@ -111,127 +75,31 @@ export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
   return snapshot.exists() ? (snapshot.data() as SevenoUser) : null;
 }
 
-async function createSevenoUser(authUser: User, initialRole: PublicUserRole | null): Promise<SevenoUser> {
-  const firestore = requireFirestoreClient();
-  const ref = doc(firestore, USERS_COLLECTION, authUser.uid);
-  let existing;
-
-  try {
-    existing = await getDoc(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture du document utilisateur', error));
-  }
-
-  if (existing.exists()) {
-    return existing.data() as SevenoUser;
-  }
-
-  const email = cleanOptionalText(authUser.email);
-  if (!email) {
-    throw new Error('Impossible de créer le document utilisateur sans adresse email.');
-  }
-
-  if (initialRole === 'company') {
-    throw new Error(COMPANY_INVITE_ONLY_MESSAGE);
-  }
-
-  try {
-    await setDoc(ref, {
-      uid: authUser.uid,
-      role: initialRole,
-      authProvider: resolveAuthProvider(authUser),
-      email,
-      emailVerified: authUser.emailVerified,
-      ...(cleanOptionalText(authUser.displayName) ? { displayName: cleanOptionalText(authUser.displayName) } : {}),
-      ...(cleanOptionalText(authUser.photoURL) ? { photoURL: cleanOptionalText(authUser.photoURL) } : {}),
-      onboardingCompleted: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    throw new Error(describeFirestoreError('Creation du document utilisateur', error));
-  }
-
-  let created;
-
-  try {
-    created = await getDoc(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture apres creation du document utilisateur', error));
-  }
-
-  if (!created.exists()) {
-    throw new Error("Le document users n a pas pu etre cree.");
-  }
-
-  return created.data() as SevenoUser;
-}
-
-export async function createSevenoUserFromGoogle(authUser: User): Promise<SevenoUser> {
-  return createSevenoUser(authUser, null);
-}
 
 export async function ensureSevenoUser(
   authUser: User,
   initialRole: PublicUserRole | null = null,
 ): Promise<SevenoUser> {
-  const firestore = requireFirestoreClient();
-  const ref = doc(firestore, USERS_COLLECTION, authUser.uid);
-  let snapshot;
-
   try {
-    snapshot = await getDoc(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture du document utilisateur', error));
-  }
-
-  if (!snapshot.exists()) {
-    return createSevenoUser(authUser, initialRole);
-  }
-
-  const existing = snapshot.data() as SevenoUser;
-  if (existing.role === 'admin') {
-    return existing;
-  }
-
-  const patch = buildSevenoUserPayload(authUser, existing);
-  const updatePayload: Record<string, unknown> = {
-    email: patch.email,
-    emailVerified: authUser.emailVerified,
-    updatedAt: serverTimestamp(),
-  };
-
-  const displayName = patch.displayName ?? existing.displayName;
-  if (displayName) {
-    updatePayload.displayName = displayName;
-  }
-
-  const photoURL = patch.photoURL ?? existing.photoURL;
-  if (photoURL) {
-    updatePayload.photoURL = photoURL;
-  }
-
-  try {
-    await updateDoc(ref, {
-      ...updatePayload,
+    await fetchSevenoMatchApi(authUser, '/api/seveno/users/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        initialRole,
+      }),
     });
   } catch (error) {
-    throw new Error(describeFirestoreError('Mise à jour du document utilisateur', error));
+    throw new Error(describeFirestoreError('Synchronisation du document utilisateur', error));
   }
 
-  let updated;
-
-  try {
-    updated = await getDoc(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture apres mise a jour du document utilisateur', error));
+  const refreshed = await getSevenoUser(authUser.uid);
+  if (!refreshed) {
+    throw new Error("Le document users n a pas pu etre lu apres synchronisation.");
   }
 
-  if (!updated.exists()) {
-    throw new Error("Le document users n a pas pu etre lu apres mise a jour.");
-  }
-
-  return updated.data() as SevenoUser;
+  return refreshed;
 }
 
 export async function updateSevenoUserRole(uid: string, role: PublicUserRole): Promise<SevenoUser> {
