@@ -462,8 +462,14 @@ async function main() {
   assert.match(editorSource, /canPreviewVersion/);
   assert.match(editorSource, /La prévisualisation nécessite une banque valide importée\./);
   assert.match(editorSource, /Le prompt IA peut être généré sans prévisualisation\./);
+  assert.match(editorSource, /Prompt à transmettre à votre IA/);
+  assert.match(editorSource, /Prompt complet à copier/);
+  assert.match(editorSource, /Copiez ce prompt dans l’IA de votre choix\./);
   assert.match(editorSource, /handleCopyPrompt/);
-  assert.match(editorSource, /placeholder="Cliquez sur « Générer le prompt IA » pour afficher le texte ici\."/);
+  assert.match(editorSource, /Prompt copié/);
+  assert.match(editorSource, /Le prompt reste affiché tant qu’un nouveau prompt n’est pas généré\./);
+  assert.match(editorSource, /Réponse JSON générée par l’IA/);
+  assert.match(editorSource, /Collez ici uniquement le JSON renvoyé par l’IA, pas le prompt\./);
   assert.match(editorSource, /Prévisualiser la banque/);
   assert.match(editorSource, /Banque et rapport/);
   assert.match(editorSource, /Projection candidat/);

@@ -340,6 +340,7 @@ export default function SevenoProfessionalAssessmentEditor() {
   const [savedVersion, setSavedVersion] = useState<SevenoAssessmentStoredVersion | null>(null);
   const [validation, setValidation] = useState<AssessmentValidationResult | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
+  const [promptCopyFeedback, setPromptCopyFeedback] = useState<string | null>(null);
   const [preview, setPreview] = useState<SevenoAssessmentPreviewPayload | null>(null);
   const [reviewManifest, setReviewManifest] = useState<SevenoAssessmentReviewManifest | null>(null);
   const [step, setStep] = useState<EditorStep>('presentation');
@@ -379,6 +380,7 @@ export default function SevenoProfessionalAssessmentEditor() {
     setSavedVersion(payload.selectedVersion ? syncVersionCohesion(payload.selectedVersion) : null);
     setValidation(payload.validation ?? null);
     setPrompt(payload.prompt ?? null);
+    setPromptCopyFeedback(null);
     setPreview(payload.preview ?? null);
     setReviewManifest(payload.reviewManifest ?? null);
     setError(null);
@@ -466,6 +468,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       setSavedVersion(payload.selectedVersion ? syncVersionCohesion(payload.selectedVersion) : null);
       setValidation(payload.validation ?? null);
       setPrompt(payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setPreview(payload.preview ?? null);
       setReviewManifest(payload.reviewManifest ?? null);
       setImportDraft(null);
@@ -494,6 +497,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       const synced = syncVersionCohesion(next);
       setValidation(null);
       setPrompt(null);
+      setPromptCopyFeedback(null);
       setPreview(null);
       setNotice('Modifications non enregistrées.');
       return synced;
@@ -745,6 +749,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       const payload = response.payload;
       setValidation(payload.validation ?? null);
       setPrompt(payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setPreview(payload.preview ?? null);
       setReviewManifest(payload.reviewManifest ?? null);
       setNotice(response.message ?? 'Brouillon vérifié.');
@@ -772,6 +777,7 @@ export default function SevenoProfessionalAssessmentEditor() {
 
       setValidation(response.payload.validation ?? null);
       setPrompt(response.payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setPreview(response.payload.preview ?? null);
       setReviewManifest(response.payload.reviewManifest ?? null);
       setNotice('Prompt généré et prêt à copier.');
@@ -805,6 +811,7 @@ export default function SevenoProfessionalAssessmentEditor() {
 
       setValidation(response.payload.validation ?? null);
       setPrompt(response.payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setPreview(response.payload.preview ?? null);
       setReviewManifest(response.payload.reviewManifest ?? null);
       setNotice(`Prévisualisation ${toPromptFriendlyMode(previewMode).toLowerCase()} prête.`);
@@ -820,12 +827,38 @@ export default function SevenoProfessionalAssessmentEditor() {
       return;
     }
 
+    const promptText = prompt.trim();
+    if (!promptText) {
+      setPromptCopyFeedback('Le prompt est vide.');
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(prompt);
-      setNotice('Prompt copié dans le presse-papiers.');
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(promptText);
+      } else {
+        const fallbackTextarea = document.createElement('textarea');
+        fallbackTextarea.value = promptText;
+        fallbackTextarea.setAttribute('readonly', 'true');
+        fallbackTextarea.style.position = 'fixed';
+        fallbackTextarea.style.top = '-9999px';
+        fallbackTextarea.style.opacity = '0';
+        document.body.appendChild(fallbackTextarea);
+        fallbackTextarea.focus();
+        fallbackTextarea.select();
+        fallbackTextarea.setSelectionRange(0, fallbackTextarea.value.length);
+        const copied = document.execCommand('copy');
+        document.body.removeChild(fallbackTextarea);
+        if (!copied) {
+          throw new Error('Clipboard fallback unavailable');
+        }
+      }
+      setPromptCopyFeedback('Prompt copié');
+      setNotice('Prompt copié');
       setError(null);
       setActionIssues(null);
     } catch (thrownError) {
+      setPromptCopyFeedback('Sélectionnez le texte puis copiez-le manuellement.');
       applyActionError(thrownError, 'La copie du prompt a échoué.');
     }
   }
@@ -913,6 +946,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       );
       setValidation(response.payload.validation ?? null);
       setPrompt(response.payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setPreview(response.payload.preview ?? null);
       setReviewManifest(response.payload.reviewManifest ?? null);
       setError(null);
@@ -958,6 +992,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       setPreview(response.payload.preview ?? null);
       setValidation(response.payload.validation ?? null);
       setPrompt(response.payload.prompt ?? null);
+      setPromptCopyFeedback(null);
       setReviewManifest(response.payload.reviewManifest ?? null);
       setImportFeedback('Prévisualisation du JSON prête.');
       setError(null);
@@ -1927,6 +1962,44 @@ export default function SevenoProfessionalAssessmentEditor() {
               </div>
             ) : null}
 
+            {prompt ? (
+              <SevenoPanel tone="neutral" className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="max-w-3xl">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Prompt à transmettre à votre IA</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">Prompt complet à copier</h2>
+                    <p className="mt-2 text-sm leading-7 text-slate-300">
+                      Copiez ce prompt dans l’IA de votre choix. Collez ensuite uniquement la réponse JSON de l’IA dans la zone d’import ci-dessous.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyPrompt()}
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                  >
+                    Copier le prompt
+                  </button>
+                </div>
+                <textarea
+                  value={prompt}
+                  readOnly
+                  rows={18}
+                  spellCheck={false}
+                  className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-6 text-slate-100 outline-none"
+                />
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm leading-7 text-slate-300">
+                    Le prompt reste affiché tant qu’un nouveau prompt n’est pas généré.
+                  </p>
+                  {promptCopyFeedback ? (
+                    <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm leading-7 text-cyan-50" aria-live="polite">
+                      {promptCopyFeedback}
+                    </p>
+                  ) : null}
+                </div>
+              </SevenoPanel>
+            ) : null}
+
             <div className="grid gap-4 lg:grid-cols-2">
               <SevenoPanel tone="neutral" className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1985,10 +2058,10 @@ export default function SevenoProfessionalAssessmentEditor() {
               </SevenoPanel>
 
               <SevenoPanel tone="neutral" className="p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Import JSON</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Réponse JSON générée par l’IA</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Analyser, prévisualiser et importer</h2>
                 <p className="mt-2 text-sm leading-7 text-slate-300">
-                  Collez un JSON conforme au schéma de la phase 2. Les identifiants techniques seront générés si nécessaire.
+                  Collez ici uniquement le JSON renvoyé par l’IA, pas le prompt. Les identifiants techniques seront générés si nécessaire.
                 </p>
 
                 <div className="mt-4 space-y-3">
@@ -1996,7 +2069,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                     value={importJsonText}
                     onChange={(event) => setImportJsonText(event.target.value)}
                     rows={10}
-                    placeholder='Collez ici le JSON de la version...'
+                    placeholder='Collez ici uniquement le JSON renvoyé par l’IA.'
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40"
                   />
                   <div className="flex flex-wrap gap-3">
@@ -2043,14 +2116,14 @@ export default function SevenoProfessionalAssessmentEditor() {
                       {importFeedback}
                     </p>
                   ) : null}
-                  {importDraft ? (
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                      Brouillon préparé: {importDraft.name}
-                    </p>
-                  ) : null}
-                </div>
-              </SevenoPanel>
-            </div>
+                {importDraft ? (
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                    Brouillon préparé: {importDraft.name}
+                  </p>
+                ) : null}
+              </div>
+            </SevenoPanel>
+          </div>
 
             <SevenoPanel tone="neutral" className="p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Contrôles détaillés</p>
@@ -2060,62 +2133,36 @@ export default function SevenoProfessionalAssessmentEditor() {
               </div>
             </SevenoPanel>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <SevenoPanel tone="neutral" className="p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Prompt IA</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Prompt à copier</h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyPrompt()}
-                    disabled={!prompt}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Copier le prompt
-                  </button>
+            <SevenoPanel tone="neutral" className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Prévisualisation</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Banque et rapport</h2>
                 </div>
-                <textarea
-                  value={prompt ?? ''}
-                  readOnly
-                  rows={16}
-                  placeholder="Cliquez sur « Générer le prompt IA » pour afficher le texte ici."
-                  className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-6 text-slate-100 outline-none"
-                />
-              </SevenoPanel>
-
-              <SevenoPanel tone="neutral" className="p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Prévisualisation</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Banque et rapport</h2>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['essential', 'extended', 'complementary'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setPreviewMode(mode)}
-                        className={`rounded-full px-3 py-2 text-sm font-semibold transition ${
-                          previewMode === mode
-                            ? 'border border-cyan-300/25 bg-cyan-400/12 text-cyan-50'
-                            : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        {toPromptFriendlyMode(mode)}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['essential', 'extended', 'complementary'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPreviewMode(mode)}
+                      className={`rounded-full px-3 py-2 text-sm font-semibold transition ${
+                        previewMode === mode
+                          ? 'border border-cyan-300/25 bg-cyan-400/12 text-cyan-50'
+                          : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {toPromptFriendlyMode(mode)}
+                    </button>
+                  ))}
                 </div>
-                <p className="mt-3 text-sm text-slate-300">
-                  Sélectionnez une vue de banque puis lancez la prévisualisation sans écriture pour vérifier les projections candidat et entreprise.
-                </p>
-                <div className="mt-4">
-                  {renderPreview(preview)}
-                </div>
-              </SevenoPanel>
-            </div>
+              </div>
+              <p className="mt-3 text-sm text-slate-300">
+                Sélectionnez une vue de banque puis lancez la prévisualisation sans écriture pour vérifier les projections candidat et entreprise.
+              </p>
+              <div className="mt-4">
+                {renderPreview(preview)}
+              </div>
+            </SevenoPanel>
           </div>
         ) : null}
       </div>
