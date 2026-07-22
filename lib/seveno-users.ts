@@ -1,7 +1,7 @@
 'use client';
 
 import type { User } from 'firebase/auth';
-import { deleteField, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, getDocFromServer, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
@@ -71,7 +71,7 @@ export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
     return null;
   }
 
-  const snapshot = await getDoc(userRef(uid));
+  const snapshot = await getDocFromServer(userRef(uid));
   return snapshot.exists() ? (snapshot.data() as SevenoUser) : null;
 }
 
@@ -107,7 +107,7 @@ export async function updateSevenoUserRole(uid: string, role: PublicUserRole): P
 
   let snapshot;
   try {
-    snapshot = await getDoc(ref);
+    snapshot = await getDocFromServer(ref);
   } catch (error) {
     throw new Error(describeFirestoreError('Lecture du document utilisateur', error));
   }
@@ -133,7 +133,7 @@ export async function updateSevenoUserRole(uid: string, role: PublicUserRole): P
   let updated;
 
   try {
-    updated = await getDoc(ref);
+    updated = await getDocFromServer(ref);
   } catch (error) {
     throw new Error(describeFirestoreError('Lecture apres mise a jour du role utilisateur', error));
   }
@@ -159,7 +159,7 @@ export async function markUserOnboardingCompleted(uid: string): Promise<SevenoUs
   let updated;
 
   try {
-    updated = await getDoc(ref);
+    updated = await getDocFromServer(ref);
   } catch (error) {
     throw new Error(describeFirestoreError('Lecture apres validation de l onboarding utilisateur', error));
   }
@@ -207,7 +207,7 @@ export async function updateCandidatePrivateIdentity(
     throw new Error(describeFirestoreError('Mise à jour de l’identité privée', error));
   }
 
-  const updated = await getDoc(ref);
+  const updated = await getDocFromServer(ref);
   if (!updated.exists()) {
     throw new Error('Le document utilisateur est introuvable après la mise à jour.');
   }
