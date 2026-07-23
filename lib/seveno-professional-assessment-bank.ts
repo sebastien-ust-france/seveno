@@ -112,6 +112,8 @@ export interface SevenoProfessionalAssessmentBankSimulationSummary {
   seedStabilityMatches: number;
 }
 
+const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_DESCRIPTION_FALLBACK = 'Description à compléter avant import.';
+
 function createIssue(
   code: string,
   path: string,
@@ -254,6 +256,12 @@ function normalizeInterviewQuestion(raw: unknown): SevenoProfessionalAssessmentB
     prompt: cleanString(source.prompt),
     rationale: cleanString(source.rationale),
   };
+}
+
+function buildBankPromptDescription(version: AssessmentVersionDescriptor) {
+  return isNonEmptyString(version.description)
+    ? version.description
+    : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_DESCRIPTION_FALLBACK;
 }
 
 function scanForForbiddenKeys(value: unknown, path = ''): AssessmentValidationIssue[] {
@@ -633,6 +641,7 @@ function buildBankPromptInterviewQuestionExample(
 }
 
 function buildBankPromptExample(version: AssessmentVersionDescriptor) {
+  const promptDescription = buildBankPromptDescription(version);
   const sortedDimensions = [...version.dimensions].sort((left, right) => left.displayOrder - right.displayOrder);
   const essentialQuestion = version.questions.find((question) => question.path === 'essential') ?? version.questions[0];
   const extendedQuestion = version.questions.find((question) => question.path === 'extended') ?? version.questions[0];
@@ -646,7 +655,7 @@ function buildBankPromptExample(version: AssessmentVersionDescriptor) {
     versionMetadata: {
       name: version.name,
       version: version.version,
-      description: version.description,
+      description: promptDescription,
       generatedPromptVersion: version.generatedPromptVersion ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
       essentialPoolSize: version.essentialPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE,
       extendedPoolSize: version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
@@ -662,6 +671,7 @@ function buildBankPromptExample(version: AssessmentVersionDescriptor) {
 }
 
 function buildBankPromptRules(version: AssessmentVersionDescriptor) {
+  const promptDescription = buildBankPromptDescription(version);
   const dimensionLines = version.dimensions
     .slice()
     .sort((left, right) => left.displayOrder - right.displayOrder)
@@ -680,7 +690,7 @@ function buildBankPromptRules(version: AssessmentVersionDescriptor) {
   return [
     `Version technique du brouillon: ${version.version}`,
     `Nom du brouillon: ${version.name}`,
-    `Description du brouillon: ${version.description}`,
+    `Description du brouillon: ${promptDescription}`,
     `Version du générateur attendue: ${version.generatedPromptVersion ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION}`,
     'Tu dois répondre uniquement par un objet JSON valide, sans Markdown, sans bloc de code, sans commentaire et sans texte avant ni après.',
     'Le JSON doit contenir exactement les clés suivantes: versionMetadata, essentialQuestionPool, extendedQuestionPool, dimensionConfigurations, interpretationBlocks, interviewQuestions.',
@@ -690,12 +700,17 @@ function buildBankPromptRules(version: AssessmentVersionDescriptor) {
     'Les champs de publication et de score global sont interdits: status, publishedAt, archivedAt, activatedAt, humanReviewStatus, decisionFinal, globalScore, overallScore, score, rank, percentile.',
     'Aucun champ de précision calculée n est attendu dans cette banque: les niveaux de précision sont calculés ensuite par le moteur SevenO.',
     'Le JSON ne doit contenir aucune donnée sensible, aucun email, aucun téléphone, aucune URL, aucun CV, aucun lien LinkedIn, aucun secret, aucun token ni aucune clé.',
+    'La description de la version est obligatoire et ne peut pas être vide.',
+    'La banque doit contenir exactement 7 dimensionConfigurations, une par dimension autorisée.',
     `Les pools doivent contenir exactement ${version.essentialPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE} questions essentielles et ${version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE} questions approfondies.`,
     `Le système tirera ensuite exactement ${version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE} questions essentielles et ${version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE} questions approfondies.`,
     `La répartition cible des pools doit permettre le tirage suivant: ${drawProfile}.`,
     'Chaque question doit proposer exactement 4 options.',
     'Chaque option doit contenir: id, order, label, dimensionScores, adminExplanation.',
+    'Chaque option doit avoir un identifiant unique dans sa question.',
+    'Chaque option doit contenir un label et une adminExplanation non vides.',
     'Les scores de dimension doivent être des entiers compris entre 0 et 4 inclus.',
+    'Les clés de dimensionScores doivent appartenir uniquement aux dimensions autorisées.',
     'Les quatre options d une même question doivent scorer exactement les mêmes dimensions.',
     'Aucune paire de questions ne doit partager le même ensemble complet de quatre réponses.',
     'Les questions essential et extended ne doivent pas réutiliser les mêmes quatre options.',
@@ -703,17 +718,26 @@ function buildBankPromptRules(version: AssessmentVersionDescriptor) {
     'Chaque score doit être expliqué par adminExplanation.',
     'Éviter les réponses manifestement parfaites ou absurdes.',
     'Chaque question doit contenir: questionId, path, situation, instruction, primaryDimensionCodes, secondaryDimensionCode optionnel, difficulty, adminRationale, options, internalTags optionnel.',
+    'Chaque question doit avoir un questionId unique sur l ensemble de la banque.',
+    'Chaque question doit contenir une situation, une instruction et une justification administrateur non vides.',
+    'Le champ isActive ne doit pas être fourni pour les questions de la banque: elles sont activées automatiquement à l import.',
     'path doit valoir essential ou extended.',
     'difficulty doit valoir introductory, standard ou advanced.',
     'primaryDimensionCodes doit contenir une ou deux dimensions.',
     'secondaryDimensionCode, si présent, doit être différent des dimensions principales.',
     'Chaque dimensionConfiguration doit contenir: code, label, description, weight, displayOrder, minimumEssentialObservations, minimumExtendedObservations, isActive.',
+    'Chaque dimensionConfiguration doit avoir un libellé non vide, une description non vide, un poids entier positif, un displayOrder entier positif et des minima d observations positifs.',
+    'La somme des poids des dimensions doit être égale à 100.',
     `Les codes de dimensions autorisés sont fermés: ${allowedDimensionCodes}.`,
     ...dimensionLines,
     'Chaque interpretationBlocks group doit contenir: dimensionCode et blocks.',
+    'Chaque dimension doit disposer d un seul groupe interpretationBlocks.',
     'Chaque dimension doit avoir exactement 5 blocs d interprétation couvrant 0-39, 40-59, 60-74, 75-89 et 90-100.',
     'Chaque bloc d interprétation doit contenir: interpretationCode, minScore, maxScore, candidateSummary, companySummary, strengthLabel optionnel, interviewFocus, limitations, interviewQuestionIds.',
+    'Chaque bloc d interprétation doit remplir candidateSummary, companySummary, interviewFocus et interviewQuestionIds.',
+    'Chaque dimension doit référencer au moins une interviewQuestion.',
     'Chaque interviewQuestion doit contenir: questionId, dimensionCode, prompt, rationale.',
+    'Chaque interviewQuestion doit avoir un questionId unique, un dimensionCode autorisé, un prompt non vide et une rationale non vide.',
     'Exemple complet minimal de structure à respecter, fourni pour illustrer le schéma et ne pas copier textuellement:',
     JSON.stringify(buildBankPromptExample(version), null, 2),
   ];

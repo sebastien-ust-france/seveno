@@ -359,6 +359,19 @@ async function main() {
   assert.match(prompt, /"extendedPoolSize": 30/);
   assert.match(prompt, /"essentialDrawSize": 20/);
   assert.match(prompt, /"extendedDrawSize": 20/);
+  assert.match(prompt, /La description de la version est obligatoire et ne peut pas être vide\./);
+  assert.match(prompt, /La banque doit contenir exactement 7 dimensionConfigurations, une par dimension autorisée\./);
+  assert.match(prompt, /La somme des poids des dimensions doit être égale à 100\./);
+  assert.match(prompt, /Chaque dimension doit disposer d un seul groupe interpretationBlocks\./);
+  assert.match(prompt, /Chaque dimension doit référencer au moins une interviewQuestion\./);
+  assert.match(prompt, /Le champ isActive ne doit pas être fourni pour les questions de la banque: elles sont activées automatiquement à l import\./);
+  assert.match(prompt, /Chaque question doit avoir un questionId unique sur l ensemble de la banque\./);
+  assert.match(prompt, /Chaque option doit avoir un identifiant unique dans sa question\./);
+  assert.match(prompt, /Chaque option doit contenir un label et une adminExplanation non vides\./);
+  assert.match(prompt, /Les clés de dimensionScores doivent appartenir uniquement aux dimensions autorisées\./);
+  assert.match(prompt, /Chaque dimensionConfiguration doit avoir un libellé non vide, une description non vide, un poids entier positif, un displayOrder entier positif et des minima d observations positifs\./);
+  assert.match(prompt, /Chaque bloc d interprétation doit remplir candidateSummary, companySummary, interviewFocus et interviewQuestionIds\./);
+  assert.match(prompt, /Chaque interviewQuestion doit avoir un questionId unique, un dimensionCode autorisé, un prompt non vide et une rationale non vide\./);
   for (const code of SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES) {
     assert.match(prompt, new RegExp(code.replaceAll('_', '\\_')));
   }
@@ -372,6 +385,13 @@ async function main() {
   assert.match(version101Prompt, /"version": "1.0.1"/);
   assert.doesNotMatch(version101Prompt, /"version": "1.0.0"/);
   assert.match(version101Prompt, new RegExp(`"generatedPromptVersion": "${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION}"`));
+  const blankDescriptionPrompt = buildSevenoProfessionalAssessmentBankPrompt({
+    ...cloneValue(seedVersion!),
+    description: '',
+  });
+  assert.match(blankDescriptionPrompt, /Description du brouillon: Description à compléter avant import\./);
+  assert.match(blankDescriptionPrompt, /"description": "Description à compléter avant import\./);
+  assert.doesNotMatch(blankDescriptionPrompt, /"description": ""/);
 
   const previewResponse = await previewSevenoAssessmentVersion(adminSession, seedVersion!, 'essential');
   assert.equal(previewResponse.payload.preview?.mode, 'essential');
@@ -439,6 +459,7 @@ async function main() {
   assert.equal(imported.selectedVersion?.questions.length, 60);
   assert.equal(imported.selectedVersion?.essentialQuestionCount, 30);
   assert.equal(imported.selectedVersion?.extendedQuestionCount, 30);
+  assert.ok(imported.selectedVersion?.questions.every((question) => question.isActive));
   assert.ok(imported.validation);
 
   const promptDraft = cloneValue(createSevenoProfessionalAssessmentSeedVersion());
