@@ -3,6 +3,7 @@ import { requireSevenoAdminSessionFromRequest, SevenoAdminAuthError } from '@/li
 import {
   SevenoAssessmentAdminError,
   archiveSevenoAssessmentVersion,
+  analyzeSevenoAssessmentImportJson,
   createSevenoAssessmentBlankDraft,
   deleteSevenoAssessmentUnusedDraft,
   duplicateSevenoAssessmentVersion,
@@ -122,6 +123,8 @@ export async function POST(request: NextRequest) {
         ));
       case 'import_json':
         return jsonNoStore(await importSevenoAssessmentVersion(session, typeof body?.jsonText === 'string' ? body.jsonText : ''));
+      case 'analyze_import_json':
+        return jsonNoStore(await analyzeSevenoAssessmentImportJson(session, typeof body?.jsonText === 'string' ? body.jsonText : ''));
       default:
         return jsonNoStore(
           { error: 'invalid_action', message: 'Action admin invalide.' },

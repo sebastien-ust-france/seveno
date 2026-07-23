@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   SevenoAssessmentAdminError,
+  analyzeSevenoAssessmentImportJson,
   createSevenoAssessmentBlankDraft,
   deleteSevenoAssessmentUnusedDraft,
   duplicateSevenoAssessmentVersion,
@@ -33,7 +34,7 @@ import { SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION } from '@/lib/seveno-p
 import { isSevenoProfessionalAssessmentFirestoreRepositoryEnabledFlag } from '@/lib/seveno-professional-assessment-admin-repository';
 import { assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import type { SevenoAdminSession } from '@/lib/seveno-admin-auth';
-import { buildSevenoAssessmentBankTestJson } from './seveno-assessment-bank-test-utils.mts';
+import { buildSevenoAssessmentBankTestDocument, buildSevenoAssessmentBankTestJson } from './seveno-assessment-bank-test-utils.mts';
 
 function readSource(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
@@ -219,6 +220,47 @@ function createAdminSession(role: 'admin' | 'company' = 'admin') {
       updatedAt: new Date().toISOString(),
     },
   } as SevenoAdminSession;
+}
+
+async function callSevenoAssessmentAdminApiAction(
+  session: SevenoAdminSession,
+  action: 'analyze_import_json' | 'import_json',
+  jsonText: string,
+  repository: SevenoProfessionalAssessmentRepository,
+) {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = (async (input, init) => {
+      const requestedPath = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      assert.equal(requestedPath, '/api/admin/evaluation-seveno');
+
+      const rawBody = typeof init?.body === 'string' ? init.body : '';
+      const body = rawBody ? JSON.parse(rawBody) as { action?: string; jsonText?: string } : {};
+      assert.equal(body.action, action);
+
+      const responsePayload = body.action === 'analyze_import_json'
+        ? await analyzeSevenoAssessmentImportJson(session, body.jsonText ?? '', repository)
+        : await importSevenoAssessmentVersion(session, body.jsonText ?? '', repository);
+
+      return new Response(JSON.stringify(responsePayload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    }) as typeof fetch;
+
+    return await fetchSevenoAdminApi<SevenoAssessmentActionResponse>('/api/admin/evaluation-seveno', {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        jsonText,
+      }),
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 async function expectRejects<TError extends Error>(
@@ -478,6 +520,66 @@ async function main() {
   assert.equal(imported.selectedVersion?.extendedQuestionCount, 30);
   assert.ok(imported.selectedVersion?.questions.every((question) => question.isActive));
   assert.ok(imported.validation);
+
+  const generatedBankDocument = buildSevenoAssessmentBankTestDocument(seedVersion!);
+  assert.equal(generatedBankDocument.versionMetadata.description.trim().length > 0, true);
+  assert.equal(generatedBankDocument.essentialQuestionPool.length, 30);
+  assert.equal(generatedBankDocument.extendedQuestionPool.length, 30);
+  assert.equal(generatedBankDocument.interpretationBlocks.length, 7);
+  assert.equal(generatedBankDocument.interviewQuestions.length, 7);
+
+  for (const question of [...generatedBankDocument.essentialQuestionPool, ...generatedBankDocument.extendedQuestionPool]) {
+    const referenceKeys = Object.keys(question.options[0]?.dimensionScores ?? {}).sort();
+    assert.ok(referenceKeys.length > 0);
+    assert.ok(
+      question.options.every((option) => JSON.stringify(Object.keys(option.dimensionScores).sort()) === JSON.stringify(referenceKeys)),
+      `Each option in ${question.questionId} must score the same dimensions.`,
+    );
+  }
+
+  const generatedInterviewQuestionsById = new Map(
+    generatedBankDocument.interviewQuestions.map((question) => [question.questionId, question] as const),
+  );
+  assert.equal(generatedInterviewQuestionsById.size, 7);
+  assert.equal(generatedBankDocument.interpretationBlocks.reduce((count, group) => count + group.blocks.length, 0), 35);
+  for (const group of generatedBankDocument.interpretationBlocks) {
+    for (const block of group.blocks) {
+      assert.ok(block.interviewQuestionIds.length > 0);
+      for (const interviewQuestionId of block.interviewQuestionIds) {
+        const interviewQuestion = generatedInterviewQuestionsById.get(interviewQuestionId);
+        assert.ok(interviewQuestion, `Missing interview question reference: ${interviewQuestionId}`);
+        assert.equal(interviewQuestion.dimensionCode, group.dimensionCode);
+      }
+    }
+  }
+
+  const analyzedRouteResponse = await callSevenoAssessmentAdminApiAction(
+    adminSession,
+    'analyze_import_json',
+    buildSevenoAssessmentBankTestJson(seedVersion),
+    createRepository(),
+  );
+  const analyzedVersion = analyzedRouteResponse.payload.selectedVersion;
+  assert.ok(analyzedVersion);
+  assert.equal(analyzedVersion?.description.trim().length > 0, true);
+  assert.equal(analyzedVersion?.questions.length, 60);
+  assert.equal(analyzedVersion?.essentialQuestionCount, 30);
+  assert.equal(analyzedVersion?.extendedQuestionCount, 30);
+  assert.equal(analyzedVersion?.dimensions.length, 7);
+  assert.ok(analyzedVersion?.questions.every((question) => question.isActive));
+  assert.ok(analyzedVersion?.dimensions.every((dimension) => dimension.interviewQuestionIds.length > 0));
+  assert.ok(analyzedVersion?.dimensions.every((dimension) => dimension.interpretationThresholds.length === 5));
+  assert.equal(
+    analyzedVersion?.dimensions.reduce(
+      (count, dimension) => count + dimension.interpretationThresholds.reduce(
+        (thresholdCount, threshold) => thresholdCount + threshold.interviewQuestionIds.length,
+        0,
+      ),
+      0,
+    ),
+    35,
+  );
+
   const inconsistentScoresDocument = JSON.parse(buildSevenoAssessmentBankTestJson(seedVersion)) as {
     essentialQuestionPool: Array<{ options: Array<{ dimensionScores: Record<string, number> }> }>;
   };

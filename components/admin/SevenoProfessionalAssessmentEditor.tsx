@@ -731,6 +731,46 @@ export default function SevenoProfessionalAssessmentEditor() {
     await runAction('update_draft', { versionId: payloadVersion.id, version: payloadVersion, revisionNumber: payloadVersion.revisionNumber }, 'Brouillon enregistré.');
   }
 
+  async function analyzeImportedJsonDraft() {
+    const parsed = parseJsonInput(importJsonText);
+    if (parsed.error || !parsed.value || typeof parsed.value !== 'object') {
+      setImportFeedback(parsed.error ?? 'Le JSON importé doit être un objet.');
+      setActionIssues(null);
+      return null;
+    }
+
+    const response = await fetchSevenoAdminApi<SevenoAssessmentActionResponse>('/api/admin/evaluation-seveno', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'analyze_import_json',
+        jsonText: importJsonText,
+      }),
+    });
+
+    const payloadVersion = response.payload.selectedVersion ? cloneVersion(response.payload.selectedVersion) : null;
+    if (!payloadVersion) {
+      setImportFeedback('Le JSON importé ne produit aucun brouillon interne.');
+      setActionIssues(null);
+      return null;
+    }
+
+    setImportDraft(payloadVersion);
+    setImportFeedback(
+      response.payload.validation?.issues.some((item) => item.severity === 'error')
+        ? 'Le JSON contient encore des erreurs à corriger.'
+        : 'Le JSON est compatible avec le modèle Phase 2.',
+    );
+    setValidation(response.payload.validation ?? null);
+    setPrompt(response.payload.prompt ?? null);
+    setPromptCopyFeedback(null);
+    setPreview(response.payload.preview ?? null);
+    setReviewManifest(response.payload.reviewManifest ?? null);
+    setError(null);
+    setActionIssues(null);
+
+    return payloadVersion;
+  }
+
   async function handleValidateDraft() {
     if (!selectedVersion) {
       return;
@@ -908,76 +948,19 @@ export default function SevenoProfessionalAssessmentEditor() {
   }
 
   async function handleAnalyzeImportJson() {
-    if (!selectedVersion) {
-      return;
-    }
-
-    const parsed = parseJsonInput(importJsonText);
-    if (parsed.error || !parsed.value || typeof parsed.value !== 'object') {
-      setImportFeedback(parsed.error ?? 'Le JSON importé doit être un objet.');
-      setActionIssues(null);
-      return;
-    }
-
     try {
-      const payloadVersion = syncVersionCohesion({
-        ...cloneVersion(selectedVersion)!,
-        ...parsed.value as Partial<SevenoAssessmentStoredVersion>,
-        status: 'draft',
-        publishedAt: null,
-        archivedAt: null,
-        createdAt: selectedVersion.createdAt,
-        updatedAt: new Date().toISOString(),
-      });
-
-      const response = await fetchSevenoAdminApi<SevenoAssessmentActionResponse>('/api/admin/evaluation-seveno', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'validate_draft',
-          version: payloadVersion,
-        }),
-      });
-
-      setImportDraft(payloadVersion);
-      setImportFeedback(
-        response.payload.validation?.issues.some((item) => item.severity === 'error')
-          ? 'Le JSON contient encore des erreurs à corriger.'
-          : 'Le JSON est compatible avec le modèle Phase 2.',
-      );
-      setValidation(response.payload.validation ?? null);
-      setPrompt(response.payload.prompt ?? null);
-      setPromptCopyFeedback(null);
-      setPreview(response.payload.preview ?? null);
-      setReviewManifest(response.payload.reviewManifest ?? null);
-      setError(null);
-      setActionIssues(null);
+      await analyzeImportedJsonDraft();
     } catch (thrownError) {
       applyActionError(thrownError, 'L’analyse du JSON a échoué.');
     }
   }
 
   async function handlePreviewImportJson() {
-    if (!selectedVersion) {
-      return;
-    }
-
-    const parsed = parseJsonInput(importJsonText);
-    if (parsed.error || !parsed.value || typeof parsed.value !== 'object') {
-      setImportFeedback(parsed.error ?? 'Le JSON importé doit être un objet.');
-      setActionIssues(null);
-      return;
-    }
-
     try {
-      const payloadVersion = syncVersionCohesion({
-        ...cloneVersion(selectedVersion)!,
-        ...parsed.value as Partial<SevenoAssessmentStoredVersion>,
-        status: 'draft',
-        publishedAt: null,
-        archivedAt: null,
-        createdAt: selectedVersion.createdAt,
-        updatedAt: new Date().toISOString(),
-      });
+      const payloadVersion = await analyzeImportedJsonDraft();
+      if (!payloadVersion) {
+        return;
+      }
 
       const response = await fetchSevenoAdminApi<SevenoAssessmentActionResponse>('/api/admin/evaluation-seveno', {
         method: 'POST',

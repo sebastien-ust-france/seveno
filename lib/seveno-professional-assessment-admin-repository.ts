@@ -534,6 +534,14 @@ function collectEngineValidation(version: SevenoAssessmentStoredVersion) {
   });
 }
 
+export function buildSevenoAssessmentDraftFromJson(jsonText: string) {
+  const importedBank = parseSevenoProfessionalAssessmentBankDocument(jsonText);
+  return buildSevenoProfessionalAssessmentDraftFromBankDocument(importedBank, {
+    createdBy: 'phase-4d-bank-import',
+    now: new Date(),
+  });
+}
+
 function calculateValidationStatus(validation: ReturnType<typeof collectEngineValidation>) {
   const errorCount = validation.issues.filter((issue) => issue.severity === 'error').length;
   const warningCount = validation.issues.filter((issue) => issue.severity === 'warning').length;
@@ -839,11 +847,7 @@ export class SevenoProfessionalAssessmentRepository implements ProfessionalAsses
   }
 
   importDraftFromJson(jsonText: string) {
-    const importedBank = parseSevenoProfessionalAssessmentBankDocument(jsonText);
-    const imported = buildSevenoProfessionalAssessmentDraftFromBankDocument(importedBank, {
-      createdBy: 'phase-4d-bank-import',
-      now: new Date(),
-    });
+    const imported = buildSevenoAssessmentDraftFromJson(jsonText);
 
     const validation = collectEngineValidation(imported);
     if (validation.issues.some((issue) => issue.severity === 'error')) {

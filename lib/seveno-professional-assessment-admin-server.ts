@@ -1,6 +1,13 @@
 import 'server-only';
 
-import { getSevenoProfessionalAssessmentRepository, SevenoProfessionalAssessmentRepository, SevenoProfessionalAssessmentRepositoryError, serializeSevenoProfessionalAssessmentStoredVersion, serializeSevenoProfessionalAssessmentVersionSummary } from '@/lib/seveno-professional-assessment-admin-repository';
+import {
+  buildSevenoAssessmentDraftFromJson,
+  getSevenoProfessionalAssessmentRepository,
+  SevenoProfessionalAssessmentRepository,
+  SevenoProfessionalAssessmentRepositoryError,
+  serializeSevenoProfessionalAssessmentStoredVersion,
+  serializeSevenoProfessionalAssessmentVersionSummary,
+} from '@/lib/seveno-professional-assessment-admin-repository';
 import { AssessmentModelError } from '@/lib/seveno-professional-assessment';
 import { buildSevenoAssessmentReviewManifest } from '@/lib/seveno-professional-assessment-review';
 import type {
@@ -237,6 +244,26 @@ export async function importSevenoAssessmentVersion(
   const repo = getRepository(repository);
   const version = await repo.importDraftFromJson(jsonText);
   return await buildPayload(repo, version.id);
+}
+
+export async function analyzeSevenoAssessmentImportJson(
+  session: SevenoAdminSession | null | undefined,
+  jsonText: string,
+  repository?: ProfessionalAssessmentAdminRepository,
+) {
+  assertAdminSession(session);
+  const repo = getRepository(repository);
+  const version = buildSevenoAssessmentDraftFromJson(jsonText);
+  const temporaryRepository = new SevenoProfessionalAssessmentRepository([version]);
+
+  return wrapResponse({
+    versions: (await repo.listVersions()).map((item) => serializeSevenoProfessionalAssessmentVersionSummary(item)),
+    selectedVersion: serializeSevenoProfessionalAssessmentStoredVersion(version),
+    validation: await temporaryRepository.validateDraft(version.id),
+    prompt: await temporaryRepository.buildPrompt(version.id),
+    preview: null,
+    reviewManifest: buildSevenoAssessmentReviewManifest(toReviewManifestVersion(version)),
+  }, 'JSON analysé.');
 }
 
 export function handleSevenoAssessmentRepositoryError(error: unknown) {
