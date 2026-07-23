@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminSectionNav from '@/components/admin/AdminSectionNav';
+import ProfessionalAssessmentCandidatePreview from '@/components/admin/seveno-assessment-preview/ProfessionalAssessmentCandidatePreview';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
 import { SevenoAdminApiError, fetchSevenoAdminApi } from '@/lib/seveno-admin-api';
 import { SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES } from '@/lib/seveno-professional-assessment';
 import { getReviewStatusLabel } from '@/lib/seveno-professional-assessment-review';
 import type {
+  SevenoAssessmentCandidatePreviewPayload,
   SevenoAssessmentActionResponse,
   SevenoAssessmentEditorPayload,
   SevenoAssessmentPreviewMode,
@@ -343,6 +345,11 @@ export default function SevenoProfessionalAssessmentEditor() {
   const [promptCopyFeedback, setPromptCopyFeedback] = useState<string | null>(null);
   const [preview, setPreview] = useState<SevenoAssessmentPreviewPayload | null>(null);
   const [reviewManifest, setReviewManifest] = useState<SevenoAssessmentReviewManifest | null>(null);
+  const [candidatePreview, setCandidatePreview] = useState<SevenoAssessmentCandidatePreviewPayload | null>(null);
+  const [candidatePreviewSourceVersion, setCandidatePreviewSourceVersion] = useState<SevenoAssessmentStoredVersion | null>(null);
+  const [candidatePreviewSourceLabel, setCandidatePreviewSourceLabel] = useState<string | null>(null);
+  const [candidatePreviewLoading, setCandidatePreviewLoading] = useState(false);
+  const [candidatePreviewError, setCandidatePreviewError] = useState<string | null>(null);
   const [step, setStep] = useState<EditorStep>('presentation');
   const [previewMode, setPreviewMode] = useState<SevenoAssessmentPreviewMode>('essential');
   const [importJsonText, setImportJsonText] = useState('');
@@ -354,6 +361,14 @@ export default function SevenoProfessionalAssessmentEditor() {
     setError(null);
     setNotice(null);
     setActionIssues(null);
+  }
+
+  function resetCandidatePreview() {
+    setCandidatePreview(null);
+    setCandidatePreviewSourceVersion(null);
+    setCandidatePreviewSourceLabel(null);
+    setCandidatePreviewLoading(false);
+    setCandidatePreviewError(null);
   }
 
   function applyActionError(thrownError: unknown, fallbackMessage: string) {
@@ -471,6 +486,7 @@ export default function SevenoProfessionalAssessmentEditor() {
       setPromptCopyFeedback(null);
       setPreview(payload.preview ?? null);
       setReviewManifest(payload.reviewManifest ?? null);
+      resetCandidatePreview();
       setImportDraft(null);
       setImportFeedback(null);
       setActionIssues(null);
@@ -767,6 +783,7 @@ export default function SevenoProfessionalAssessmentEditor() {
     setReviewManifest(response.payload.reviewManifest ?? null);
     setError(null);
     setActionIssues(null);
+    resetCandidatePreview();
 
     return payloadVersion;
   }
@@ -983,6 +1000,67 @@ export default function SevenoProfessionalAssessmentEditor() {
     } catch (thrownError) {
       applyActionError(thrownError, 'La prévisualisation du JSON a échoué.');
     }
+  }
+
+  async function openCandidatePreview(version: SevenoAssessmentStoredVersion, sourceLabel: string) {
+    const payloadVersion = syncVersionCohesion(cloneVersion(version)!);
+    const seed = createTechnicalId(`candidate-preview-${payloadVersion.id}`);
+
+    setCandidatePreviewSourceVersion(payloadVersion);
+    setCandidatePreviewSourceLabel(sourceLabel);
+    setCandidatePreviewLoading(true);
+    setCandidatePreviewError(null);
+    setCandidatePreview(null);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetchSevenoAdminApi<{ preview: SevenoAssessmentCandidatePreviewPayload }>('/api/admin/evaluation-seveno', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'preview_candidate_version',
+          version: payloadVersion,
+          seed,
+        }),
+      });
+
+      if (!response.preview) {
+        throw new Error('Le tirage candidat n’a pas pu être généré.');
+      }
+
+      setCandidatePreview(response.preview);
+      setNotice(`Prévisualisation candidat prête (${sourceLabel}).`);
+    } catch (thrownError) {
+      const message = thrownError instanceof Error && thrownError.message.trim().length > 0
+        ? thrownError.message
+        : 'La prévisualisation candidat a échoué.';
+      setCandidatePreviewError(message);
+    } finally {
+      setCandidatePreviewLoading(false);
+    }
+  }
+
+  function closeCandidatePreview() {
+    resetCandidatePreview();
+  }
+
+  async function handlePreviewCandidateVersion() {
+    if (!selectedVersion) {
+      setCandidatePreviewError('Sélectionnez un brouillon avant de prévisualiser le questionnaire candidat.');
+      setCandidatePreviewSourceVersion(null);
+      return;
+    }
+
+    await openCandidatePreview(selectedVersion, 'brouillon courant');
+  }
+
+  async function handlePreviewCandidateImportJson() {
+    if (!importDraft) {
+      setImportFeedback('Analysez d’abord le JSON avant de prévisualiser le questionnaire candidat.');
+      return;
+    }
+
+    await openCandidatePreview(importDraft, 'JSON analysé');
   }
 
   function renderValidationIssues(issues: AssessmentValidationIssue[]) {
@@ -1779,6 +1857,14 @@ export default function SevenoProfessionalAssessmentEditor() {
               >
                 Prévisualiser la banque
               </button>
+              <button
+                type="button"
+                onClick={() => void handlePreviewCandidateVersion()}
+                disabled={!selectedVersion}
+                className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Prévisualiser le questionnaire candidat
+              </button>
             </div>
             <p className="mt-3 text-sm leading-7 text-slate-300">
               Le prompt IA peut être généré sans prévisualisation. La prévisualisation reste bloquée tant que la banque contient des erreurs bloquantes.
@@ -2071,6 +2157,14 @@ export default function SevenoProfessionalAssessmentEditor() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => void handlePreviewCandidateImportJson()}
+                      disabled={!importDraft}
+                      className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Prévisualiser le questionnaire candidat
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void handleImportJson()}
                       className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
                     >
@@ -2145,9 +2239,25 @@ export default function SevenoProfessionalAssessmentEditor() {
                 {renderPreview(preview)}
               </div>
             </SevenoPanel>
+
           </div>
         ) : null}
       </div>
+      {candidatePreviewSourceVersion ? (
+        <ProfessionalAssessmentCandidatePreview
+          sourceVersion={candidatePreviewSourceVersion}
+          preview={candidatePreview}
+          reviewManifest={reviewManifest}
+          loading={candidatePreviewLoading}
+          error={candidatePreviewError}
+          onClose={closeCandidatePreview}
+          onGenerateAnotherDraw={() => {
+            if (candidatePreviewSourceVersion && candidatePreviewSourceLabel) {
+              void openCandidatePreview(candidatePreviewSourceVersion, candidatePreviewSourceLabel);
+            }
+          }}
+        />
+      ) : null}
     </SevenoSurface>
   );
 }

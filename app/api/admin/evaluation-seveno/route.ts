@@ -12,6 +12,7 @@ import {
   importSevenoAssessmentVersion,
   loadSevenoAssessmentEditorState,
   markSevenoAssessmentAsPilot,
+  previewSevenoAssessmentCandidateVersion,
   previewSevenoAssessmentVersion,
   publishSevenoAssessmentVersion,
   readSevenoAssessmentVersion,
@@ -102,6 +103,12 @@ export async function POST(request: NextRequest) {
           session,
           body?.version && typeof body.version === 'object' ? body.version as SevenoAssessmentStoredVersion : ({} as SevenoAssessmentStoredVersion),
           body?.mode === 'extended' || body?.mode === 'complementary' ? body.mode : 'essential',
+        ));
+      case 'preview_candidate_version':
+        return jsonNoStore(await previewSevenoAssessmentCandidateVersion(
+          session,
+          body?.version && typeof body.version === 'object' ? body.version as SevenoAssessmentStoredVersion : ({} as SevenoAssessmentStoredVersion),
+          typeof body?.seed === 'string' ? body.seed : undefined,
         ));
       case 'mark_as_pilot':
         return jsonNoStore(await markSevenoAssessmentAsPilot(

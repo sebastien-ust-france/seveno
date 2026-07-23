@@ -10,13 +10,26 @@ import {
 } from '@/lib/seveno-professional-assessment-admin-repository';
 import { AssessmentModelError } from '@/lib/seveno-professional-assessment';
 import { buildSevenoAssessmentReviewManifest } from '@/lib/seveno-professional-assessment-review';
+import {
+  buildSevenoProfessionalAssessmentBankDraw,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
+} from '@/lib/seveno-professional-assessment-bank';
 import type {
+  SevenoAssessmentCandidatePreviewPayload,
   SevenoAssessmentActionResponse,
   SevenoAssessmentEditorPayload,
   SevenoAssessmentPreviewMode,
   SevenoAssessmentStoredVersion,
 } from '@/types/seveno-assessment-admin';
 import type { AssessmentVersionDescriptor } from '@/types/seveno-assessment';
+import type {
+  SevenoProfessionalAssessmentBankDocument,
+  SevenoProfessionalAssessmentBankQuestion,
+} from '@/lib/seveno-professional-assessment-bank';
 import type { SevenoAdminSession } from '@/lib/seveno-admin-auth';
 import type { ProfessionalAssessmentAdminRepository } from '@/lib/seveno-professional-assessment-admin-repository';
 
@@ -79,6 +92,55 @@ function wrapResponse(payload: SevenoAssessmentEditorPayload, message?: string):
 
 function createRepositoryFromVersion(version: SevenoAssessmentStoredVersion) {
   return new SevenoProfessionalAssessmentRepository([version]);
+}
+
+function toPreviewBankQuestion(question: SevenoAssessmentStoredVersion['questions'][number]): SevenoProfessionalAssessmentBankQuestion {
+  return {
+    questionId: question.id,
+    path: question.path,
+    situation: question.situation,
+    instruction: question.instruction,
+    primaryDimensionCodes: [...question.primaryDimensionCodes],
+    ...(question.secondaryDimensionCodes?.length ? { secondaryDimensionCode: question.secondaryDimensionCodes[0] } : {}),
+    options: question.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      order: option.position,
+      dimensionScores: { ...option.dimensionScores },
+      adminExplanation: option.adminExplanation,
+    })),
+    adminRationale: question.adminRationale,
+    difficulty: question.difficulty,
+  };
+}
+
+function buildPreviewBankDocumentFromVersion(version: SevenoAssessmentStoredVersion): SevenoProfessionalAssessmentBankDocument {
+  return {
+    versionMetadata: {
+      name: version.name,
+      version: version.version,
+      description: version.description,
+      generatedPromptVersion: version.generatedPromptVersion ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
+      essentialPoolSize: version.essentialPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE,
+      extendedPoolSize: version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
+      essentialDrawSize: version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
+      extendedDrawSize: version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+    },
+    essentialQuestionPool: version.questions.filter((question) => question.path === 'essential' && question.isActive !== false).map((question) => toPreviewBankQuestion(question)),
+    extendedQuestionPool: version.questions.filter((question) => question.path === 'extended' && question.isActive !== false).map((question) => toPreviewBankQuestion(question)),
+    dimensionConfigurations: version.dimensions.map((dimension) => ({
+      code: dimension.code,
+      label: dimension.label,
+      description: dimension.description,
+      weight: dimension.weight,
+      displayOrder: dimension.displayOrder,
+      minimumEssentialObservations: dimension.minimumEssentialObservations,
+      minimumExtendedObservations: dimension.minimumExtendedObservations,
+      isActive: dimension.isActive,
+    })),
+    interpretationBlocks: [],
+    interviewQuestions: [],
+  };
 }
 
 function toReviewManifestVersion(version: SevenoAssessmentStoredVersion): AssessmentVersionDescriptor {
@@ -197,6 +259,31 @@ export async function previewSevenoAssessmentVersion(
     preview,
     reviewManifest: buildSevenoAssessmentReviewManifest(toReviewManifestVersion(version)),
   });
+}
+
+export async function previewSevenoAssessmentCandidateVersion(
+  session: SevenoAdminSession | null | undefined,
+  version: SevenoAssessmentStoredVersion,
+  drawSeed?: string | null,
+) {
+  assertAdminSession(session);
+  const bankDocument = buildPreviewBankDocumentFromVersion(version);
+  const seed = drawSeed?.trim() || `${version.code}:${version.version}:${version.revisionNumber}:${version.id}`;
+  const draw = buildSevenoProfessionalAssessmentBankDraw(bankDocument, seed);
+
+  const preview: SevenoAssessmentCandidatePreviewPayload = {
+    versionId: version.id,
+    versionCode: version.code,
+    versionName: version.name,
+    drawSeed: seed,
+    questionCount: draw.essentialQuestions.length + draw.extendedQuestions.length,
+    essentialQuestionCount: draw.essentialQuestions.length,
+    extendedQuestionCount: draw.extendedQuestions.length,
+    essentialQuestionIds: [...draw.essentialQuestionIds],
+    extendedQuestionIds: [...draw.extendedQuestionIds],
+  };
+
+  return { preview };
 }
 
 export async function markSevenoAssessmentAsPilot(

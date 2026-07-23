@@ -59,6 +59,22 @@ export interface SevenoAssessmentPreviewPayload {
   companyProjection: AssessmentCompanyProjection;
 }
 
+export interface SevenoAssessmentCandidatePreviewPayload {
+  versionId: string;
+  versionCode: string;
+  versionName: string;
+  drawSeed: string;
+  questionCount: number;
+  essentialQuestionCount: number;
+  extendedQuestionCount: number;
+  essentialQuestionIds: string[];
+  extendedQuestionIds: string[];
+}
+
+export interface SevenoAssessmentCandidatePreviewResponse {
+  preview: SevenoAssessmentCandidatePreviewPayload;
+}
+
 export interface SevenoAssessmentEditorPayload {
   versions: SevenoAssessmentVersionSummary[];
   selectedVersion: SevenoAssessmentStoredVersion | null;

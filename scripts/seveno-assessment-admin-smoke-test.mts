@@ -12,6 +12,7 @@ import {
   importSevenoAssessmentVersion,
   loadSevenoAssessmentEditorState,
   markSevenoAssessmentAsPilot,
+  previewSevenoAssessmentCandidateVersion,
   previewSevenoAssessmentVersion,
   publishSevenoAssessmentVersion,
   updateSevenoAssessmentDraft,
@@ -30,6 +31,8 @@ import {
   createSevenoProfessionalAssessmentSeedVersion,
   getSevenoProfessionalAssessmentRepository,
 } from '@/lib/seveno-professional-assessment-admin-repository';
+import type { SevenoAssessmentCandidatePreviewResponse } from '@/types/seveno-assessment-admin';
+import type { SevenoAssessmentStoredVersion } from '@/types/seveno-assessment-admin';
 import { SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION } from '@/lib/seveno-professional-assessment-fixtures';
 import { isSevenoProfessionalAssessmentFirestoreRepositoryEnabledFlag } from '@/lib/seveno-professional-assessment-admin-repository';
 import { assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
@@ -256,6 +259,49 @@ async function callSevenoAssessmentAdminApiAction(
       body: JSON.stringify({
         action,
         jsonText,
+      }),
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function callSevenoAssessmentAdminPreviewCandidateAction(
+  session: SevenoAdminSession,
+  version: SevenoAssessmentStoredVersion,
+  seed: string,
+) {
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = (async (input, init) => {
+      const requestedPath = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      assert.equal(requestedPath, '/api/admin/evaluation-seveno');
+
+      const rawBody = typeof init?.body === 'string' ? init.body : '';
+      const body = rawBody ? JSON.parse(rawBody) as { action?: string; version?: typeof version; seed?: string } : {};
+      assert.equal(body.action, 'preview_candidate_version');
+
+      const responsePayload = await previewSevenoAssessmentCandidateVersion(
+        session,
+        body.version ?? version,
+        body.seed ?? seed,
+      );
+
+      return new Response(JSON.stringify(responsePayload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    }) as typeof fetch;
+
+    return await fetchSevenoAdminApi<SevenoAssessmentCandidatePreviewResponse>('/api/admin/evaluation-seveno', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'preview_candidate_version',
+        version,
+        seed,
       }),
     });
   } finally {
@@ -521,6 +567,20 @@ async function main() {
   assert.ok(imported.selectedVersion?.questions.every((question) => question.isActive));
   assert.ok(imported.validation);
 
+  const importedPreviewVersion = imported.selectedVersion;
+  assert.ok(importedPreviewVersion);
+  const candidatePreviewSeed = 'smoke-test-candidate-preview-seed';
+  const candidatePreviewResponse = await callSevenoAssessmentAdminPreviewCandidateAction(adminSession, importedPreviewVersion, candidatePreviewSeed);
+  assert.equal(candidatePreviewResponse.preview.versionId, importedPreviewVersion.id);
+  assert.equal(candidatePreviewResponse.preview.questionCount, 40);
+  assert.equal(candidatePreviewResponse.preview.essentialQuestionCount, 20);
+  assert.equal(candidatePreviewResponse.preview.extendedQuestionCount, 20);
+  assert.equal(candidatePreviewResponse.preview.drawSeed, candidatePreviewSeed);
+
+  const directCandidatePreviewResponse = await previewSevenoAssessmentCandidateVersion(adminSession, importedPreviewVersion, candidatePreviewSeed);
+  assert.deepEqual(candidatePreviewResponse.preview.essentialQuestionIds, directCandidatePreviewResponse.preview.essentialQuestionIds);
+  assert.deepEqual(candidatePreviewResponse.preview.extendedQuestionIds, directCandidatePreviewResponse.preview.extendedQuestionIds);
+
   const generatedBankDocument = buildSevenoAssessmentBankTestDocument(seedVersion!);
   assert.equal(generatedBankDocument.versionMetadata.description.trim().length > 0, true);
   assert.equal(generatedBankDocument.essentialQuestionPool.length, 30);
@@ -619,6 +679,7 @@ async function main() {
   assert.match(routeSource, /revisionNumber/);
   assert.match(routeSource, /requireSevenoAdminSessionFromRequest/);
   assert.match(routeSource, /SevenoAdminAuthError/);
+  assert.match(routeSource, /preview_candidate_version/);
 
   const editorSource = readSource('components/admin/SevenoProfessionalAssessmentEditor.tsx');
   assert.match(editorSource, /Générer le prompt IA/);
@@ -634,11 +695,23 @@ async function main() {
   assert.match(editorSource, /Réponse JSON générée par l’IA/);
   assert.match(editorSource, /Collez ici uniquement le JSON renvoyé par l’IA, pas le prompt\./);
   assert.match(editorSource, /Prévisualiser la banque/);
+  assert.match(editorSource, /Prévisualiser le questionnaire candidat/);
   assert.match(editorSource, /Banque et rapport/);
   assert.match(editorSource, /Projection candidat/);
   assert.match(editorSource, /Projection entreprise/);
+  assert.match(editorSource, /ProfessionalAssessmentCandidatePreview/);
+  assert.doesNotMatch(editorSource, /company_application/);
   assert.doesNotMatch(editorSource, /Parcours candidat et rapport/);
   assert.doesNotMatch(editorSource, /Rapport candidat/);
+
+  const candidatePreviewSource = readSource('components/admin/seveno-assessment-preview/ProfessionalAssessmentCandidatePreview.tsx');
+  assert.match(candidatePreviewSource, /Questionnaire candidat Seven.?O/);
+  assert.match(candidatePreviewSource, /Examiner les 60 questions/);
+  assert.match(candidatePreviewSource, /Simuler un tirage candidat/);
+  assert.match(candidatePreviewSource, /Générer un autre tirage/);
+  assert.match(candidatePreviewSource, /Voir les informations internes/);
+  assert.match(candidatePreviewSource, /Ordinateur/);
+  assert.match(candidatePreviewSource, /Mobile/);
 
   const originalFetch = globalThis.fetch;
   const apiIssues = [
