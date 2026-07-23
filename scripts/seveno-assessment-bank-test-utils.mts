@@ -23,6 +23,10 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values)];
 }
 
+function buildInterviewQuestionId(dimensionCode: AssessmentDimensionCode, index: number) {
+  return `interview-${dimensionCode.replaceAll('_', '-')}-${index}`;
+}
+
 function buildBankQuestionOption(
   questionId: string,
   option: AssessmentQuestionOption,
@@ -88,6 +92,7 @@ function buildDimensionConfiguration(dimension: AssessmentDimensionDefinition) {
 }
 
 function buildInterpretationGroup(dimension: AssessmentDimensionDefinition) {
+  const interviewQuestionId = buildInterviewQuestionId(dimension.code, 1);
   return {
     dimensionCode: dimension.code,
     blocks: dimension.interpretationThresholds.map((threshold) => ({
@@ -99,56 +104,22 @@ function buildInterpretationGroup(dimension: AssessmentDimensionDefinition) {
       ...(threshold.strengthLabel ? { strengthLabel: threshold.strengthLabel } : {}),
       interviewFocus: threshold.interviewFocus,
       limitations: [...threshold.limitations],
-      interviewQuestionIds: [...threshold.interviewQuestionIds],
+      interviewQuestionIds: [interviewQuestionId],
     })) satisfies AssessmentInterpretationBlock[],
   } satisfies SevenoProfessionalAssessmentBankInterpretationBlockGroup;
 }
 
 function buildInterviewQuestions(version: AssessmentVersionDescriptor) {
   const questions: SevenoProfessionalAssessmentBankInterviewQuestion[] = [];
-  const seen = new Set<string>();
 
   for (const dimension of version.dimensions) {
-    const sourceQuestionIds = uniqueStrings([
-      ...dimension.interviewQuestionIds,
-      ...dimension.interpretationThresholds.flatMap((threshold) => threshold.interviewQuestionIds),
-    ]).filter(Boolean);
-    const questionIds = sourceQuestionIds.length > 0
-      ? sourceQuestionIds
-      : [`${dimension.code}-interview-01`];
-    let addedForDimension = 0;
-
-    for (const questionId of questionIds) {
-      if (seen.has(questionId)) {
-        continue;
-      }
-
-      seen.add(questionId);
-      addedForDimension += 1;
-      questions.push({
-        questionId,
-        dimensionCode: dimension.code,
-        prompt: version.interviewQuestionCatalog?.[questionId] ?? `Comment observer ${questionId} en entretien ?`,
-        rationale: `Question d'entretien pour ${dimension.label}.`,
-      });
-    }
-
-    if (addedForDimension === 0) {
-      let fallbackIndex = 1;
-      let fallbackQuestionId = `${dimension.code}-interview-${String(fallbackIndex).padStart(2, '0')}`;
-      while (seen.has(fallbackQuestionId)) {
-        fallbackIndex += 1;
-        fallbackQuestionId = `${dimension.code}-interview-${String(fallbackIndex).padStart(2, '0')}`;
-      }
-
-      seen.add(fallbackQuestionId);
-      questions.push({
-        questionId: fallbackQuestionId,
-        dimensionCode: dimension.code,
-        prompt: `Comment observer ${dimension.label.toLowerCase()} en entretien ?`,
-        rationale: `Question d'entretien pour ${dimension.label}.`,
-      });
-    }
+    const questionId = buildInterviewQuestionId(dimension.code, 1);
+    questions.push({
+      questionId,
+      dimensionCode: dimension.code,
+      prompt: version.interviewQuestionCatalog?.[questionId] ?? `Comment observer ${dimension.label.toLowerCase()} en entretien ?`,
+      rationale: `Question d'entretien pour ${dimension.label}.`,
+    });
   }
 
   return questions;

@@ -359,6 +359,12 @@ async function main() {
   assert.match(prompt, /"extendedPoolSize": 30/);
   assert.match(prompt, /"essentialDrawSize": 20/);
   assert.match(prompt, /"extendedDrawSize": 20/);
+  assert.match(prompt, /Pour une même question, les quatre objets dimensionScores doivent avoir exactement les mêmes clés\./);
+  assert.match(prompt, /Chaque valeur de interviewQuestionIds doit correspondre exactement au questionId d une interviewQuestion existante\./);
+  assert.match(prompt, /La question d entretien référencée doit avoir le même dimensionCode que le groupe d interprétation\./);
+  assert.match(prompt, /Aucun questionId de question essential ou extended ne doit être réutilisé comme questionId d interviewQuestion\./);
+  assert.match(prompt, /Les identifiants d interviewQuestion doivent utiliser une convention distincte comme interview-information-understanding-1\./);
+  assert.match(prompt, /Extrait structurel volontairement incomplet, fourni uniquement pour illustrer la forme des objets\./);
   assert.match(prompt, /La description de la version est obligatoire et ne peut pas être vide\./);
   assert.match(prompt, /La banque doit contenir exactement 7 dimensionConfigurations, une par dimension autorisée\./);
   assert.match(prompt, /La somme des poids des dimensions doit être égale à 100\./);
@@ -385,6 +391,17 @@ async function main() {
   assert.match(version101Prompt, /"version": "1.0.1"/);
   assert.doesNotMatch(version101Prompt, /"version": "1.0.0"/);
   assert.match(version101Prompt, new RegExp(`"generatedPromptVersion": "${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION}"`));
+  const livePrompt = await generateSevenoAssessmentPrompt(adminSession, {
+    ...cloneValue(seedVersion!),
+    name: 'Brouillon réellement ouvert',
+    version: '2.4.6',
+    description: 'Description du brouillon réellement ouvert.',
+  });
+  assert.match(livePrompt.payload.prompt, /Nom du brouillon: Brouillon réellement ouvert/);
+  assert.match(livePrompt.payload.prompt, /Version technique du brouillon: 2\.4\.6/);
+  assert.match(livePrompt.payload.prompt, /Description du brouillon: Description du brouillon réellement ouvert\./);
+  assert.doesNotMatch(livePrompt.payload.prompt, /Socle technique Seven.?O professionnel/);
+  assert.doesNotMatch(livePrompt.payload.prompt, /Fixture de test seulement/);
   const blankDescriptionPrompt = buildSevenoProfessionalAssessmentBankPrompt({
     ...cloneValue(seedVersion!),
     description: '',
@@ -461,6 +478,29 @@ async function main() {
   assert.equal(imported.selectedVersion?.extendedQuestionCount, 30);
   assert.ok(imported.selectedVersion?.questions.every((question) => question.isActive));
   assert.ok(imported.validation);
+  const inconsistentScoresDocument = JSON.parse(buildSevenoAssessmentBankTestJson(seedVersion)) as {
+    essentialQuestionPool: Array<{ options: Array<{ dimensionScores: Record<string, number> }> }>;
+  };
+  const inconsistentScoresQuestion = inconsistentScoresDocument.essentialQuestionPool[0];
+  assert.ok(inconsistentScoresQuestion);
+  const inconsistentScoresKeys = Object.keys(inconsistentScoresQuestion.options[0]?.dimensionScores ?? {});
+  assert.ok(inconsistentScoresKeys.length > 0);
+  delete inconsistentScoresQuestion.options[1]!.dimensionScores[inconsistentScoresKeys[0]!];
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(inconsistentScoresDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_question_dimension_key_mismatch' || issue.code === 'bank_question_option_dimension_mismatch'),
+  );
+
+  const missingInterviewReferenceDocument = JSON.parse(buildSevenoAssessmentBankTestJson(seedVersion)) as {
+    interpretationBlocks: Array<{ blocks: Array<{ interviewQuestionIds: string[] }> }>;
+  };
+  missingInterviewReferenceDocument.interpretationBlocks[0]!.blocks[0]!.interviewQuestionIds = ['interview-missing-1'];
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(missingInterviewReferenceDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_interpretation_missing_interview_question_reference'),
+  );
 
   const promptDraft = cloneValue(createSevenoProfessionalAssessmentSeedVersion());
   promptDraft.questions[0].adminRationale = '';

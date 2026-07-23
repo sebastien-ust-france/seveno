@@ -154,8 +154,8 @@ function isKnownDimensionCode(value: unknown): value is AssessmentDimensionCode 
   return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES as readonly string[]).includes(value);
 }
 
-function sortedUnique(values: string[]) {
-  return [...new Set(values)].sort((left, right) => left.localeCompare(right, 'fr-FR', { sensitivity: 'base' }));
+function sortedUnique<T extends string>(values: readonly T[]): T[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right, 'fr-FR', { sensitivity: 'base' })) as T[];
 }
 
 function normalizeDimensionCodes(values: unknown): AssessmentDimensionCode[] {
@@ -574,24 +574,52 @@ function drawStratifiedQuestions(
   return [...selected.values()].slice(0, totalQuestions);
 }
 
-function buildBankPromptQuestionExample(question: AssessmentQuestion): SevenoProfessionalAssessmentBankQuestion {
-  return {
-    questionId: question.id,
-    path: question.path,
-    situation: question.situation,
-    instruction: question.instruction,
-    primaryDimensionCodes: [...question.primaryDimensionCodes],
-    ...(question.secondaryDimensionCodes?.[0] ? { secondaryDimensionCode: question.secondaryDimensionCodes[0] } : {}),
-    options: question.options.map((option) => ({
-      id: option.id,
-      label: option.label,
-      order: option.position,
-      dimensionScores: { ...option.dimensionScores },
-      adminExplanation: option.adminExplanation,
-    })),
-    adminRationale: question.adminRationale,
-    difficulty: question.difficulty,
-  };
+type BankPromptQuestionOptionSource = {
+  id: string;
+  label: string;
+  order?: number;
+  dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
+  adminExplanation: string;
+};
+
+function buildBankPromptQuestionDimensionScoreKeys(
+  question: { options: BankPromptQuestionOptionSource[] },
+): AssessmentDimensionCode[] {
+  return sortedUnique(
+    question.options.flatMap((option) => Object.keys(option.dimensionScores ?? {})).filter(isKnownDimensionCode),
+  );
+}
+
+function buildBankPromptQuestionDimensionScores(
+  dimensionScoreKeys: AssessmentDimensionCode[],
+  option: BankPromptQuestionOptionSource,
+): Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>> {
+  return Object.fromEntries(
+    dimensionScoreKeys.map((dimensionCode) => [dimensionCode, option.dimensionScores[dimensionCode] ?? 0] as const),
+  ) as Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
+}
+
+function buildBankPromptQuestionDimensionScoresFromValues(
+  dimensionScoreKeys: AssessmentDimensionCode[],
+  values: AssessmentScoreValue[],
+): Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>> {
+  return Object.fromEntries(
+    dimensionScoreKeys.map((dimensionCode, index) => [dimensionCode, values[index] ?? 0] as const),
+  ) as Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
+}
+
+function buildBankPromptQuestionOptions(
+  options: BankPromptQuestionOptionSource[],
+): SevenoProfessionalAssessmentBankQuestion['options'] {
+  const dimensionScoreKeys = buildBankPromptQuestionDimensionScoreKeys({ options });
+
+  return options.map((option, index) => ({
+    id: option.id,
+    label: option.label,
+    order: option.order ?? index + 1,
+    dimensionScores: buildBankPromptQuestionDimensionScores(dimensionScoreKeys, option),
+    adminExplanation: cleanString(option.adminExplanation),
+  }));
 }
 
 function buildBankPromptDimensionExample(dimension: AssessmentDimensionDefinition): SevenoProfessionalAssessmentBankDimensionConfiguration {
@@ -607,7 +635,10 @@ function buildBankPromptDimensionExample(dimension: AssessmentDimensionDefinitio
   };
 }
 
-function buildBankPromptInterpretationGroupExample(dimension: AssessmentDimensionDefinition): SevenoProfessionalAssessmentBankInterpretationBlockGroup {
+function buildBankPromptInterpretationGroupExample(
+  dimension: AssessmentDimensionDefinition,
+  interviewQuestionIdsOverride?: string[],
+): SevenoProfessionalAssessmentBankInterpretationBlockGroup {
   return {
     dimensionCode: dimension.code,
     blocks: dimension.interpretationThresholds.map((threshold) => ({
@@ -619,23 +650,20 @@ function buildBankPromptInterpretationGroupExample(dimension: AssessmentDimensio
       ...(threshold.strengthLabel ? { strengthLabel: threshold.strengthLabel } : {}),
       interviewFocus: threshold.interviewFocus,
       limitations: [...threshold.limitations],
-      interviewQuestionIds: [...threshold.interviewQuestionIds],
+      interviewQuestionIds: interviewQuestionIdsOverride ? [...interviewQuestionIdsOverride] : [...threshold.interviewQuestionIds],
     })),
   };
 }
 
 function buildBankPromptInterviewQuestionExample(
-  version: AssessmentVersionDescriptor,
   dimension: AssessmentDimensionDefinition,
+  questionId: string,
+  version?: AssessmentVersionDescriptor,
 ): SevenoProfessionalAssessmentBankInterviewQuestion {
-  const interviewQuestionId = dimension.interviewQuestionIds[0]
-    ?? dimension.interpretationThresholds.flatMap((threshold) => threshold.interviewQuestionIds)[0]
-    ?? `${dimension.code}-interview-01`;
-
   return {
-    questionId: interviewQuestionId,
+    questionId,
     dimensionCode: dimension.code,
-    prompt: version.interviewQuestionCatalog?.[interviewQuestionId] ?? `Comment observer ${dimension.label.toLowerCase()} en entretien ?`,
+    prompt: version?.interviewQuestionCatalog?.[questionId] ?? `Comment observer ${dimension.label.toLowerCase()} en entretien ?`,
     rationale: `Question d'entretien pour ${dimension.label}.`,
   };
 }
@@ -644,12 +672,69 @@ function buildBankPromptExample(version: AssessmentVersionDescriptor) {
   const promptDescription = buildBankPromptDescription(version);
   const sortedDimensions = [...version.dimensions].sort((left, right) => left.displayOrder - right.displayOrder);
   const essentialQuestion = version.questions.find((question) => question.path === 'essential') ?? version.questions[0];
-  const extendedQuestion = version.questions.find((question) => question.path === 'extended') ?? version.questions[0];
+  const extendedQuestion = version.questions.find((question) => question.path === 'extended' && question.id !== essentialQuestion?.id)
+    ?? version.questions.find((question) => question.path === 'extended')
+    ?? version.questions[0];
   const interpretationDimension = sortedDimensions.find((dimension) => dimension.interpretationThresholds.length > 0) ?? sortedDimensions[0];
-  const interviewDimension = sortedDimensions.find(
-    (dimension) => dimension.interviewQuestionIds.length > 0
-      || dimension.interpretationThresholds.some((threshold) => threshold.interviewQuestionIds.length > 0),
-  ) ?? interpretationDimension;
+  const interviewQuestionId = interpretationDimension ? `interview-${interpretationDimension.code.replaceAll('_', '-')}-1` : null;
+  const extendedDimensionScoreKeys = extendedQuestion ? buildBankPromptQuestionDimensionScoreKeys(extendedQuestion) : [];
+  const essentialQuestionExample = essentialQuestion ? {
+    questionId: essentialQuestion.id,
+    path: essentialQuestion.path,
+    situation: essentialQuestion.situation,
+    instruction: essentialQuestion.instruction,
+    primaryDimensionCodes: [...essentialQuestion.primaryDimensionCodes],
+    ...(essentialQuestion.secondaryDimensionCodes?.[0] ? { secondaryDimensionCode: essentialQuestion.secondaryDimensionCodes[0] } : {}),
+    options: buildBankPromptQuestionOptions(essentialQuestion.options),
+    adminRationale: essentialQuestion.adminRationale,
+    difficulty: essentialQuestion.difficulty,
+  } : null;
+  const extendedQuestionExample = extendedQuestion ? {
+    questionId: `${extendedQuestion.id}-illustration`,
+    path: extendedQuestion.path,
+    situation: `Situation distincte pour illustrer un autre contexte de ${extendedQuestion.primaryDimensionCodes.map((code) => code.replaceAll('_', ' ')).join(' et ')}.`,
+    instruction: 'Choisissez la réponse la plus pertinente dans ce second contexte.',
+    primaryDimensionCodes: [...extendedQuestion.primaryDimensionCodes],
+    ...(extendedQuestion.secondaryDimensionCodes?.[0] ? { secondaryDimensionCode: extendedQuestion.secondaryDimensionCodes[0] } : {}),
+    options: [
+      {
+        id: `${extendedQuestion.id}-illustration-option-1`,
+        label: 'Réponse A',
+        order: 1,
+        dimensionScores: buildBankPromptQuestionDimensionScoresFromValues(extendedDimensionScoreKeys, [0, 1, 0]),
+        adminExplanation: 'Réponse prudente et incomplète.',
+      },
+      {
+        id: `${extendedQuestion.id}-illustration-option-2`,
+        label: 'Réponse B',
+        order: 2,
+        dimensionScores: buildBankPromptQuestionDimensionScoresFromValues(extendedDimensionScoreKeys, [1, 2, 1]),
+        adminExplanation: 'Réponse partiellement structurée.',
+      },
+      {
+        id: `${extendedQuestion.id}-illustration-option-3`,
+        label: 'Réponse C',
+        order: 3,
+        dimensionScores: buildBankPromptQuestionDimensionScoresFromValues(extendedDimensionScoreKeys, [3, 3, 2]),
+        adminExplanation: 'Réponse structurée et crédible.',
+      },
+      {
+        id: `${extendedQuestion.id}-illustration-option-4`,
+        label: 'Réponse D',
+        order: 4,
+        dimensionScores: buildBankPromptQuestionDimensionScoresFromValues(extendedDimensionScoreKeys, [4, 4, 3]),
+        adminExplanation: 'Réponse complète et fortement alignée.',
+      },
+    ],
+    adminRationale: `Exemple approfondi distinct pour ${extendedQuestion.primaryDimensionCodes.map((code) => code.replaceAll('_', ' ')).join(' et ')}.`,
+    difficulty: extendedQuestion.difficulty,
+  } : null;
+  const interpretationGroup = interpretationDimension && interviewQuestionId
+    ? buildBankPromptInterpretationGroupExample(interpretationDimension, [interviewQuestionId])
+    : null;
+  const interviewQuestions = interpretationDimension && interviewQuestionId
+    ? [buildBankPromptInterviewQuestionExample(interpretationDimension, interviewQuestionId, version)]
+    : [];
 
   return {
     versionMetadata: {
@@ -662,11 +747,11 @@ function buildBankPromptExample(version: AssessmentVersionDescriptor) {
       essentialDrawSize: version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
       extendedDrawSize: version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
     },
-    essentialQuestionPool: essentialQuestion ? [buildBankPromptQuestionExample(essentialQuestion)] : [],
-    extendedQuestionPool: extendedQuestion ? [buildBankPromptQuestionExample(extendedQuestion)] : [],
+    essentialQuestionPool: essentialQuestionExample ? [essentialQuestionExample] : [],
+    extendedQuestionPool: extendedQuestionExample ? [extendedQuestionExample] : [],
     dimensionConfigurations: sortedDimensions.map((dimension) => buildBankPromptDimensionExample(dimension)),
-    interpretationBlocks: interpretationDimension ? [buildBankPromptInterpretationGroupExample(interpretationDimension)] : [],
-    interviewQuestions: interviewDimension ? [buildBankPromptInterviewQuestionExample(version, interviewDimension)] : [],
+    interpretationBlocks: interpretationGroup ? [interpretationGroup] : [],
+    interviewQuestions,
   };
 }
 
@@ -712,8 +797,10 @@ function buildBankPromptRules(version: AssessmentVersionDescriptor) {
     'Les scores de dimension doivent être des entiers compris entre 0 et 4 inclus.',
     'Les clés de dimensionScores doivent appartenir uniquement aux dimensions autorisées.',
     'Les quatre options d une même question doivent scorer exactement les mêmes dimensions.',
+    'Pour une même question, les quatre objets dimensionScores doivent avoir exactement les mêmes clés. Lorsque secondaryDimensionCode est présent et doit être scoré, cette dimension doit apparaître dans dimensionScores pour chacune des quatre options.',
     'Aucune paire de questions ne doit partager le même ensemble complet de quatre réponses.',
     'Les questions essential et extended ne doivent pas réutiliser les mêmes quatre options.',
+    'Les exemples essential et extended doivent illustrer des situations distinctes, avec quatre réponses, explications et barèmes distincts.',
     'Les réponses doivent rester spécifiques à la situation et être rédigées avant l attribution du barème.',
     'Chaque score doit être expliqué par adminExplanation.',
     'Éviter les réponses manifestement parfaites ou absurdes.',
@@ -738,7 +825,11 @@ function buildBankPromptRules(version: AssessmentVersionDescriptor) {
     'Chaque dimension doit référencer au moins une interviewQuestion.',
     'Chaque interviewQuestion doit contenir: questionId, dimensionCode, prompt, rationale.',
     'Chaque interviewQuestion doit avoir un questionId unique, un dimensionCode autorisé, un prompt non vide et une rationale non vide.',
-    'Exemple complet minimal de structure à respecter, fourni pour illustrer le schéma et ne pas copier textuellement:',
+    'Chaque valeur de interviewQuestionIds doit correspondre exactement au questionId d une interviewQuestion existante.',
+    'La question d entretien référencée doit avoir le même dimensionCode que le groupe d interprétation.',
+    'Aucun questionId de question essential ou extended ne doit être réutilisé comme questionId d interviewQuestion.',
+    'Les identifiants d interviewQuestion doivent utiliser une convention distincte comme interview-information-understanding-1.',
+    'Extrait structurel volontairement incomplet, fourni uniquement pour illustrer la forme des objets. Ne pas reproduire les quantités de cet extrait. La sortie finale doit respecter toutes les quantités, couvertures et contraintes imposées ci-dessus.',
     JSON.stringify(buildBankPromptExample(version), null, 2),
   ];
 }
@@ -841,6 +932,63 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
   const duplicateQuestionIds = questionIds.filter((id, index) => questionIds.indexOf(id) !== index);
   if (duplicateQuestionIds.length > 0) {
     issues.push(createIssue('bank_duplicate_question_ids', 'questions', 'Les identifiants des questions doivent être uniques.'));
+  }
+
+  const evaluationQuestionIdSet = new Set(questionIds);
+  const interviewQuestionIds = document.interviewQuestions.map((question) => question.questionId);
+  const duplicateInterviewQuestionIds = interviewQuestionIds.filter((id, index) => interviewQuestionIds.indexOf(id) !== index);
+  if (duplicateInterviewQuestionIds.length > 0) {
+    issues.push(createIssue('bank_duplicate_interview_question_ids', 'interviewQuestions', 'Les identifiants des interviewQuestions doivent être uniques.'));
+  }
+
+  const interviewQuestionById = new Map(document.interviewQuestions.map((question) => [question.questionId, question] as const));
+  for (const [index, interviewQuestion] of document.interviewQuestions.entries()) {
+    const context = `interviewQuestions[${index}]`;
+    if (!isNonEmptyString(interviewQuestion.questionId)) {
+      issues.push(createIssue('bank_interview_question_missing_id', `${context}.questionId`, 'Chaque interviewQuestion doit contenir un identifiant.'));
+    }
+
+    if (!isKnownDimensionCode(interviewQuestion.dimensionCode)) {
+      issues.push(createIssue('bank_interview_question_invalid_dimension', `${context}.dimensionCode`, 'Chaque interviewQuestion doit cibler une dimension autorisée.'));
+    }
+
+    if (!isNonEmptyString(interviewQuestion.prompt)) {
+      issues.push(createIssue('bank_interview_question_missing_prompt', `${context}.prompt`, 'Chaque interviewQuestion doit contenir un prompt non vide.'));
+    }
+
+    if (!isNonEmptyString(interviewQuestion.rationale)) {
+      issues.push(createIssue('bank_interview_question_missing_rationale', `${context}.rationale`, 'Chaque interviewQuestion doit contenir une rationale non vide.'));
+    }
+  }
+
+  for (const [groupIndex, group] of document.interpretationBlocks.entries()) {
+    if (!isKnownDimensionCode(group.dimensionCode)) {
+      issues.push(createIssue('bank_interpretation_invalid_dimension', `interpretationBlocks[${groupIndex}].dimensionCode`, 'Chaque groupe d interprétation doit cibler une dimension autorisée.'));
+      continue;
+    }
+
+    for (const [blockIndex, block] of group.blocks.entries()) {
+      if (!Array.isArray(block.interviewQuestionIds) || block.interviewQuestionIds.length === 0) {
+        issues.push(createIssue('bank_interpretation_missing_interview_question_ids', `interpretationBlocks[${groupIndex}].blocks[${blockIndex}].interviewQuestionIds`, 'Chaque bloc d interprétation doit référencer au moins une interviewQuestion.'));
+        continue;
+      }
+
+      for (const [idIndex, interviewQuestionId] of block.interviewQuestionIds.entries()) {
+        const referencedInterviewQuestion = interviewQuestionById.get(interviewQuestionId);
+        if (!referencedInterviewQuestion) {
+          issues.push(createIssue('bank_interpretation_missing_interview_question_reference', `interpretationBlocks[${groupIndex}].blocks[${blockIndex}].interviewQuestionIds[${idIndex}]`, 'Chaque valeur de interviewQuestionIds doit correspondre exactement au questionId d une interviewQuestion existante.'));
+          continue;
+        }
+
+        if (referencedInterviewQuestion.dimensionCode !== group.dimensionCode) {
+          issues.push(createIssue('bank_interpretation_interview_question_dimension_mismatch', `interpretationBlocks[${groupIndex}].blocks[${blockIndex}].interviewQuestionIds[${idIndex}]`, 'La question d entretien référencée doit avoir le même dimensionCode que le groupe d interprétation.'));
+        }
+
+        if (evaluationQuestionIdSet.has(interviewQuestionId)) {
+          issues.push(createIssue('bank_interview_question_id_collision', `interpretationBlocks[${groupIndex}].blocks[${blockIndex}].interviewQuestionIds[${idIndex}]`, 'Aucun questionId de question essential ou extended ne doit être réutilisé comme questionId d interviewQuestion.'));
+        }
+      }
+    }
   }
 
   const seenFingerprints = new Map<string, string>();
