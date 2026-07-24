@@ -310,7 +310,25 @@ export default function CandidateDashboardPage() {
   const identityLocation = [user?.postalCode?.trim(), user?.city?.trim()].filter(Boolean).join(' ');
   const profileCompletenessLabel = profileComplete ? 'Profil complet' : 'Profil incomplet';
   const profileStatusLabel = profile ? formatPublicStatusLabel(profile.profileStatus) : 'Brouillon';
-  const testStateLabel = 'Lancement candidat en cours';
+  const questionnaireStatus = profile?.sevenoAssessmentStatus ?? 'not_started';
+  const questionnaireCompleted = questionnaireStatus === 'completed';
+  const questionnaireInProgress = questionnaireStatus === 'in_progress';
+  const questionnaireStateLabel = questionnaireCompleted
+    ? 'Terminé'
+    : questionnaireInProgress
+      ? 'Session en cours'
+      : 'À démarrer';
+  const questionnaireStateNote = questionnaireCompleted
+    ? 'Votre analyse professionnelle Seven’O est enregistrée. Vous pouvez consulter le récapitulatif et les résultats.'
+    : questionnaireInProgress
+      ? 'Une session chronométrée est déjà active. Ouvrez la page du questionnaire pour continuer.'
+      : 'Lancez la session réelle depuis votre tableau de bord quand vous êtes prêt.';
+  const questionnaireActionLabel = questionnaireCompleted
+    ? 'Voir mon résultat'
+    : questionnaireInProgress
+      ? 'Continuer la session'
+      : 'Commencer le questionnaire';
+  const testStateLabel = questionnaireStateLabel;
   const availabilityView = profile ? getCandidateAvailabilityView(profile) : null;
   const profileVisibleToCompanies = profile
     ? isCandidateProfileVisibleToCompanies(profile) && profileComplete
@@ -551,9 +569,33 @@ export default function CandidateDashboardPage() {
     ? [
         {
           tone: 'violet',
-          label: 'Fonctionnalités à venir',
-          value: 'Masquées',
-          note: 'Les candidatures, les offres et les mises en relation seront ouvertes lors du lancement complet de Seven’O.',
+          label: 'Questionnaire général Seven’O',
+          value: questionnaireStateLabel,
+          note: questionnaireStateNote,
+          action: (
+            <Link
+              href="/candidat/test"
+              className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15"
+            >
+              {questionnaireActionLabel}
+            </Link>
+          ),
+        },
+        {
+          tone: 'cyan',
+          label: 'Disponibilité quotidienne',
+          value: availabilityNotificationsEnabled ? 'Confirmations actives' : 'À gérer',
+          note: immediateAvailabilityConfirmed
+            ? 'Votre disponibilité immédiate est confirmée et visible selon vos règles de profil.'
+            : 'Déclarez ou confirmez votre disponibilité depuis le bloc dédié.',
+          action: (
+            <Link
+              href="#disponibilite"
+              className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+            >
+              Gérer ma disponibilité
+            </Link>
+          ),
         },
       ]
     : [];
@@ -684,7 +726,7 @@ export default function CandidateDashboardPage() {
             </div>
           </SevenoPanel>
 
-          <SevenoPanel tone="neutral" className="p-5">
+          <SevenoPanel tone="neutral" className="p-5" id="disponibilite">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-3xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Disponibilité</p>
@@ -740,8 +782,48 @@ export default function CandidateDashboardPage() {
               </div>
             ) : null}
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-slate-300">
-              Les confirmations quotidiennes et le bouton de test seront réactivés lors de l&apos;ouverture complète.
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleAvailabilityConfirmation('confirm_yes')}
+                disabled={availabilityAction !== null}
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Confirmer ma disponibilité 24 h
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAvailabilityConfirmation('declare_immediate')}
+                disabled={availabilityAction !== null}
+                className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Me déclarer disponible immédiatement
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAvailabilityConfirmation('confirm_no')}
+                disabled={availabilityAction !== null}
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Je ne suis plus disponible
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAvailabilityNotifications(
+                  availabilityNotificationsEnabled ? 'disable_notifications' : 'enable_notifications',
+                )}
+                disabled={availabilityAction !== null}
+                className="inline-flex items-center justify-center rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {availabilityNotificationsEnabled
+                  ? 'Désactiver les confirmations quotidiennes'
+                  : 'Activer les confirmations quotidiennes'}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-slate-300">
+              Vous pouvez gérer ici votre disponibilité réelle sans quitter le tableau de bord. Les confirmations quotidiennes restent
+              disponibles à tout moment.
             </div>
           </SevenoPanel>
 
@@ -750,11 +832,21 @@ export default function CandidateDashboardPage() {
           <SevenoPanel tone="violet" className="p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Lancement candidat</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Section neutralisée pendant le lancement candidat</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Questionnaire général Seven’O</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Lancer votre session réelle et chronométrée</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  Cette zone restera masquée tant que la nouvelle analyse professionnelle ne sera pas réouverte.
+                  Le bouton du tableau de bord ouvre votre session réelle sur <Link href="/candidat/test" className="text-cyan-200 transition hover:text-cyan-100">/candidat/test</Link>.
+                  Une session active se recharge telle quelle, sans créer un nouveau parcours.
                 </p>
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-center gap-3">
+                <Link
+                  href="/candidat/test"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
+                >
+                  {questionnaireActionLabel}
+                </Link>
               </div>
             </div>
           </SevenoPanel>
@@ -845,11 +937,11 @@ export default function CandidateDashboardPage() {
                     {profile.profileStatus === 'active' ? 'Oui' : 'Non'}
                   </p>
                 </article>
-                                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Lancement candidat</p>
-                  <p className="mt-2 text-sm font-medium text-white">Analyse professionnelle masquée</p>
+                <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Questionnaire général Seven’O</p>
+                  <p className="mt-2 text-sm font-medium text-white">{questionnaireStateLabel}</p>
                   <p className="mt-1 text-xs text-slate-400">
-                    Cette zone restera neutralisée jusqu&apos;à la réouverture du parcours correspondant.
+                    {questionnaireStateNote}
                   </p>
                 </article>
                 <article className="rounded-[20px] border border-white/10 bg-white/5 p-4">
@@ -925,7 +1017,8 @@ export default function CandidateDashboardPage() {
             ) : null}
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-slate-300">
-              Les confirmations quotidiennes et le bouton de test seront réactivés lors de l&apos;ouverture complète.
+              Vous pouvez gérer ici votre disponibilité réelle sans quitter le tableau de bord. Les confirmations quotidiennes restent
+              disponibles à tout moment.
             </div>
           </SevenoPanel>
 
@@ -939,9 +1032,10 @@ export default function CandidateDashboardPage() {
             />
             <CandidateStatusCard
               tone="violet"
-              label="Lancement candidat"
-              value="Masquée"
-              note="Cette section reste neutralisée pendant le lancement candidat."
+              label="Questionnaire général Seven’O"
+              value={questionnaireStateLabel}
+              note={questionnaireStateNote}
+              action={<Link href="/candidat/test" className="text-sm font-semibold text-cyan-100">{questionnaireActionLabel}</Link>}
             />
             <CandidateStatusCard
               tone="orange"

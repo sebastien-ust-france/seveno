@@ -9,9 +9,9 @@ import {
   acceptSevenoTerms,
   ensureSevenoUser,
   hasSevenoTermsAcceptance,
-  markUserOnboardingCompleted,
   resolveSevenoRedirect,
 } from '@/lib/seveno-users';
+import { completeCandidateOnboarding } from '@/lib/seveno-candidate-onboarding';
 import { CandidatePrivacyNotice } from '@/components/candidate/CandidatePrivacyNotice';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
@@ -364,7 +364,7 @@ export default function CandidateOnboardingPage() {
       };
 
       const saveResult = await createOrUpdateCandidateProfile(authUser, payload);
-      await markUserOnboardingCompleted(sevenoUser.uid);
+      await completeCandidateOnboarding(authUser);
       const identityLabels: Record<string, string> = {
         firstName: 'prénom',
         lastName: 'nom',

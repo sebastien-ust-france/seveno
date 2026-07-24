@@ -43,16 +43,11 @@ export type SevenoAssessmentDimension = 'collaboration' | 'adaptability' | 'auto
 export type SevenoAssessmentScores = Partial<Record<SevenoAssessmentDimension, number>>;
 
 export interface SevenoAssessmentSummary {
-  candidateUid: string;
-  assessmentType: 'seveno_general';
   status: 'completed';
   overallScore: number;
   scoresByDimension: SevenoAssessmentScores;
   questionnaireVersion: string;
-  sessionId: string;
-  resultId: string;
-  completedAt: FirestoreDateValue;
-  updatedAt: FirestoreDateValue;
+  completedAt: string;
 }
 export type CompanyProfileStatus = 'draft' | 'active' | 'suspended';
 export type CompanyVerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -698,6 +693,12 @@ export interface TestSessionStartResult {
   serverNow: string;
   questions: PublicTestQuestion[];
   totalQuestions: number;
+}
+
+export interface SevenoTestStartState {
+  preparation: SevenoAssessmentPreparation;
+  assessment: SevenoAssessmentSummary | null;
+  session: TestSessionStartResult | null;
 }
 
 export interface SevenoAssessmentPreparation {

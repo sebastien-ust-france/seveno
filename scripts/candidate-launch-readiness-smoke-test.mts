@@ -75,4 +75,22 @@ const layoutSource = readSource('app/candidat/layout.tsx');
 assert.match(layoutSource, /CandidateSessionGate/);
 assert.doesNotMatch(layoutSource, /AuthenticatedAppShell/);
 
+const candidateDashboardSource = readSource('app/candidat/page.tsx');
+assert.match(candidateDashboardSource, /Questionnaire général Seven’O/);
+assert.match(candidateDashboardSource, /Disponibilité quotidienne/);
+assert.match(candidateDashboardSource, /\/candidat\/test/);
+assert.doesNotMatch(
+  candidateDashboardSource,
+  /Les confirmations quotidiennes et le bouton de test seront réactivés lors de l'ouverture complète/,
+);
+assert.doesNotMatch(candidateDashboardSource, /Lancement candidat/);
+
+const candidateOnboardingSource = readSource('app/candidat/onboarding/page.tsx');
+assert.match(candidateOnboardingSource, /completeCandidateOnboarding/);
+assert.doesNotMatch(candidateOnboardingSource, /markUserOnboardingCompleted/);
+
+const candidateOnboardingCompleteRouteSource = readSource('app/api/seveno/candidates/onboarding/complete/route.ts');
+assert.match(candidateOnboardingCompleteRouteSource, /onboardingCompleted: true/);
+assert.match(candidateOnboardingCompleteRouteSource, /role !== 'candidate'/);
+
 console.log('Candidate launch readiness smoke test: OK');

@@ -56,12 +56,22 @@ function main() {
   assert.doesNotMatch(enterpriseCandidatePageSource, /Indice Seven'O/);
 
   const testRouteSource = readSource('app/api/seveno/tests/start/route.ts');
-  assert.doesNotMatch(testRouteSource, /startSevenoTestSession/);
-  assert.doesNotMatch(testRouteSource, /prepareSevenoAssessment/);
+  assert.match(testRouteSource, /startSevenoTestSession/);
+  assert.match(testRouteSource, /getSevenoAssessmentStartState/);
 
   const testPageSource = readSource('app/candidat/test/page.tsx');
-  assert.match(testPageSource, /Nouvelle analyse professionnelle en préparation/);
-  assert.doesNotMatch(testPageSource, /startSevenoTestSession/);
+  assert.match(testPageSource, /CandidateSevenoTestRunner/);
+  assert.doesNotMatch(testPageSource, /CandidateFeatureComingSoon/);
+
+  const testRunnerSource = readSource('components/candidate/CandidateSevenoTestRunner.tsx');
+  assert.match(testRunnerSource, /useSevenoCandidateSession/);
+  assert.match(testRunnerSource, /startCandidateSevenoTestSessionClient/);
+  assert.match(testRunnerSource, /submitCandidateSevenoTestSessionClient/);
+  assert.match(testRunnerSource, /Questionnaire général Seven’O/);
+
+  const testClientSource = readSource('lib/seveno-tests-client.ts');
+  assert.equal(testClientSource.includes('/api/seveno/tests/start'), true);
+  assert.equal(testClientSource.includes('/api/seveno/tests/submit'), true);
 
   console.log('Assessment decoupling smoke test: OK');
 }

@@ -22,6 +22,7 @@ import type {
   TestSessionSubmitResult,
   SevenoAssessmentDimension,
   SevenoAssessmentPreparation,
+  SevenoTestStartState,
   SevenoAssessmentScores,
 } from '@/types/seveno';
 
@@ -657,6 +658,55 @@ export async function prepareSevenoAssessment(uid: string): Promise<{
       totalQuestions: bank.questions.length,
     },
     assessment: await getSevenoAssessmentSummary(uid),
+  };
+}
+
+async function loadCurrentSevenoTestSession(uid: string): Promise<TestSessionStartResult | null> {
+  const firestore = requireAdminDatabase();
+  const attemptRef = firestore.collection(CANDIDATE_ASSESSMENT_ATTEMPTS_COLLECTION).doc(uid);
+  const attemptSnapshot = await attemptRef.get();
+  const activeSessionId = attemptSnapshot.exists ? toTrimmedString(attemptSnapshot.get('activeSessionId')) : null;
+  if (!activeSessionId) {
+    return null;
+  }
+
+  const sessionSnapshot = await firestore.collection('test_sessions').doc(activeSessionId).get();
+  if (!sessionSnapshot.exists) {
+    return null;
+  }
+
+  const session = sessionSnapshot.data() as TestSession;
+  if (
+    session.uid !== uid
+    || session.candidateUid !== uid
+    || session.assessmentType !== 'seveno_general'
+    || session.status !== 'in_progress'
+  ) {
+    return null;
+  }
+
+  const questionBankVersion = typeof session.questionBankVersion === 'string'
+    ? session.questionBankVersion.trim()
+    : '';
+  if (!questionBankVersion) {
+    return null;
+  }
+
+  const bank = await loadQuestionBankByCodeAndVersion(session.questionBankCode, questionBankVersion);
+  if (!bank || bank.assessmentType !== 'seveno_general') {
+    return null;
+  }
+
+  return buildStartResult(activeSessionId, session, bank);
+}
+
+export async function getSevenoAssessmentStartState(uid: string): Promise<SevenoTestStartState> {
+  await assertCandidateCanUseAssessment(uid);
+  const { preparation, assessment } = await prepareSevenoAssessment(uid);
+  return {
+    preparation,
+    assessment,
+    session: await loadCurrentSevenoTestSession(uid),
   };
 }
 

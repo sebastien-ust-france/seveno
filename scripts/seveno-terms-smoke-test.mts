@@ -39,8 +39,14 @@ assertContains('components/legal/CguAcceptancePanel.tsx', [
 assertContains('app/candidat/onboarding/page.tsx', [
   'acceptSevenoTerms',
   'hasSevenoTermsAcceptance',
+  'completeCandidateOnboarding',
   'J’ai lu et j’accepte les Conditions générales d’utilisation de Seven’O.',
   'La version 1.0 des CGU est enregistrée avec un horodatage serveur avant la validation du profil.',
+]);
+
+assertContains('app/api/seveno/candidates/onboarding/complete/route.ts', [
+  'onboardingCompleted: true',
+  "role !== 'candidate'",
 ]);
 
 assertContains('app/entreprise/onboarding/page.tsx', [
