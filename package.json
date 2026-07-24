@@ -30,6 +30,7 @@
     "test:questionnaires": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaires-smoke-test.mts",
     "test:seveno-terms": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-terms-smoke-test.mts",
     "test:seveno-terms:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-terms-acceptance-emulator-test.mts",
+    "test:seveno-terms:migration": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-terms-acceptance-migration.mts",
     "test:seveno-privacy": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-privacy-smoke-test.mts",
     "test:recommendations": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/recommendations-smoke-test.mts",
     "test:candidate-recommendations": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/recommendations-smoke-test.mts",

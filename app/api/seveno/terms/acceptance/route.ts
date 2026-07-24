@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { getSevenoUserByUid, SevenoMatchRequestError } from '@/lib/seveno-match-requests';
+import { buildSevenoTermsAcceptancePatch } from '@/lib/seveno-terms-acceptance';
 import { SEVENO_TERMS_VERSION } from '@/lib/seveno-terms-version';
 import type { TermsAcceptance } from '@/types/seveno';
 
@@ -48,10 +49,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await adminDb.collection(ACCEPTANCE_COLLECTION).doc(decodedToken.uid).set({
-      [`termsAcceptance.${context}`]: acceptance,
-      updatedAt: acceptance.acceptedAt,
-    }, { merge: true });
+    const ref = adminDb.collection(ACCEPTANCE_COLLECTION).doc(decodedToken.uid);
+    await ref.set(buildSevenoTermsAcceptancePatch(context, acceptance), { merge: true });
 
     return NextResponse.json({ acceptance }, { status: 201 });
   } catch (error) {

@@ -1,3 +1,5 @@
+import { getCurrentAuthUser } from '@/lib/auth';
+
 export interface SevenoAdminApiErrorPayload {
   error?: string;
   message?: string;
@@ -66,12 +68,59 @@ function buildHeaders(initHeaders?: HeadersInit, includeJsonContentType = false)
   return headers;
 }
 
+async function resolveAuthorizationHeader(headers: Headers) {
+  const existingAuthorization = headers.get('Authorization')?.trim();
+  if (existingAuthorization) {
+    return existingAuthorization;
+  }
+
+  if (typeof window === 'undefined') {
+    throw new SevenoAdminApiError(
+      401,
+      {
+        error: 'auth_required',
+        message: 'Jeton Firebase manquant.',
+      },
+      'Jeton Firebase manquant.',
+    );
+  }
+
+  const authUser = await getCurrentAuthUser();
+  if (!authUser) {
+    throw new SevenoAdminApiError(
+      401,
+      {
+        error: 'auth_required',
+        message: 'Jeton Firebase manquant.',
+      },
+      'Jeton Firebase manquant.',
+    );
+  }
+
+  const token = await authUser.getIdToken();
+  const trimmedToken = token.trim();
+  if (!trimmedToken) {
+    throw new SevenoAdminApiError(
+      401,
+      {
+        error: 'auth_required',
+        message: 'Jeton Firebase manquant.',
+      },
+      'Jeton Firebase manquant.',
+    );
+  }
+
+  return `Bearer ${trimmedToken}`;
+}
+
 export async function fetchSevenoAdminApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   const hasBody = init.body !== undefined && init.body !== null;
+  const headers = buildHeaders(init.headers, hasBody);
+  headers.set('Authorization', await resolveAuthorizationHeader(headers));
   const response = await fetch(path, {
     ...init,
     credentials: 'include',
-    headers: Object.fromEntries(buildHeaders(init.headers, hasBody).entries()),
+    headers: Object.fromEntries(headers.entries()),
   });
 
   const payload = (await response.json().catch(() => null)) as unknown;

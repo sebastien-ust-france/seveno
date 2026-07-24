@@ -33,6 +33,7 @@ import type {
   AssessmentVersionDescriptor,
   AssessmentScoreValue,
 } from '@/types/seveno-assessment';
+import type { SevenoAssessmentHumanReviewStatus } from '@/types/seveno-assessment-review';
 import type {
   SevenoAssessmentPreviewMode,
   SevenoAssessmentPreviewPayload,
@@ -139,6 +140,19 @@ function cleanRecord(value: unknown): Record<string, string> {
     .filter(([key, entryValue]) => key && entryValue);
 
   return Object.fromEntries(entries);
+}
+
+const HUMAN_REVIEW_STATUSES: SevenoAssessmentHumanReviewStatus[] = [
+  'pending',
+  'reviewed_with_changes',
+  'approved_for_pilot',
+  'rejected',
+];
+
+function normalizeHumanReviewStatus(value: unknown): SevenoAssessmentHumanReviewStatus {
+  return HUMAN_REVIEW_STATUSES.includes(value as SevenoAssessmentHumanReviewStatus)
+    ? value as SevenoAssessmentHumanReviewStatus
+    : 'pending';
 }
 
 function isFiniteInteger(value: unknown): value is number {
@@ -425,6 +439,7 @@ function normalizeQuestion(
     estimatedReadingSeconds: isFiniteInteger(source.estimatedReadingSeconds) ? source.estimatedReadingSeconds : 30,
     adminRationale: cleanString(source.adminRationale),
     isActive: typeof source.isActive === 'boolean' ? source.isActive : true,
+    humanReviewStatus: normalizeHumanReviewStatus(source.humanReviewStatus),
   } satisfies AssessmentQuestion;
 }
 

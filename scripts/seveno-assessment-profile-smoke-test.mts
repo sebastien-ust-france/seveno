@@ -8,6 +8,7 @@ import {
   projectAssessmentReportForCandidate,
   projectAssessmentReportForCompany,
   validateAssessmentSourceNotLegacy,
+  validateAssessmentOption,
   validateAssessmentVersion,
 } from '@/lib/seveno-professional-assessment';
 import {
@@ -19,6 +20,7 @@ import {
 } from '@/lib/seveno-professional-assessment-fixtures';
 import type {
   AssessmentQuestion,
+  AssessmentQuestionOption,
   AssessmentVersionDescriptor,
 } from '@/types/seveno-assessment';
 
@@ -53,6 +55,16 @@ function cloneVersion(version: AssessmentVersionDescriptor): AssessmentVersionDe
     questions: version.questions.map(cloneQuestion),
     revisionNotes: [...version.revisionNotes],
     ...(version.interviewQuestionCatalog ? { interviewQuestionCatalog: { ...version.interviewQuestionCatalog } } : {}),
+  };
+}
+
+function buildOption(dimensionScores: AssessmentQuestionOption['dimensionScores']): AssessmentQuestionOption {
+  return {
+    id: 'option-test',
+    label: 'Option de test',
+    position: 1,
+    dimensionScores,
+    adminExplanation: 'Explication de test.',
   };
 }
 
@@ -158,6 +170,43 @@ function main() {
 
   const validVersionResult = validateAssessmentVersion(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION);
   assert.equal(validVersionResult.valid, true);
+
+  const singleMaxScoreOption = validateAssessmentOption(buildOption({
+    information_understanding: 4,
+  }));
+  assert.equal(singleMaxScoreOption.valid, true);
+
+  const dualMaxScoreOption = validateAssessmentOption(buildOption({
+    information_understanding: 4,
+    rigor_reliability: 4,
+  }));
+  assert.equal(dualMaxScoreOption.valid, false);
+  assert.equal(
+    dualMaxScoreOption.issues.some((issue) => issue.code === 'assessment_option_all_maximum_scores'),
+    true,
+  );
+
+  const dualDifferentiatedOption = validateAssessmentOption(buildOption({
+    information_understanding: 4,
+    rigor_reliability: 3,
+  }));
+  assert.equal(dualDifferentiatedOption.valid, true);
+
+  const singleThreeScoreOption = validateAssessmentOption(buildOption({
+    information_understanding: 3,
+  }));
+  assert.equal(singleThreeScoreOption.valid, true);
+
+  const emptyContributionOption = validateAssessmentOption(buildOption({}));
+  assert.equal(emptyContributionOption.valid, false);
+  assert.equal(
+    emptyContributionOption.issues.some((issue) => issue.code === 'assessment_option_without_contribution'),
+    true,
+  );
+  assert.equal(
+    emptyContributionOption.issues.some((issue) => issue.code === 'assessment_option_all_maximum_scores'),
+    false,
+  );
 
   const invalidWeightVersion = mutateForInvalidWeights(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION);
   assert.equal(validateAssessmentVersion(invalidWeightVersion).valid, false);

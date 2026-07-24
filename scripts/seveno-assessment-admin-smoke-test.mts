@@ -24,6 +24,7 @@ import {
   buildSevenoProfessionalAssessmentBankPrompt,
 } from '@/lib/seveno-professional-assessment-bank';
 import { AssessmentModelError, SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES } from '@/lib/seveno-professional-assessment';
+import { buildSevenoAssessmentReviewManifest } from '@/lib/seveno-professional-assessment-review';
 import {
   FirestoreProfessionalAssessmentRepository,
   SevenoProfessionalAssessmentRepository,
@@ -225,6 +226,10 @@ function createAdminSession(role: 'admin' | 'company' = 'admin') {
   } as SevenoAdminSession;
 }
 
+function buildAuthorizationHeader(session: SevenoAdminSession) {
+  return `Bearer ${session.token}`;
+}
+
 async function callSevenoAssessmentAdminApiAction(
   session: SevenoAdminSession,
   action: 'analyze_import_json' | 'import_json',
@@ -232,11 +237,14 @@ async function callSevenoAssessmentAdminApiAction(
   repository: SevenoProfessionalAssessmentRepository,
 ) {
   const originalFetch = globalThis.fetch;
+  const authorizationHeader = buildAuthorizationHeader(session);
 
   try {
     globalThis.fetch = (async (input, init) => {
       const requestedPath = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
       assert.equal(requestedPath, '/api/admin/evaluation-seveno');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('Authorization'), authorizationHeader);
 
       const rawBody = typeof init?.body === 'string' ? init.body : '';
       const body = rawBody ? JSON.parse(rawBody) as { action?: string; jsonText?: string } : {};
@@ -256,6 +264,9 @@ async function callSevenoAssessmentAdminApiAction(
 
     return await fetchSevenoAdminApi<SevenoAssessmentActionResponse>('/api/admin/evaluation-seveno', {
       method: 'POST',
+      headers: {
+        Authorization: authorizationHeader,
+      },
       body: JSON.stringify({
         action,
         jsonText,
@@ -272,11 +283,14 @@ async function callSevenoAssessmentAdminPreviewCandidateAction(
   seed: string,
 ) {
   const originalFetch = globalThis.fetch;
+  const authorizationHeader = buildAuthorizationHeader(session);
 
   try {
     globalThis.fetch = (async (input, init) => {
       const requestedPath = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
       assert.equal(requestedPath, '/api/admin/evaluation-seveno');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('Authorization'), authorizationHeader);
 
       const rawBody = typeof init?.body === 'string' ? init.body : '';
       const body = rawBody ? JSON.parse(rawBody) as { action?: string; version?: typeof version; seed?: string } : {};
@@ -298,6 +312,9 @@ async function callSevenoAssessmentAdminPreviewCandidateAction(
 
     return await fetchSevenoAdminApi<SevenoAssessmentCandidatePreviewResponse>('/api/admin/evaluation-seveno', {
       method: 'POST',
+      headers: {
+        Authorization: authorizationHeader,
+      },
       body: JSON.stringify({
         action: 'preview_candidate_version',
         version,
@@ -426,6 +443,13 @@ async function main() {
   assert.equal(validationResponse.payload.selectedVersion?.id, seedVersion!.id);
   assert.ok(validationResponse.payload.validation);
 
+  await assert.rejects(
+    () => fetchSevenoAdminApi('/api/admin/evaluation-seveno'),
+    (error: unknown) => error instanceof SevenoAdminApiError
+      && error.status === 401
+      && error.message === 'Jeton Firebase manquant.',
+  );
+
   const promptResponse = await generateSevenoAssessmentPrompt(adminSession, seedVersion!);
   const prompt = promptResponse.payload.prompt ?? '';
   assert.match(prompt, /seveno_professional_assessment_bank_v1/);
@@ -447,6 +471,42 @@ async function main() {
   assert.match(prompt, /"extendedPoolSize": 30/);
   assert.match(prompt, /"essentialDrawSize": 20/);
   assert.match(prompt, /"extendedDrawSize": 20/);
+  assert.match(prompt, /Le questionnaire est général et indépendant de tout métier\./);
+  assert.match(prompt, /Chaque question doit pouvoir être comprise et traitée équitablement par une personne travaillant dans la logistique, la vente, la restauration, l’entretien, l’industrie, le bâtiment, la santé, l’administration, l’informatique ou les services\./);
+  assert.match(prompt, /Aucune question ne doit nécessiter de connaissance professionnelle ou sectorielle\./);
+  assert.match(prompt, /Le candidat dispose de 15 secondes pour lire la question, lire les quatre réponses, réfléchir et choisir\./);
+  assert.match(prompt, /La partie visible de la question est composée de `situation` et `instruction`\./);
+  assert.match(prompt, /La somme des mots de `situation` et `instruction` ne doit pas dépasser 18 mots\./);
+  assert.match(prompt, /Chaque label de réponse ne doit pas dépasser 12 mots\./);
+  assert.match(prompt, /La somme des mots de `situation`, `instruction` et des quatre labels de réponse ne doit pas dépasser 60 mots\./);
+  assert.match(prompt, /Les champs `adminExplanation` et `adminRationale` ne sont pas inclus dans ce budget de lecture, car ils ne sont pas affichés au candidat pendant le test\./);
+  assert.match(prompt, /Générique ne signifie pas évident ou infantile\./);
+  assert.match(prompt, /Les quatre réponses doivent être crédibles et proches les unes des autres\./);
+  assert.match(prompt, /Exemple illustratif:/);
+  assert.match(prompt, /Situation :/);
+  assert.match(prompt, /« Une consigne importante manque de précision\. »/);
+  assert.match(prompt, /Instruction :/);
+  assert.match(prompt, /« Que faites-vous d’abord \? »/);
+  assert.match(prompt, /Options possibles :/);
+  assert.match(prompt, /1\. « Je commence par ce qui est certain\. »/);
+  assert.match(prompt, /2\. « Je demande une reformulation complète\. »/);
+  assert.match(prompt, /3\. « Je vérifie l’essentiel, puis je confirme le point ambigu\. »/);
+  assert.match(prompt, /4\. « Je retiens l’interprétation qui paraît la plus probable\. »/);
+  assert.match(prompt, /Cet exemple illustre uniquement la généricité, la concision et la nuance attendues\. Il ne doit pas être recopié ou décliné mécaniquement dans plusieurs questions\./);
+  assert.match(prompt, /L’extrait JSON contient volontairement des formulations de démonstration comme :/);
+  assert.match(prompt, /- « Situation professionnelle 1 »/);
+  assert.match(prompt, /- « Réponse A »/);
+  assert.match(prompt, /- « Réponse B »/);
+  assert.match(prompt, /- « Réponse C »/);
+  assert.match(prompt, /- « Réponse D »/);
+  assert.match(prompt, /- « Question de test »/);
+  assert.match(prompt, /- « Exemple approfondi »/);
+  assert.match(prompt, /- « Texte à compléter »/);
+  assert.match(prompt, /- « Placeholder »\./);
+  assert.match(prompt, /Ces formulations sont uniquement des exemples de remplissage et ne doivent pas être réutilisées dans la sortie finale\./);
+  assert.match(prompt, /Chaque `situation`, `instruction`, `label`, `adminExplanation`, `adminRationale`, résumé, interprétation et question d’entretien doit être entièrement rédigé, cohérent et directement exploitable\./);
+  assert.match(prompt, /Les réponses doivent être directement liées à la situation tout en restant universelles, sans objet, outil, rôle, procédure ou connaissance propre à un métier\./);
+  assert.match(prompt, /Retourne uniquement le JSON valide, sans introduction, sans commentaire et sans bloc Markdown\./);
   assert.match(prompt, /Pour une même question, les quatre objets dimensionScores doivent avoir exactement les mêmes clés\./);
   assert.match(prompt, /Chaque valeur de interviewQuestionIds doit correspondre exactement au questionId d une interviewQuestion existante\./);
   assert.match(prompt, /La question d entretien référencée doit avoir le même dimensionCode que le groupe d interprétation\./);
@@ -466,6 +526,10 @@ async function main() {
   assert.match(prompt, /Chaque dimensionConfiguration doit avoir un libellé non vide, une description non vide, un poids entier positif, un displayOrder entier positif et des minima d observations positifs\./);
   assert.match(prompt, /Chaque bloc d interprétation doit remplir candidateSummary, companySummary, interviewFocus et interviewQuestionIds\./);
   assert.match(prompt, /Chaque interviewQuestion doit avoir un questionId unique, un dimensionCode autorisé, un prompt non vide et une rationale non vide\./);
+  assert.match(prompt, /Conserver le contenu centré sur des situations de travail universelles, compréhensibles dans tous les métiers et ne nécessitant aucune connaissance professionnelle ou sectorielle\./);
+  assert.doesNotMatch(prompt, /Conserver le contenu centré sur des situations professionnelles concrètes\./);
+  assert.ok(prompt.includes('3. La somme des mots de `situation` et `instruction` est-elle inférieure ou égale à 18 ?'));
+  assert.doesNotMatch(prompt, /Question : 18 mots maximum\./);
   for (const code of SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES) {
     assert.match(prompt, new RegExp(code.replaceAll('_', '\\_')));
   }
@@ -497,6 +561,13 @@ async function main() {
   assert.match(blankDescriptionPrompt, /Description du brouillon: Description à compléter avant import\./);
   assert.match(blankDescriptionPrompt, /"description": "Description à compléter avant import\./);
   assert.doesNotMatch(blankDescriptionPrompt, /"description": ""/);
+
+  const approvedReviewVersion = cloneValue(seedVersion!);
+  approvedReviewVersion.questions[0]!.humanReviewStatus = 'approved_for_pilot';
+  const approvedReviewManifest = buildSevenoAssessmentReviewManifest(approvedReviewVersion);
+  assert.equal(approvedReviewManifest.humanReviewSummary.approvedForPilot, 1);
+  assert.equal(approvedReviewManifest.questions[0]?.humanReviewStatus, 'approved_for_pilot');
+  assert.equal(approvedReviewManifest.questions[0]?.decisionFinal, 'approved_for_pilot');
 
   const previewResponse = await previewSevenoAssessmentVersion(adminSession, seedVersion!, 'essential');
   assert.equal(previewResponse.payload.preview?.mode, 'essential');
@@ -587,6 +658,10 @@ async function main() {
   assert.equal(generatedBankDocument.extendedQuestionPool.length, 30);
   assert.equal(generatedBankDocument.interpretationBlocks.length, 7);
   assert.equal(generatedBankDocument.interviewQuestions.length, 7);
+  const generatedInformationUnderstandingGroup = generatedBankDocument.interpretationBlocks.find((group) => group.dimensionCode === 'information_understanding');
+  assert.ok(generatedInformationUnderstandingGroup);
+  assert.deepEqual(generatedInformationUnderstandingGroup?.blocks[0]?.interviewQuestionIds, ['interview-information-understanding-1']);
+  assert.deepEqual(generatedInformationUnderstandingGroup?.blocks[1]?.interviewQuestionIds, ['interview-information-understanding-1']);
 
   for (const question of [...generatedBankDocument.essentialQuestionPool, ...generatedBankDocument.extendedQuestionPool]) {
     const referenceKeys = Object.keys(question.options[0]?.dimensionScores ?? {}).sort();
@@ -629,6 +704,10 @@ async function main() {
   assert.ok(analyzedVersion?.questions.every((question) => question.isActive));
   assert.ok(analyzedVersion?.dimensions.every((dimension) => dimension.interviewQuestionIds.length > 0));
   assert.ok(analyzedVersion?.dimensions.every((dimension) => dimension.interpretationThresholds.length === 5));
+  const analyzedInformationUnderstandingDimension = analyzedVersion?.dimensions.find((dimension) => dimension.code === 'information_understanding');
+  assert.ok(analyzedInformationUnderstandingDimension);
+  assert.deepEqual(analyzedInformationUnderstandingDimension?.interpretationThresholds[0]?.interviewQuestionIds, ['interview-information-understanding-1']);
+  assert.deepEqual(analyzedInformationUnderstandingDimension?.interpretationThresholds[1]?.interviewQuestionIds, ['interview-information-understanding-1']);
   assert.equal(
     analyzedVersion?.dimensions.reduce(
       (count, dimension) => count + dimension.interpretationThresholds.reduce(
@@ -700,6 +779,8 @@ async function main() {
   assert.match(editorSource, /Projection candidat/);
   assert.match(editorSource, /Projection entreprise/);
   assert.match(editorSource, /ProfessionalAssessmentCandidatePreview/);
+  assert.doesNotMatch(editorSource, /interviewQuestionIds:\s*questionIds/);
+  assert.doesNotMatch(editorSource, /questionIds\.length > 0 \? questionIds : \[\]/);
   assert.doesNotMatch(editorSource, /company_application/);
   assert.doesNotMatch(editorSource, /Parcours candidat et rapport/);
   assert.doesNotMatch(editorSource, /Rapport candidat/);
@@ -735,7 +816,11 @@ async function main() {
     })) as typeof fetch;
 
     await assert.rejects(
-      () => fetchSevenoAdminApi('/api/admin/evaluation-seveno'),
+      () => fetchSevenoAdminApi('/api/admin/evaluation-seveno', {
+        headers: {
+          Authorization: buildAuthorizationHeader(adminSession),
+        },
+      }),
       (error: unknown) => error instanceof SevenoAdminApiError
         && error.status === 422
         && error.message === 'La version SevenO professionnelle est invalide.'

@@ -69,7 +69,17 @@ assertContains('lib/seveno-terms-version.ts', [
   'SEVENO_TERMS_VERSION',
 ]);
 
+assertContains('lib/seveno-terms-acceptance.ts', [
+  'buildSevenoTermsAcceptancePatch',
+  'buildSevenoTermsAcceptanceMigrationPlan',
+  'getLegacySevenoTermsAcceptanceFieldPath',
+  'updatedAt: acceptance.acceptedAt',
+]);
+
 assertNotContains('lib/seveno-users.ts', [
+  'SevenoCandidateDebugContext',
+  'summarizeUid',
+  'logSevenoCandidateDebug',
   'SEVENO_TERMS_VERSION',
 ]);
 
@@ -90,17 +100,27 @@ assertContains('lib/seveno-recommendations-server.ts', [
 
 assertContains('app/api/seveno/terms/acceptance/route.ts', [
   '@/lib/seveno-terms-version',
-  'termsAcceptance.${context}',
-  'updatedAt: acceptance.acceptedAt',
+  'buildSevenoTermsAcceptancePatch',
 ]);
 
 assertContains('firestore.rules', [
   'termsAcceptance',
 ]);
 
+assertNotContains('app/candidat/page.tsx', [
+  'SevenO candidate diagnostics',
+  'diagnosticId',
+  'summarizeCandidateUid',
+  'createCandidateDiagnosticId',
+  'seveno_candidate_diagnostic_id',
+]);
+
 assertNotContains('components/legal/CguAcceptancePanel.tsx', [
   'const refreshed = await ensureSevenoUser(authUser);',
   'router.replace(resolveSevenoRedirect(refreshed));',
+  'SevenO candidate diagnostics',
+  'createCandidateDiagnosticId',
+  'diagnosticId',
 ]);
 
 console.log('SevenO terms smoke test: OK');

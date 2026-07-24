@@ -28,6 +28,7 @@ function buildQuestionReviewRecord(
 ): SevenoAssessmentReviewQuestionRecord {
   const issues = validateAssessmentQuestion(question, version).issues;
   const automatedCheckStatus = getAutomatedStatus(issues);
+  const humanReviewStatus = question.humanReviewStatus ?? 'pending';
   const secondaryDimensionCode = question.secondaryDimensionCodes?.[0] ?? null;
   const sortedIssues = issues
     .map((issue) => `${issue.severity.toUpperCase()}: ${issue.message}`)
@@ -53,7 +54,7 @@ function buildQuestionReviewRecord(
     scoringScale: '0-4',
     justificationAdministrateur: question.adminRationale,
     automatedCheckStatus,
-    humanReviewStatus: 'pending',
+    humanReviewStatus,
     reviewComments: [
       'Relecture humaine requise avant toute acceptation pour pilote.',
       ...(sortedIssues.length > 0 ? sortedIssues : ['Contrôle automatique sans alerte.']),
@@ -61,7 +62,7 @@ function buildQuestionReviewRecord(
     proposedCorrections: questionChangeLog.length > 0
       ? questionChangeLog.map((entry) => `${entry.reason} (${entry.impactOnDimensions})`)
       : [],
-    decisionFinal: 'pending',
+    decisionFinal: humanReviewStatus,
   };
 }
 

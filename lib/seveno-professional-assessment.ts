@@ -359,7 +359,7 @@ export function validateAssessmentOption(option: AssessmentQuestionOption): Asse
     issues.push(createIssue('assessment_option_too_many_dimensions', 'option.dimensionScores', 'Une option ne peut scorer plus de trois dimensions.'));
   }
 
-  if (contributingEntries.length > 0 && contributingScores.every((score) => score === 4)) {
+  if (contributingEntries.length >= 2 && contributingScores.every((score) => score === 4)) {
     issues.push(createIssue('assessment_option_all_maximum_scores', 'option.dimensionScores', 'Une option ne doit pas attribuer 4 a toutes ses contributions.'));
   }
 

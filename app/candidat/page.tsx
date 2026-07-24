@@ -175,13 +175,6 @@ function getProfileAction(
 
 type AvailabilityPushSupport = Awaited<ReturnType<typeof requestCandidateAvailabilityPushToken>>;
 
-function logAvailabilityTestStep(step: string, details?: Record<string, unknown>) {
-  console.info('[SevenO availability dashboard]', {
-    step,
-    ...details,
-  });
-}
-
 function getAvailabilityTestFailureMessage(
   support: AvailabilityPushSupport | null,
   hasActiveDevice: boolean | null,
@@ -250,7 +243,7 @@ export default function CandidateDashboardPage() {
           return;
         }
 
-        const sevenoUser = await ensureSevenoUser(authUser);
+        const sevenoUser = await ensureSevenoUser(authUser, null);
         if (!active) {
           return;
         }
@@ -265,7 +258,8 @@ export default function CandidateDashboardPage() {
           return;
         }
 
-        if (sevenoUser.onboardingCompleted && !hasSevenoTermsAcceptance(sevenoUser, 'candidate_account')) {
+        const hasCandidateAccountAcceptance = hasSevenoTermsAcceptance(sevenoUser, 'candidate_account');
+        if (sevenoUser.onboardingCompleted && !hasCandidateAccountAcceptance) {
           router.replace('/cgu');
           return;
         }
@@ -348,7 +342,7 @@ export default function CandidateDashboardPage() {
         action === 'confirm_no'
           ? 'Disponibilité immédiate désactivée.'
           : action === 'declare_immediate'
-            ? 'Vous etes maintenant declare disponible immediatement.'
+            ? 'Vous êtes maintenant déclaré disponible immédiatement.'
             : 'Disponibilité confirmée pour 24 heures.',
       );
     } catch (thrownError) {
@@ -374,7 +368,7 @@ export default function CandidateDashboardPage() {
           source: 'dashboard',
         });
         setProfile(result.profile ?? await getCandidateProfile(user.uid));
-        setAvailabilityNotice('Les confirmations quotidiennes sont desactivees.');
+        setAvailabilityNotice('Les confirmations quotidiennes sont désactivées.');
         return;
       }
 
@@ -424,26 +418,8 @@ export default function CandidateDashboardPage() {
     let hasActiveDevice: boolean | null = null;
 
     try {
-      logAvailabilityTestStep('button_clicked', {
-        hasAuthUser: Boolean(authUser),
-        hasProfile: Boolean(profile),
-        hasUser: Boolean(user),
-      });
-
-      logAvailabilityTestStep('browser_permission_read', {
-        permission: typeof Notification !== 'undefined' ? Notification.permission : 'unavailable',
-      });
-
       support = await requestCandidateAvailabilityPushToken();
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-
-      logAvailabilityTestStep('push_support_result', {
-        supported: support.supported,
-        permission: support.permission,
-        hasServiceWorkerRegistration: Boolean(support.serviceWorkerRegistration),
-        serviceWorkerActive: Boolean(support.serviceWorkerRegistration?.active),
-        tokenGenerated: Boolean(support.token),
-      });
 
       if (!support.serviceWorkerRegistration) {
         throw new Error('Le service de notifications n’est pas encore actif.');
@@ -457,12 +433,6 @@ export default function CandidateDashboardPage() {
         throw new Error('Impossible de créer l’abonnement Firebase.');
       }
 
-      logAvailabilityTestStep('register_device_request', {
-        hasToken: true,
-        permission: support.permission,
-        deviceIdPresent: Boolean(support.deviceId),
-      });
-
       const registrationResult = await registerCandidateAvailabilityDevice(authUser, {
         deviceId: support.deviceId,
         token: support.token,
@@ -474,27 +444,12 @@ export default function CandidateDashboardPage() {
       });
       hasActiveDevice = registrationResult.hasActiveDevice;
 
-      logAvailabilityTestStep('register_device_response', {
-        hasActiveDevice: registrationResult.hasActiveDevice,
-      });
-
       if (!registrationResult.hasActiveDevice) {
         throw new Error('Cet appareil n’est pas enregistré.');
       }
 
-      logAvailabilityTestStep('test_notification_post_request', {
-        source: 'dashboard',
-      });
-
       const result = await sendCandidateAvailabilityTestNotification(authUser, {
         source: 'dashboard',
-      });
-
-      logAvailabilityTestStep('test_notification_post_response', {
-        sent: result.sent,
-        failed: result.failed,
-        invalidDeviceIdsCount: result.invalidDeviceIds.length,
-        hasActiveAvailabilityPushSubscription: result.hasActiveAvailabilityPushSubscription,
       });
 
       setProfile(result.profile ?? await getCandidateProfile(user.uid));
@@ -502,9 +457,6 @@ export default function CandidateDashboardPage() {
         `Permission Chrome : ${support.permission}. Service worker : OK. Token FCM : ${support.token ? 'present' : 'absent'}. Appareil actif : ${registrationResult.hasActiveDevice ? 'oui' : 'non'}. Notification de test : ${result.sent > 0 ? 'envoyee' : 'non envoyee'}.`,
       );
     } catch (thrownError) {
-      console.error('[SevenO availability dashboard] test notification failed', {
-        message: thrownError instanceof Error ? thrownError.message : String(thrownError),
-      });
       setAvailabilityError(
         thrownError instanceof Error && thrownError.message.trim().length > 0
           ? thrownError.message
@@ -521,7 +473,6 @@ export default function CandidateDashboardPage() {
   void handleAvailabilityConfirmation;
   void handleAvailabilityNotifications;
   void handleSendAvailabilityTestNotification;
-
   const recommendationVerifiedCount = profile?.recommendationVerifiedCount ?? 0;
   const summaryCards: CandidateSummaryCard[] = profile
     ? [
@@ -764,7 +715,7 @@ export default function CandidateDashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Etat candidat</p>
                 <p className="font-medium text-white">
                   {availabilityView?.state === 'available_now'
-                    ? 'Disponible immediatement'
+                    ? 'Disponible immédiatement'
                     : availabilityView?.state === 'confirmation_required'
                       ? 'Disponibilité à confirmer'
                       : availabilityView?.state === 'available_from_date'
@@ -773,7 +724,7 @@ export default function CandidateDashboardPage() {
                 </p>
                 <p>Visibilité entreprise : {profileVisibleToCompanies ? 'Oui' : 'Non'}</p>
                 <p>Disponibilité immédiate : {immediateAvailabilityConfirmed ? 'Confirmée' : 'À confirmer'}</p>
-                <p>Etat notifications : {availabilityNotificationsEnabled ? 'Confirmations quotidiennes actives' : 'Confirmations quotidiennes desactivees'}</p>
+                <p>État notifications : {availabilityNotificationsEnabled ? 'Confirmations quotidiennes actives' : 'Confirmations quotidiennes désactivées'}</p>
               </div>
             </div>
 
@@ -948,7 +899,7 @@ export default function CandidateDashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Etat candidat</p>
                 <p className="font-medium text-white">
                   {availabilityView?.state === 'available_now'
-                    ? 'Disponible immediatement'
+                    ? 'Disponible immédiatement'
                     : availabilityView?.state === 'confirmation_required'
                       ? 'Disponibilité à confirmer'
                       : availabilityView?.state === 'available_from_date'
@@ -957,7 +908,7 @@ export default function CandidateDashboardPage() {
                 </p>
                 <p>Visibilité entreprise : {profileVisibleToCompanies ? 'Oui' : 'Non'}</p>
                 <p>Disponibilité immédiate : {immediateAvailabilityConfirmed ? 'Confirmée' : 'À confirmer'}</p>
-                <p>Notifications quotidiennes : {availabilityNotificationsEnabled ? 'Actives' : 'Desactivees'}</p>
+                <p>Notifications quotidiennes : {availabilityNotificationsEnabled ? 'Actives' : 'Désactivées'}</p>
               </div>
             </div>
 

@@ -145,6 +145,17 @@ function validateLocalReport() {
   assert.equal(report.exactDuplicates.length, 0);
   assert.equal(report.forbiddenTerms.length, 0);
   assert.equal(report.questionsWithDominatingOption.length, 0);
+  const pilotBatch = expectedDraft.questions.slice(0, 7);
+  assert.deepEqual(pilotBatch.map((question) => question.code), [
+    'essential_information_01',
+    'essential_organization_01',
+    'essential_problem_solving_01',
+    'essential_autonomy_01',
+    'essential_adaptability_01',
+    'essential_collaboration_01',
+    'essential_rigor_01',
+  ]);
+  assert.equal(pilotBatch.every((question) => question.options.length === 4), true);
   return expectedDraft;
 }
 

@@ -60,6 +60,7 @@ interface QuestionSpec {
   path: QuestionPath;
   position: number;
   tone: QuestionTone;
+  situation?: string;
   primaryDimensionCodes: AssessmentDimensionCode[];
   secondaryDimensionCodes?: AssessmentDimensionCode[];
   context: QuestionContext;
@@ -1173,7 +1174,7 @@ function buildQuestionFromSpec(spec: QuestionSpec): AssessmentQuestion {
     assessmentVersionId: DRAFT_VERSION_ID,
     path: spec.path,
     position: spec.position,
-    situation: buildQuestionSituation(spec),
+    situation: spec.situation ?? buildQuestionSituation(spec),
     instruction: buildQuestionInstruction(spec.tone),
     options: buildQuestionOptions(spec),
     primaryDimensionCodes: [...spec.primaryDimensionCodes],

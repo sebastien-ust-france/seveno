@@ -1,4 +1,5 @@
 import type { FirestoreDateValue } from '@/types/seveno';
+import type { SevenoAssessmentHumanReviewStatus } from '@/types/seveno-assessment-review';
 
 export type AssessmentProfileVersionStatus = 'draft' | 'pilot' | 'active' | 'archived';
 export type AssessmentPath = 'essential' | 'extended';
@@ -77,6 +78,7 @@ export interface AssessmentQuestion {
   estimatedReadingSeconds: number;
   adminRationale: string;
   isActive: boolean;
+  humanReviewStatus?: SevenoAssessmentHumanReviewStatus;
 }
 
 export interface AssessmentVersionDescriptor {

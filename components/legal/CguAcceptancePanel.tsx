@@ -66,7 +66,7 @@ export function CguAcceptancePanel() {
           return;
         }
 
-        const sevenoUser = await ensureSevenoUser(currentAuthUser);
+        const sevenoUser = await ensureSevenoUser(currentAuthUser, null);
         if (!active) {
           return;
         }
@@ -96,6 +96,7 @@ export function CguAcceptancePanel() {
 
   const context = useMemo(() => resolveContext(user?.role ?? null), [user?.role]);
   const acceptance = context ? getSevenoTermsAcceptance(user, context) : null;
+
   async function handleAccept() {
     if (!authUser || !user || !context) {
       router.push('/connexion');
@@ -138,7 +139,7 @@ export function CguAcceptancePanel() {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/90">Acceptation</p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
             {user?.role === 'company'
-              ? "Premier accès entreprise"
+              ? 'Premier accès entreprise'
               : user?.role === 'candidate'
                 ? 'Création ou mise à jour du compte candidat'
                 : 'Lire et enregistrer les CGU'}
@@ -199,8 +200,8 @@ export function CguAcceptancePanel() {
             />
             <span>
               {user?.role === 'company'
-                ? "Je confirme être habilité à représenter l’entreprise et j’accepte les Conditions générales d’utilisation de Seven’O."
-                : "J’ai lu et j’accepte les Conditions générales d’utilisation de Seven’O."}
+                ? 'Je confirme être habilité à représenter l’entreprise et j’accepte les Conditions générales d’utilisation de Seven’O.'
+                : 'J’ai lu et j’accepte les Conditions générales d’utilisation de Seven’O.'}
             </span>
           </label>
 

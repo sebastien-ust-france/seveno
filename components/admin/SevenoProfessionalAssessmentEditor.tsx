@@ -24,6 +24,7 @@ import type {
   AssessmentValidationIssue,
   AssessmentValidationResult,
 } from '@/types/seveno-assessment';
+import type { SevenoAssessmentHumanReviewStatus } from '@/types/seveno-assessment-review';
 import type { SevenoAssessmentReviewManifest } from '@/types/seveno-assessment-review';
 
 const STEP_TABS = [
@@ -161,6 +162,7 @@ function buildNewQuestionTemplate(version: SevenoAssessmentStoredVersion): Asses
     estimatedReadingSeconds: 30,
     adminRationale: 'Justification interne à compléter.',
     isActive: true,
+    humanReviewStatus: 'pending',
   };
 }
 
@@ -223,36 +225,17 @@ function syncVersionCohesion(version: SevenoAssessmentStoredVersion) {
   next.essentialQuestionCount = next.questions.filter((question) => question.path === 'essential').length;
   next.extendedQuestionCount = next.questions.filter((question) => question.path === 'extended').length;
 
-  const dimensionMap = new Map<string, string[]>();
-  for (const dimension of next.dimensions) {
-    dimensionMap.set(dimension.code, []);
-  }
-
-  for (const question of next.questions.filter((item) => item.isActive)) {
-    const dimensionCodes = [...new Set([
-      ...question.primaryDimensionCodes,
-      ...(question.secondaryDimensionCodes ?? []),
-    ].filter(Boolean))];
-    for (const code of dimensionCodes) {
-      const current = dimensionMap.get(code);
-      if (!current) {
-        continue;
-      }
-
-      if (!current.includes(question.id)) {
-        current.push(question.id);
-      }
-    }
-  }
-
   next.dimensions = next.dimensions.map((dimension) => {
-    const questionIds = dimensionMap.get(dimension.code) ?? [];
     return {
       ...dimension,
-      interviewQuestionIds: questionIds,
+      interviewQuestionIds: Array.isArray(dimension.interviewQuestionIds)
+        ? dimension.interviewQuestionIds.map((item) => item.trim()).filter(Boolean)
+        : [],
       interpretationThresholds: dimension.interpretationThresholds.map((threshold) => ({
         ...threshold,
-        interviewQuestionIds: questionIds.length > 0 ? questionIds : [],
+        interviewQuestionIds: Array.isArray(threshold.interviewQuestionIds)
+          ? threshold.interviewQuestionIds.map((item) => item.trim()).filter(Boolean)
+          : [],
       })),
     };
   });
@@ -745,6 +728,28 @@ export default function SevenoProfessionalAssessmentEditor() {
 
     const payloadVersion = syncVersionCohesion(cloneVersion(selectedVersion)!);
     await runAction('update_draft', { versionId: payloadVersion.id, version: payloadVersion, revisionNumber: payloadVersion.revisionNumber }, 'Brouillon enregistré.');
+  }
+
+  async function handleToggleHumanReviewApproval(questionId: string, currentStatus: SevenoAssessmentHumanReviewStatus) {
+    if (!selectedVersion) {
+      return;
+    }
+
+    const payloadVersion = syncVersionCohesion(cloneVersion(selectedVersion)!);
+    const question = payloadVersion.questions.find((item) => item.id === questionId);
+    if (!question) {
+      return;
+    }
+
+    const nextStatus: SevenoAssessmentHumanReviewStatus = currentStatus === 'approved_for_pilot' ? 'pending' : 'approved_for_pilot';
+    question.humanReviewStatus = nextStatus;
+    await runAction(
+      'update_draft',
+      { versionId: payloadVersion.id, version: payloadVersion, revisionNumber: payloadVersion.revisionNumber },
+      nextStatus === 'approved_for_pilot'
+        ? 'Question validée pour pilote.'
+        : 'Validation humaine retirée.',
+    );
   }
 
   async function analyzeImportedJsonDraft() {
@@ -1515,6 +1520,7 @@ export default function SevenoProfessionalAssessmentEditor() {
   }
 
   function renderReviewQuestionCard(question: ReviewQuestionRecord) {
+    const isApprovedForPilot = question.humanReviewStatus === 'approved_for_pilot';
     return (
       <article key={question.questionId} className="rounded-[22px] border border-white/10 bg-slate-950/50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1527,17 +1533,27 @@ export default function SevenoProfessionalAssessmentEditor() {
               {question.secondaryDimensionCode ? ` / ${question.secondaryDimensionCode}` : ''}
             </p>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-            question.decisionFinal === 'approved_for_pilot'
-              ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-50'
-              : question.decisionFinal === 'rejected'
-                ? 'border-rose-300/20 bg-rose-400/10 text-rose-50'
-                : question.decisionFinal === 'reviewed_with_changes'
-                  ? 'border-amber-300/20 bg-amber-400/10 text-amber-50'
-                  : 'border-white/10 bg-white/5 text-slate-200'
-          }`}>
-            {getReviewStatusLabel(question.humanReviewStatus)} · {question.decisionFinal}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+              question.decisionFinal === 'approved_for_pilot'
+                ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-50'
+                : question.decisionFinal === 'rejected'
+                  ? 'border-rose-300/20 bg-rose-400/10 text-rose-50'
+                  : question.decisionFinal === 'reviewed_with_changes'
+                    ? 'border-amber-300/20 bg-amber-400/10 text-amber-50'
+                    : 'border-white/10 bg-white/5 text-slate-200'
+            }`}>
+              {getReviewStatusLabel(question.humanReviewStatus)} · {question.decisionFinal}
+            </span>
+            <button
+              type="button"
+              disabled={savingAction === 'update_draft'}
+              onClick={() => void handleToggleHumanReviewApproval(question.questionId, question.humanReviewStatus)}
+              className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isApprovedForPilot ? 'Retirer la validation' : 'Valider pour pilote'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">

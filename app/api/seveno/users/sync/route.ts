@@ -134,6 +134,14 @@ export async function POST(request: NextRequest) {
       initialRole,
     );
 
+    if (!adminDb) {
+      throw new SevenoApiAuthError(
+        'firebase_admin_missing',
+        500,
+        'Firebase Admin n est pas configure pour synchroniser les comptes SevenO.',
+      );
+    }
+
     return NextResponse.json({ synced: true }, { status: 200 });
   } catch (error) {
     if (error instanceof SevenoApiAuthError || error instanceof SevenoUserSyncError) {

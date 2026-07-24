@@ -8,9 +8,9 @@ import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
 import type {
   CandidatePrivateIdentityInput,
   PublicUserRole,
+  SevenoUser,
   TermsAcceptance,
   TermsAcceptanceContext,
-  SevenoUser,
   UserRoleOrNull,
 } from '@/types/seveno';
 
@@ -65,7 +65,6 @@ export function canAssignPublicRole(existingRole: UserRoleOrNull, requestedRole:
   return existingRole === 'company';
 }
 
-
 export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
   if (!isFirebaseConfigured || !db) {
     return null;
@@ -74,7 +73,6 @@ export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
   const snapshot = await getDocFromServer(userRef(uid));
   return snapshot.exists() ? (snapshot.data() as SevenoUser) : null;
 }
-
 
 export async function ensureSevenoUser(
   authUser: User,
@@ -96,7 +94,7 @@ export async function ensureSevenoUser(
 
   const refreshed = await getSevenoUser(authUser.uid);
   if (!refreshed) {
-    throw new Error("Le document users n a pas pu etre lu apres synchronisation.");
+    throw new Error('Le document users n a pas pu etre lu apres synchronisation.');
   }
 
   return refreshed;
@@ -113,7 +111,7 @@ export async function updateSevenoUserRole(uid: string, role: PublicUserRole): P
   }
 
   if (!snapshot.exists()) {
-    throw new Error("Le document users n a pas pu etre lu avant mise a jour du role.");
+    throw new Error('Le document users n a pas pu etre lu avant mise a jour du role.');
   }
 
   const existing = snapshot.data() as SevenoUser;
@@ -139,7 +137,7 @@ export async function updateSevenoUserRole(uid: string, role: PublicUserRole): P
   }
 
   if (!updated.exists()) {
-    throw new Error("Le document users n a pas pu etre lu apres mise a jour du role.");
+    throw new Error('Le document users n a pas pu etre lu apres mise a jour du role.');
   }
 
   return updated.data() as SevenoUser;
@@ -165,7 +163,7 @@ export async function markUserOnboardingCompleted(uid: string): Promise<SevenoUs
   }
 
   if (!updated.exists()) {
-    throw new Error("Le document users n a pas pu etre lu apres completion de l onboarding.");
+    throw new Error('Le document users n a pas pu etre lu apres completion de l onboarding.');
   }
 
   return updated.data() as SevenoUser;
@@ -186,7 +184,7 @@ export async function updateCandidatePrivateIdentity(
     country: input.country,
   });
   if (!validation.data) {
-    throw new Error('Les informations d identité privée sont invalides.');
+    throw new Error('Les informations d identite privee sont invalides.');
   }
 
   const ref = userRef(uid);
@@ -209,19 +207,23 @@ export async function updateCandidatePrivateIdentity(
 
   const updated = await getDocFromServer(ref);
   if (!updated.exists()) {
-    throw new Error('Le document utilisateur est introuvable après la mise à jour.');
+    throw new Error('Le document utilisateur est introuvable apres la mise a jour.');
   }
 
   return updated.data() as SevenoUser;
 }
 
 export async function acceptSevenoTerms(authUser: User): Promise<SevenoTermsAcceptanceResponse> {
-  return fetchSevenoMatchApi<SevenoTermsAcceptanceResponse>(authUser, '/api/seveno/terms/acceptance', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return fetchSevenoMatchApi<SevenoTermsAcceptanceResponse>(
+    authUser,
+    '/api/seveno/terms/acceptance',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     },
-  });
+  );
 }
 
 export function resolveSevenoRedirect(user: SevenoUser | null) {
