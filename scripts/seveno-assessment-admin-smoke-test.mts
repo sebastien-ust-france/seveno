@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import net from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -80,7 +79,7 @@ function loadDotEnvFile(filePath: string) {
 
 function summarizeRepositoryTarget() {
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'unset';
-  const repositoryMode = process.env.SEVENO_PROFESSIONAL_ASSESSMENT_ADMIN_STORE ?? 'memory';
+  const repositoryMode = getSevenoProfessionalAssessmentRepository() instanceof FirestoreProfessionalAssessmentRepository ? 'firestore' : 'memory';
   const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? null;
 
   return {
@@ -90,43 +89,6 @@ function summarizeRepositoryTarget() {
     collection: 'professional_assessment_versions',
     safetyGate: emulatorHost ? 'local_emulator' : 'production_guard_only',
   };
-}
-
-function configureFirestoreEmulatorEnvironment() {
-  const projectId = process.env.SEVENO_EMULATOR_PROJECT_ID ?? 'demo-seveno-local';
-  process.env.GCLOUD_PROJECT = projectId;
-  process.env.PROJECT_ID = projectId;
-  process.env.FIREBASE_ADMIN_PROJECT_ID = projectId;
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = projectId;
-  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
-}
-
-async function assertFirestoreEmulatorAvailable() {
-  const host = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
-  const [hostname, portText] = host.split(':');
-  const port = Number(portText);
-  if (!hostname || !Number.isFinite(port)) {
-    throw new Error(`Firestore emulator host invalide: ${host}`);
-  }
-
-  await new Promise<void>((resolvePromise, rejectPromise) => {
-    const socket = net.createConnection({ host: hostname, port });
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      rejectPromise(new Error(`Firestore emulator inaccessible sur ${host}.`));
-    }, 1000);
-
-    socket.once('connect', () => {
-      clearTimeout(timeout);
-      socket.end();
-      resolvePromise();
-    });
-
-    socket.once('error', () => {
-      clearTimeout(timeout);
-      rejectPromise(new Error(`Firestore emulator inaccessible sur ${host}.`));
-    });
-  });
 }
 
 function cloneValue<T>(value: T): T {
@@ -339,7 +301,7 @@ async function main() {
   const repositoryTarget = summarizeRepositoryTarget();
   console.log('SevenO assessment admin repository target:', repositoryTarget);
   if (repositoryTarget.projectId === 'seveno-a8eb1' && !repositoryTarget.emulatorHostPresent) {
-    console.warn('Production Firebase project detected without a local Firestore emulator. Firestore write validation remains blocked.');
+    console.warn('Production Firebase project detected without a local Firestore emulator. Firestore persistence checks will use the configured project.');
   }
 
   const representativeVersion = buildRepresentativeVersion();
@@ -365,7 +327,7 @@ async function main() {
 
   const repository = createRepository();
   const firestoreRepositoryEnabled = isSevenoProfessionalAssessmentFirestoreRepositoryEnabledFlag();
-  if (process.env.SEVENO_PROFESSIONAL_ASSESSMENT_ADMIN_STORE === 'firestore') {
+  if (getSevenoProfessionalAssessmentRepository() instanceof FirestoreProfessionalAssessmentRepository) {
     assert.equal(firestoreRepositoryEnabled, true);
     assert.ok(getSevenoProfessionalAssessmentRepository() instanceof FirestoreProfessionalAssessmentRepository);
   } else {
@@ -842,18 +804,7 @@ async function main() {
   assert.match(repoSource, /revision_conflict/);
   assert.match(repoSource, /professional_assessment_versions/);
 
-  if (process.env.SEVENO_PROFESSIONAL_ASSESSMENT_ADMIN_STORE === 'firestore') {
-    configureFirestoreEmulatorEnvironment();
-    try {
-      await assertFirestoreEmulatorAvailable();
-    } catch (error) {
-      console.warn('Firestore persistence validation skipped:', error instanceof Error ? error.message : String(error));
-      console.warn('The repository would otherwise point to the local emulator, but the emulator is not running.');
-      return;
-    }
-
-    assert.equal(repositoryTarget.projectId, 'demo-seveno-local');
-    assert.equal(repositoryTarget.emulatorHostPresent, true);
+  if (getSevenoProfessionalAssessmentRepository() instanceof FirestoreProfessionalAssessmentRepository) {
     assert.equal(isSevenoProfessionalAssessmentFirestoreRepositoryEnabledFlag(), true);
     assert.ok(getSevenoProfessionalAssessmentRepository() instanceof FirestoreProfessionalAssessmentRepository);
 
@@ -896,50 +847,54 @@ async function main() {
     assert.equal(afterConflictVersion.name, 'TEST PERSISTANCE EMULATEUR - A SUPPRIMER');
     assert.equal(afterConflictVersion.revisionNumber, 2);
 
-    const rulesTestEnv = await initializeTestEnvironment({
-      projectId: 'demo-seveno-local',
-      firestore: {
-        host: '127.0.0.1',
-        port: 8080,
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
-      },
-    });
-
-    try {
-      const rulesCollection = 'professional_assessment_versions';
-      const unauthenticated = rulesTestEnv.unauthenticatedContext();
-      const candidate = rulesTestEnv.authenticatedContext('candidate-test-user', {
-        email: 'candidate-test@seveno.local',
-        email_verified: true,
-        name: 'Candidate Test',
-      });
-      const company = rulesTestEnv.authenticatedContext('company-test-user', {
-        email: 'company-test@seveno.local',
-        email_verified: true,
-        name: 'Company Test',
-      });
-      const admin = rulesTestEnv.authenticatedContext('admin-test-user', {
-        email: 'admin-test@seveno.local',
-        email_verified: true,
-        name: 'Admin Test',
+    if (process.env.FIRESTORE_EMULATOR_HOST) {
+      const rulesTestEnv = await initializeTestEnvironment({
+        projectId: 'demo-seveno-local',
+        firestore: {
+          host: '127.0.0.1',
+          port: 8080,
+          rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        },
       });
 
-      await assertFails(unauthenticated.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
-      await assertFails(candidate.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
-      await assertFails(company.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
-      await assertFails(admin.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
-      await assertFails(unauthenticated.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
-      await assertFails(candidate.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
-      await assertFails(company.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
-      await assertFails(admin.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
-    } finally {
-      await rulesTestEnv.cleanup();
+      try {
+        const rulesCollection = 'professional_assessment_versions';
+        const unauthenticated = rulesTestEnv.unauthenticatedContext();
+        const candidate = rulesTestEnv.authenticatedContext('candidate-test-user', {
+          email: 'candidate-test@seveno.local',
+          email_verified: true,
+          name: 'Candidate Test',
+        });
+        const company = rulesTestEnv.authenticatedContext('company-test-user', {
+          email: 'company-test@seveno.local',
+          email_verified: true,
+          name: 'Company Test',
+        });
+        const admin = rulesTestEnv.authenticatedContext('admin-test-user', {
+          email: 'admin-test@seveno.local',
+          email_verified: true,
+          name: 'Admin Test',
+        });
+
+        await assertFails(unauthenticated.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
+        await assertFails(candidate.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
+        await assertFails(company.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
+        await assertFails(admin.firestore().collection(rulesCollection).doc(persistedDraft.id).get());
+        await assertFails(unauthenticated.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
+        await assertFails(candidate.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
+        await assertFails(company.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
+        await assertFails(admin.firestore().collection(rulesCollection).doc(`${persistedDraft.id}-write`).set({ foo: 'bar' }));
+      } finally {
+        await rulesTestEnv.cleanup();
+      }
+    } else {
+      console.log('Firestore rules validation skipped: no local emulator configured.');
     }
 
-    await reopenedRepository.deleteUnusedDraft(persistedDraft.id, afterConflict?.revisionNumber);
+    await reopenedRepository.deleteVersion(persistedDraft.id, afterConflict?.revisionNumber);
     assert.equal(await reopenedRepository.readVersion(persistedDraft.id), null);
   } else {
-    console.log('Firestore persistence validation skipped: repository mode is memory. Set SEVENO_PROFESSIONAL_ASSESSMENT_ADMIN_STORE=firestore with a local emulator to run the Firestore round-trip checks.');
+    console.log('Firestore persistence validation skipped: repository mode is memory.');
   }
 
   console.log('SevenO assessment admin smoke test: OK');

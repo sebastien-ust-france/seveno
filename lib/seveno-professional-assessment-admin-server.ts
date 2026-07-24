@@ -65,9 +65,12 @@ function getRepository(repository?: ProfessionalAssessmentAdminRepository) {
 async function buildPayload(
   repository: ProfessionalAssessmentAdminRepository,
   selectedVersionId?: string | null,
+  options: { allowEmptySelection?: boolean } = {},
 ): Promise<SevenoAssessmentEditorPayload> {
   const versions = (await repository.listVersions()).map((version) => serializeSevenoProfessionalAssessmentVersionSummary(version));
-  const selectedId = selectedVersionId ?? await repository.getDefaultVersionId();
+  const selectedId = selectedVersionId === null && options.allowEmptySelection
+    ? null
+    : selectedVersionId ?? await repository.getDefaultVersionId();
   const selectedVersion = selectedId ? await repository.readVersion(selectedId) : null;
   const validation = selectedVersion ? await repository.validateDraft(selectedVersion.id) : null;
   const prompt = selectedVersion ? await repository.buildPrompt(selectedVersion.id) : null;
@@ -208,6 +211,18 @@ export async function deleteSevenoAssessmentUnusedDraft(
   const repo = getRepository(repository);
   await repo.deleteUnusedDraft(versionId, expectedRevisionNumber);
   return await buildPayload(repo, null);
+}
+
+export async function deleteSevenoAssessmentVersion(
+  session: SevenoAdminSession | null | undefined,
+  versionId: string,
+  expectedRevisionNumber?: number,
+  repository?: ProfessionalAssessmentAdminRepository,
+) {
+  assertAdminSession(session);
+  const repo = getRepository(repository);
+  await repo.deleteVersion(versionId, expectedRevisionNumber);
+  return await buildPayload(repo, null, { allowEmptySelection: true });
 }
 
 export async function validateSevenoAssessmentDraft(

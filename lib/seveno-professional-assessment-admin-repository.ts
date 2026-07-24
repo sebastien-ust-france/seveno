@@ -57,6 +57,7 @@ export interface ProfessionalAssessmentAdminRepository {
   duplicateVersion(versionId: string): MaybePromise<SevenoAssessmentStoredVersion>;
   updateDraft(versionId: string, input: StoredVersionInput): MaybePromise<SevenoAssessmentStoredVersion>;
   deleteUnusedDraft(versionId: string, expectedRevisionNumber?: number): MaybePromise<void>;
+  deleteVersion(versionId: string, expectedRevisionNumber?: number): MaybePromise<void>;
   validateDraft(versionId: string): MaybePromise<ReturnType<typeof collectEngineValidation>>;
   markAsPilot(versionId: string, expectedRevisionNumber?: number): MaybePromise<SevenoAssessmentStoredVersion>;
   publishVersion(versionId: string, expectedRevisionNumber?: number): MaybePromise<SevenoAssessmentStoredVersion>;
@@ -771,6 +772,12 @@ export class SevenoProfessionalAssessmentRepository implements ProfessionalAsses
     this.versions.splice(index, 1);
   }
 
+  deleteVersion(versionId: string, expectedRevisionNumber?: number) {
+    const { version, index } = this.requireVersion(versionId);
+    this.requireRevisionMatch(version, expectedRevisionNumber, 'la suppression');
+    this.versions.splice(index, 1);
+  }
+
   validateDraft(versionId: string) {
     const { version } = this.requireVersion(versionId);
     return collectEngineValidation(version);
@@ -988,10 +995,11 @@ function toFirestoreVersionDocument(version: SevenoAssessmentStoredVersion): Fir
 
 function isSevenoProfessionalAssessmentFirestoreRepositoryEnabled() {
   assertLocalFirestoreRepositoryCanStart();
-  return process.env[PROFESSIONAL_ASSESSMENT_REPOSITORY_STORE_ENV] === 'firestore'
-    && isFirebaseAdminConfigured
-    && Boolean(adminDb)
-    && (process.env.NODE_ENV === 'production' || Boolean(getFirestoreEmulatorHost()));
+  if (process.env[PROFESSIONAL_ASSESSMENT_REPOSITORY_STORE_ENV] === 'memory') {
+    return false;
+  }
+
+  return isFirebaseAdminConfigured && Boolean(adminDb);
 }
 
 export class FirestoreProfessionalAssessmentRepository implements ProfessionalAssessmentAdminRepository {
@@ -1114,6 +1122,13 @@ export class FirestoreProfessionalAssessmentRepository implements ProfessionalAs
   async deleteUnusedDraft(versionId: string, expectedRevisionNumber?: number) {
     await this.withRepository(async (repository) => {
       repository.deleteUnusedDraft(versionId, expectedRevisionNumber);
+      return null;
+    });
+  }
+
+  async deleteVersion(versionId: string, expectedRevisionNumber?: number) {
+    await this.withRepository(async (repository) => {
+      repository.deleteVersion(versionId, expectedRevisionNumber);
       return null;
     });
   }

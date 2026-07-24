@@ -6,6 +6,7 @@ import {
   analyzeSevenoAssessmentImportJson,
   createSevenoAssessmentBlankDraft,
   deleteSevenoAssessmentUnusedDraft,
+  deleteSevenoAssessmentVersion,
   duplicateSevenoAssessmentVersion,
   generateSevenoAssessmentPrompt,
   handleSevenoAssessmentRepositoryError,
@@ -84,6 +85,12 @@ export async function POST(request: NextRequest) {
         ));
       case 'delete_unused_draft':
         return jsonNoStore(await deleteSevenoAssessmentUnusedDraft(
+          session,
+          typeof body?.versionId === 'string' ? body.versionId : '',
+          typeof body?.revisionNumber === 'number' ? body.revisionNumber : undefined,
+        ));
+      case 'delete_version':
+        return jsonNoStore(await deleteSevenoAssessmentVersion(
           session,
           typeof body?.versionId === 'string' ? body.versionId : '',
           typeof body?.revisionNumber === 'number' ? body.revisionNumber : undefined,

@@ -957,6 +957,18 @@ export default function SevenoProfessionalAssessmentEditor() {
     await runAction('archive_version', { versionId: selectedVersion.id, revisionNumber: selectedVersion.revisionNumber }, 'Version archivée.');
   }
 
+  async function handleDeleteVersion() {
+    if (!selectedVersion) {
+      return;
+    }
+
+    if (!window.confirm('Supprimer definitivement ce questionnaire ? Cette action supprimera le document Firestore et son historique.')) {
+      return;
+    }
+
+    await runAction('delete_version', { versionId: selectedVersion.id, revisionNumber: selectedVersion.revisionNumber }, 'Questionnaire supprime.');
+  }
+
   async function handleImportJson() {
     if (!importJsonText.trim()) {
       setImportFeedback('Collez un JSON avant de l’importer.');
@@ -2115,6 +2127,14 @@ export default function SevenoProfessionalAssessmentEditor() {
                       className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Archiver
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteVersion()}
+                      disabled={!selectedVersion}
+                      className="rounded-full border border-orange-300/20 bg-orange-400/10 px-4 py-2 text-sm font-semibold text-orange-50 transition hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Supprimer le questionnaire
                     </button>
                   </div>
                 </div>
