@@ -70,8 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const answers = isPlainObject(body.answers) ? body.answers : {};
-    const result = await submitSevenoTestSession(decodedToken.uid, sessionId, answers);
+    const result = await submitSevenoTestSession(decodedToken.uid, sessionId, body);
     return NextResponse.json(result);
   } catch (error) {
     return toErrorResponse(error);

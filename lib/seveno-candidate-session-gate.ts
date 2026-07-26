@@ -25,3 +25,10 @@ export function resolveCandidateSessionGateState(input: {
 export function shouldRenderCandidateChildren(state: CandidateSessionGateState) {
   return state === 'ready';
 }
+
+export function shouldAllowCandidateOnboardingWithoutProfile(
+  pathname: string | null,
+  hasCandidateProfile: boolean,
+) {
+  return pathname === '/candidat/onboarding' && !hasCandidateProfile;
+}

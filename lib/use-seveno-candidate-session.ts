@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { getCandidateProfile } from '@/lib/seveno-candidates';
 import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import { shouldAllowCandidateOnboardingWithoutProfile } from '@/lib/seveno-candidate-session-gate';
 import type { CandidateProfile } from '@/types/seveno';
 
 export function useSevenoCandidateSession() {
   const router = useRouter();
+  const pathname = usePathname();
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,11 @@ export function useSevenoCandidateSession() {
         const candidateProfile = await getCandidateProfile(sevenoUser.uid);
         if (!active) return;
         if (!candidateProfile) {
+          if (shouldAllowCandidateOnboardingWithoutProfile(pathname, false)) {
+            setAuthUser(firebaseUser);
+            setProfile(null);
+            return;
+          }
           router.replace('/candidat/onboarding');
           return;
         }
@@ -51,7 +58,7 @@ export function useSevenoCandidateSession() {
     }
     void load();
     return () => { active = false; };
-  }, [router]);
+  }, [pathname, router]);
 
   return { authUser, profile, loading, error };
 }

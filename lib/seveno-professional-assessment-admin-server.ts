@@ -105,19 +105,23 @@ function toPreviewBankQuestion(question: SevenoAssessmentStoredVersion['question
     instruction: question.instruction,
     primaryDimensionCodes: [...question.primaryDimensionCodes],
     ...(question.secondaryDimensionCodes?.length ? { secondaryDimensionCode: question.secondaryDimensionCodes[0] } : {}),
+    ...(question.questionType ? { questionType: question.questionType } : {}),
+    ...(question.signalReliability ? { signalReliability: question.signalReliability } : {}),
+    ...(question.behaviorModel ? { behaviorModel: { ...question.behaviorModel, secondaryAxisCodes: [...question.behaviorModel.secondaryAxisCodes], context: { ...question.behaviorModel.context } } } : {}),
     options: question.options.map((option) => ({
       id: option.id,
       label: option.label,
       order: option.position,
       dimensionScores: { ...option.dimensionScores },
       adminExplanation: option.adminExplanation,
+      ...(option.behaviorSignals ? { behaviorSignals: { ...option.behaviorSignals } } : {}),
     })),
     adminRationale: question.adminRationale,
     difficulty: question.difficulty,
   };
 }
 
-function buildPreviewBankDocumentFromVersion(version: SevenoAssessmentStoredVersion): SevenoProfessionalAssessmentBankDocument {
+export function buildPreviewBankDocumentFromVersion(version: SevenoAssessmentStoredVersion): SevenoProfessionalAssessmentBankDocument {
   return {
     versionMetadata: {
       name: version.name,
@@ -128,6 +132,7 @@ function buildPreviewBankDocumentFromVersion(version: SevenoAssessmentStoredVers
       extendedPoolSize: version.extendedPoolSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
       essentialDrawSize: version.essentialDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE,
       extendedDrawSize: version.extendedDrawSize ?? SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+      schemaVersion: (version.schemaVersion ?? 1) as 1 | 2,
     },
     essentialQuestionPool: version.questions.filter((question) => question.path === 'essential' && question.isActive !== false).map((question) => toPreviewBankQuestion(question)),
     extendedQuestionPool: version.questions.filter((question) => question.path === 'extended' && question.isActive !== false).map((question) => toPreviewBankQuestion(question)),

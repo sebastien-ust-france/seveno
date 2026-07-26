@@ -5,7 +5,6 @@ import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import type {
   SevenoTestStartState,
   TestSessionStartResult,
-  TestSessionSubmitResult,
 } from '@/types/seveno';
 
 export function getCandidateSevenoTestStateClient(authUser: User) {
@@ -28,10 +27,12 @@ export function submitCandidateSevenoTestSessionClient(
   authUser: User,
   input: {
     sessionId: string;
-    answers: Record<string, string>;
+    questionId: string;
+    answer: string | null;
+    timeout?: boolean;
   },
 ) {
-  return fetchSevenoMatchApi<TestSessionSubmitResult>(
+  return fetchSevenoMatchApi<SevenoTestStartState>(
     authUser,
     '/api/seveno/tests/submit',
     {

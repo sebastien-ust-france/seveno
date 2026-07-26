@@ -1,7 +1,13 @@
 import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
-import type { PublicTestQuestion, QuestionBank, TestQuestion, TestQuestionOption } from '@/types/seveno';
+import type {
+  AssessmentBehaviorQuestionType,
+  PublicTestQuestion,
+  QuestionBank,
+  TestQuestion,
+  TestQuestionOption,
+} from '@/types/seveno';
 
 export const SEVENO_TEST_DEFAULT_DURATION_SECONDS = 20 * 60;
 export const SEVENO_TEST_DEFAULT_THRESHOLD = 70;
@@ -378,11 +384,15 @@ export function toPublicTestQuestion(question: TestQuestion): PublicTestQuestion
       id: option.id,
       label: option.label,
       ...(typeof option.order === 'number' ? { order: option.order } : {}),
+      ...(option.behaviorSignals ? { behaviorSignals: { ...option.behaviorSignals } } : {}),
     })),
     ...(question.type ? { type: question.type } : {}),
     ...(question.difficulty ? { difficulty: question.difficulty } : {}),
     ...(question.skillTags ? { skillTags: [...question.skillTags] } : {}),
     ...(question.dimension ? { dimension: question.dimension } : {}),
+    ...(question.questionType ? { questionType: question.questionType as AssessmentBehaviorQuestionType } : {}),
+    ...(question.signalReliability ? { signalReliability: question.signalReliability } : {}),
+    ...(question.behaviorModel ? { behaviorModel: { ...question.behaviorModel, secondaryAxisCodes: [...question.behaviorModel.secondaryAxisCodes], context: { ...question.behaviorModel.context } } } : {}),
   };
 }
 

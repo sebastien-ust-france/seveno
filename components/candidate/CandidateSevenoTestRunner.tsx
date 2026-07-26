@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
@@ -11,7 +11,9 @@ import {
   startCandidateSevenoTestSessionClient,
   submitCandidateSevenoTestSessionClient,
 } from '@/lib/seveno-tests-client';
-import type { PublicTestQuestion, SevenoAssessmentScores, SevenoTestStartState } from '@/types/seveno';
+import type { SevenoAssessmentScores, SevenoTestStartState } from '@/types/seveno';
+
+const SEVENO_TEST_QUESTION_TIME_SECONDS = 25;
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) {
@@ -79,16 +81,6 @@ function getDimensionLabel(scoresByDimension?: SevenoAssessmentScores | null) {
   }));
 }
 
-function getDefaultAnswers(questions: PublicTestQuestion[]) {
-  const answers: Record<string, string> = {};
-  for (const question of questions) {
-    if (question.options.length > 0) {
-      answers[question.id] = '';
-    }
-  }
-  return answers;
-}
-
 export function CandidateSevenoTestRunner() {
   const { authUser, loading: sessionLoading, error: sessionError } = useSevenoCandidateSession();
   const [state, setState] = useState<SevenoTestStartState | null>(null);
@@ -96,85 +88,29 @@ export function CandidateSevenoTestRunner() {
   const [starting, setStarting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [serverOffsetMs, setServerOffsetMs] = useState(0);
+  const [currentAnswer, setCurrentAnswer] = useState('');
   const [clientNow, setClientNow] = useState(() => Date.now());
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
+  const autoAdvanceHandledRef = useRef<string | null>(null);
+
   const activeSession = state?.session ?? null;
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadState() {
-      if (!authUser) {
-        return;
-      }
-
-      setLoadingState(true);
-      setError(null);
-
-      try {
-        const payload = await getCandidateSevenoTestStateClient(authUser);
-        if (!active) {
-          return;
-        }
-
-        setState(payload);
-        setAnswers(payload.session ? getDefaultAnswers(payload.session.questions) : {});
-        setServerOffsetMs(payload.session ? Date.parse(payload.session.serverNow) - Date.now() : 0);
-      } catch (thrownError) {
-        if (!active) {
-          return;
-        }
-
-        setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire Seven’O est indisponible.');
-      } finally {
-        if (active) {
-          setLoadingState(false);
-        }
-      }
-    }
-
-    void loadState();
-
-    return () => {
-      active = false;
-    };
-  }, [authUser]);
-
-  useEffect(() => {
-    if (!activeSession) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setClientNow(Date.now());
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [activeSession]);
-
-  useEffect(() => {
-    if (!activeSession) {
-      return;
-    }
-
-    setServerOffsetMs(Date.parse(activeSession.serverNow) - Date.now());
-  }, [activeSession]);
-
-  const questionnaire = state?.session?.questions ?? [];
-  const questionnaireStatusLabel = getQuestionnaireStateLabel(state);
-  const questionnaireStatusNote = getQuestionnaireStateNote(state);
   const questionnaireCompleted = state?.assessment?.status === 'completed';
   const preparation = state?.preparation ?? null;
-  const hasActiveSession = Boolean(activeSession);
-  const remainingSeconds = activeSession
-    ? Math.max(0, Math.ceil((Date.parse(activeSession.expiresAt) - (clientNow + serverOffsetMs)) / 1000))
+  const questionnaire = activeSession?.questions ?? [];
+  const questionCount = questionnaire.length;
+  const currentQuestionIndex = activeSession?.currentQuestionIndex ?? 0;
+  const currentQuestion = activeSession
+    ? questionnaire[Math.min(Math.max(currentQuestionIndex, 0), Math.max(questionCount - 1, 0))] ?? null
     : null;
-  const allQuestionsAnswered = hasActiveSession
-    ? questionnaire.every((question) => typeof answers[question.id] === 'string' && answers[question.id].trim().length > 0)
-    : false;
+  const questionTimeSeconds = activeSession?.questionTimeSeconds ?? SEVENO_TEST_QUESTION_TIME_SECONDS;
+  const remainingQuestionSeconds = activeSession?.questionExpiresAt
+    ? Math.max(0, Math.ceil((Date.parse(activeSession.questionExpiresAt) - (clientNow + serverOffsetMs)) / 1000))
+    : null;
+  const questionnaireStatusLabel = getQuestionnaireStateLabel(state);
+  const questionnaireStatusNote = getQuestionnaireStateNote(state);
+  const finalScore = state?.assessment?.overallScore ?? null;
+  const dimensionScores = getDimensionLabel(state?.assessment?.scoresByDimension);
+
   const preparationCardItems = state
     ? [
         {
@@ -198,6 +134,88 @@ export function CandidateSevenoTestRunner() {
       ]
     : [];
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadState() {
+      if (!authUser) {
+        return;
+      }
+
+      setLoadingState(true);
+      setError(null);
+
+      try {
+        const payload = await getCandidateSevenoTestStateClient(authUser);
+        if (!active) {
+          return;
+        }
+
+        setState(payload);
+        setCurrentAnswer('');
+        setServerOffsetMs(payload.session ? Date.parse(payload.session.serverNow) - Date.now() : 0);
+      } catch (thrownError) {
+        if (!active) {
+          return;
+        }
+
+        setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire Seven’O est indisponible.');
+      } finally {
+        if (active) {
+          setLoadingState(false);
+        }
+      }
+    }
+
+    void loadState();
+
+    return () => {
+      active = false;
+    };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!activeSession || questionnaireCompleted) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setClientNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeSession, questionnaireCompleted]);
+
+  useEffect(() => {
+    if (!activeSession) {
+      autoAdvanceHandledRef.current = null;
+      return;
+    }
+
+    autoAdvanceHandledRef.current = null;
+  }, [activeSession, currentQuestionIndex]);
+
+  useEffect(() => {
+    if (!activeSession || questionnaireCompleted || !currentQuestion || remainingQuestionSeconds === null) {
+      return;
+    }
+
+    if (remainingQuestionSeconds !== 0) {
+      return;
+    }
+
+    const autoAdvanceKey = `${activeSession.sessionId}:${currentQuestion.id}:${currentQuestionIndex}`;
+    if (autoAdvanceHandledRef.current === autoAdvanceKey) {
+      return;
+    }
+
+    autoAdvanceHandledRef.current = autoAdvanceKey;
+    void handleAdvanceQuestion(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession?.sessionId, questionnaireCompleted, currentQuestion?.id, currentQuestionIndex, remainingQuestionSeconds]);
+
   async function handleStartSession() {
     if (!authUser) {
       return;
@@ -208,21 +226,21 @@ export function CandidateSevenoTestRunner() {
 
     try {
       const session = await startCandidateSevenoTestSessionClient(authUser);
-        setState((current) => {
-          const preparation = current?.preparation ?? {
-            questionBankCode: session.questionBankCode,
-            questionnaireVersion: '1.0.0',
-            durationSeconds: session.durationSeconds,
-            totalQuestions: session.totalQuestions,
+      setState((current) => {
+        const preparationState = current?.preparation ?? {
+          questionBankCode: session.questionBankCode,
+          questionnaireVersion: '1.0.0',
+          durationSeconds: session.durationSeconds,
+          totalQuestions: session.totalQuestions,
         };
 
         return {
-          preparation,
+          preparation: preparationState,
           assessment: null,
           session,
         };
       });
-      setAnswers(getDefaultAnswers(session.questions));
+      setCurrentAnswer('');
       setServerOffsetMs(Date.parse(session.serverNow) - Date.now());
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire Seven’O n’a pas pu être lancé.');
@@ -231,63 +249,93 @@ export function CandidateSevenoTestRunner() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleAdvanceQuestion(timeout = false) {
     const session = activeSession;
-    if (!authUser || !session || submitting) {
-      return;
-    }
-
-    if (!allQuestionsAnswered) {
-      setError('Répondez à toutes les questions avant de soumettre la session.');
+    const question = currentQuestion;
+    if (!authUser || !session || !question || submitting) {
       return;
     }
 
     setSubmitting(true);
-    setError(null);
 
     try {
-      await submitCandidateSevenoTestSessionClient(authUser, {
+      if (!timeout && !currentAnswer) {
+        setError('Répondez à la question avant de passer à la suivante.');
+        return;
+      }
+
+      setError(null);
+      const nextState = await submitCandidateSevenoTestSessionClient(authUser, {
         sessionId: session.sessionId,
-        answers,
+        questionId: question.id,
+        answer: timeout ? null : currentAnswer,
+        timeout,
       });
 
-      const refreshed = await getCandidateSevenoTestStateClient(authUser);
-      setState(refreshed);
-      setAnswers(refreshed.session ? getDefaultAnswers(refreshed.session.questions) : {});
-      setServerOffsetMs(refreshed.session ? Date.parse(refreshed.session.serverNow) - Date.now() : 0);
-    } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'La soumission du questionnaire a échoué.');
+      setState(nextState);
+      setCurrentAnswer('');
+      setServerOffsetMs(nextState.session ? Date.parse(nextState.session.serverNow) - Date.now() : 0);
     } finally {
       setSubmitting(false);
     }
   }
 
-  const finalScore = state?.assessment?.overallScore ?? null;
-  const dimensionScores = getDimensionLabel(state?.assessment?.scoresByDimension);
-
-  return (
-    <CandidateShell
-      title="Questionnaire général Seven’O"
-      description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
-      actions={(
-        <Link
-          href="/candidat"
-          className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-        >
-          Retour au tableau de bord candidat
-        </Link>
-      )}
-    >
-      {sessionLoading || loadingState ? (
+  if (sessionLoading || loadingState) {
+    return (
+      <CandidateShell
+        title="Questionnaire général Seven’O"
+        description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
+        actions={(
+          <Link
+            href="/candidat"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+          >
+            Retour au tableau de bord candidat
+          </Link>
+        )}
+      >
         <SevenoPanel tone="neutral" className="p-5">
           <p className="text-sm text-slate-300">Chargement de votre session Seven’O…</p>
         </SevenoPanel>
-      ) : sessionError || error ? (
+      </CandidateShell>
+    );
+  }
+
+  if (sessionError || error) {
+    return (
+      <CandidateShell
+        title="Questionnaire général Seven’O"
+        description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
+        actions={(
+          <Link
+            href="/candidat"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+          >
+            Retour au tableau de bord candidat
+          </Link>
+        )}
+      >
         <SevenoPanel tone="orange" className="p-5 text-sm leading-7 text-amber-100">
           {sessionError ?? error}
         </SevenoPanel>
-      ) : questionnaireCompleted && state?.assessment ? (
+      </CandidateShell>
+    );
+  }
+
+  if (questionnaireCompleted && state?.assessment) {
+    return (
+      <CandidateShell
+        title="Questionnaire général Seven’O"
+        description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
+        actions={(
+          <Link
+            href="/candidat"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+          >
+            Retour au tableau de bord candidat
+          </Link>
+        )}
+      >
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             {preparationCardItems.map((card) => (
@@ -341,129 +389,165 @@ export function CandidateSevenoTestRunner() {
             ) : null}
           </SevenoPanel>
         </div>
-      ) : (
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-3">
-            {preparationCardItems.map((card) => (
-              <CandidateStatusCard
-                key={card.label}
-                tone={card.tone}
-                label={card.label}
-                value={card.value}
-                note={card.note}
-              />
-            ))}
-          </div>
+      </CandidateShell>
+    );
+  }
 
-          <SevenoPanel tone="violet" className="p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Session réelle</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">
-                  {hasActiveSession ? 'Reprendre la session chronométrée' : 'Lancer le questionnaire'}
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
-                  {hasActiveSession
-                    ? 'Votre session en cours se recharge ici sans être recréée. Chaque soumission reste liée à la même tentative.'
-                    : 'Le moteur Seven’O ouvre une session réelle et chronométrée. Vous répondez à toutes les questions avant la soumission finale.'}
-                </p>
-              </div>
+  return (
+    <CandidateShell
+      title="Questionnaire général Seven’O"
+      description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
+      actions={(
+        <Link
+          href="/candidat"
+          className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+        >
+          Retour au tableau de bord candidat
+        </Link>
+      )}
+    >
+      <div className="space-y-5">
+        <div className="grid gap-4 md:grid-cols-3">
+          {preparationCardItems.map((card) => (
+            <CandidateStatusCard
+              key={card.label}
+              tone={card.tone}
+              label={card.label}
+              value={card.value}
+              note={card.note}
+            />
+          ))}
+        </div>
 
-              <div className="flex shrink-0 items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleStartSession()}
-                  disabled={starting || Boolean(state?.session)}
-                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {hasActiveSession ? 'Continuer la session' : starting ? 'Ouverture…' : 'Commencer le questionnaire'}
-                </button>
-              </div>
+        <SevenoPanel tone="violet" className="p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Session réelle</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                {activeSession ? 'Session chronométrée en cours' : 'Lancer le questionnaire'}
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                {activeSession
+                  ? 'Une seule question est affichée à la fois. Répondez ou laissez le temps expirer pour passer à la suivante.'
+                  : 'Le moteur Seven’O ouvre une session réelle et chronométrée. Vous répondez question par question avant la soumission finale.'}
+              </p>
             </div>
-          </SevenoPanel>
 
-          {hasActiveSession && activeSession ? (
-            <form className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
-              <SevenoPanel tone="neutral" className="p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-3xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Chronomètre</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Session active Seven’O</h2>
-                    <p className="mt-3 text-sm leading-7 text-slate-300">
-                      Version {preparation?.questionnaireVersion ?? 'Non renseigné'} · {preparation?.totalQuestions ?? 0} questions · durée estimée {preparation ? formatCountdown(preparation.durationSeconds) : 'Non renseigné'}.
-                    </p>
-                  </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void handleStartSession()}
+                disabled={starting || Boolean(state?.session)}
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {activeSession ? 'Continuer la session' : starting ? 'Ouverture…' : 'Commencer le questionnaire'}
+              </button>
+            </div>
+          </div>
+        </SevenoPanel>
 
-                  <div className="space-y-2 rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm text-slate-300 lg:min-w-[18rem]">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Temps restant</p>
-                    <p className="font-medium text-white">{remainingSeconds !== null ? formatCountdown(remainingSeconds) : 'Non disponible'}</p>
-                    <p>Session : {activeSession.sessionId}</p>
-                    <p>Début : {formatDateTime(activeSession.startedAt)}</p>
-                    <p>Fin : {formatDateTime(activeSession.expiresAt)}</p>
-                  </div>
+        {activeSession && currentQuestion ? (
+          <form className="space-y-5" onSubmit={(event) => void event.preventDefault()}>
+            <SevenoPanel tone="neutral" className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Question courante</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Session active Seven’O</h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">
+                    Version {preparation?.questionnaireVersion ?? 'Non renseigné'} · {questionCount} questions · durée estimée {preparation ? formatCountdown(preparation.durationSeconds) : 'Non renseigné'}.
+                  </p>
                 </div>
-              </SevenoPanel>
 
-              <div className="space-y-4">
-                {questionnaire.map((question, index) => (
-                  <SevenoPanel key={question.id} tone="neutral" className="p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
-                      Question {index + 1} / {questionnaire.length}
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold text-white">{question.question}</h3>
-                    {question.dimension ? (
-                      <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-400">{question.dimension}</p>
-                    ) : null}
+                <div className="space-y-2 rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm text-slate-300 lg:min-w-[18rem]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Question courante</p>
+                  <p className="font-medium text-white">
+                    {Math.min(currentQuestionIndex + 1, questionCount)} / {questionCount}
+                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Temps restant</p>
+                  <p className="font-medium text-white">
+                    {remainingQuestionSeconds !== null ? formatCountdown(remainingQuestionSeconds) : `${questionTimeSeconds} s / question`}
+                  </p>
+                  <p>Session : {activeSession.sessionId}</p>
+                  <p>Début question : {formatDateTime(activeSession.questionStartedAt as unknown as string | null)}</p>
+                </div>
+              </div>
+            </SevenoPanel>
 
-                    <div className="mt-4 grid gap-3">
-                      {question.options.map((option) => (
-                        <label
-                          key={option.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
-                        >
-                          <input
-                            type="radio"
-                            name={question.id}
-                            value={option.id}
-                            checked={(answers[question.id] ?? '') === option.id}
-                            onChange={() => setAnswers((current) => ({ ...current, [question.id]: option.id }))}
-                            className="mt-1 accent-cyan-400"
-                          />
-                          <span>{option.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </SevenoPanel>
+            <SevenoPanel tone="neutral" className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                    Question {Math.min(currentQuestionIndex + 1, questionCount)} / {questionCount}
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold text-white">{currentQuestion.question}</h3>
+                  {currentQuestion.dimension ? (
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-400">{currentQuestion.dimension}</p>
+                  ) : null}
+                </div>
+
+                <div className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100">
+                  {remainingQuestionSeconds !== null ? formatCountdown(remainingQuestionSeconds) : `${questionTimeSeconds} s / question`}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {currentQuestion.options.map((option) => (
+                  <label
+                    key={option.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
+                      currentAnswer === option.id
+                        ? 'border-cyan-300/40 bg-cyan-400/10 text-white'
+                        : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={currentQuestion.id}
+                      value={option.id}
+                      checked={currentAnswer === option.id}
+                      onChange={() => {
+                        setCurrentAnswer(option.id);
+                        setError(null);
+                      }}
+                      className="mt-1 accent-cyan-400"
+                    />
+                    <span>{option.label}</span>
+                  </label>
                 ))}
               </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="submit"
-                  disabled={submitting || !allQuestionsAnswered}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {submitting ? 'Soumission…' : 'Soumettre mes réponses'}
-                </button>
-                <Link
-                  href="/candidat"
-                  className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
-                >
-                  Retour au tableau de bord
-                </Link>
-              </div>
-            </form>
-          ) : (
-            <SevenoPanel tone="neutral" className="p-5">
-              <p className="text-sm leading-7 text-slate-300">
-                {questionnaireCompleted
-                  ? 'Votre questionnaire est terminé. Le résultat est consultable ci-dessus et le tableau de bord candidat est à jour.'
-                  : 'Aucune session n’est active pour le moment. Lancez le questionnaire pour ouvrir la version réelle du moteur Seven’O.'}
-              </p>
             </SevenoPanel>
-          )}
-        </div>
-      )}
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void handleAdvanceQuestion(false)}
+                disabled={submitting || !currentAnswer}
+                className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {submitting
+                  ? 'Soumission…'
+                  : currentQuestionIndex >= questionCount - 1
+                    ? 'Soumettre mes réponses'
+                    : 'Question suivante'}
+              </button>
+              <Link
+                href="/candidat"
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Retour au tableau de bord
+              </Link>
+            </div>
+          </form>
+        ) : (
+          <SevenoPanel tone="neutral" className="p-5">
+            <p className="text-sm leading-7 text-slate-300">
+              {questionnaireCompleted
+                ? 'Votre questionnaire est terminé. Le résultat est consultable ci-dessus et le tableau de bord candidat est à jour.'
+                : 'Aucune session n’est active pour le moment. Lancez le questionnaire pour ouvrir la version réelle du moteur Seven’O.'}
+            </p>
+          </SevenoPanel>
+        )}
+      </div>
     </CandidateShell>
   );
 }

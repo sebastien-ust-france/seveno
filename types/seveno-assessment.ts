@@ -12,6 +12,39 @@ export type AssessmentDimensionCode =
   | 'collaboration'
   | 'rigor_reliability';
 export type AssessmentQuestionDifficulty = 'introductory' | 'standard' | 'advanced';
+export type AssessmentBehaviorAxisCode =
+  | 'decision_pace'
+  | 'risk_orientation'
+  | 'initiative_validation'
+  | 'framework_adaptation'
+  | 'persistence_switching'
+  | 'analysis_experimentation'
+  | 'speed_precision'
+  | 'ambiguity_tolerance'
+  | 'authority_challenge'
+  | 'disagreement_style'
+  | 'method_exploration'
+  | 'execution_improvement'
+  | 'leadership_activation'
+  | 'influence'
+  | 'followership'
+  | 'collective_support'
+  | 'value_creation'
+  | 'alerting_behavior';
+export type AssessmentBehaviorQuestionType = 'behavioral_situation' | 'tradeoff' | 'direct_self_report' | 'work_preference';
+export type AssessmentSignalReliability = 'high' | 'medium' | 'low' | 'descriptive';
+export type AssessmentBehaviorSignalValue = -2 | -1 | 0 | 1 | 2;
+export type AssessmentBehaviorRiskLevel = 'none' | 'low' | 'medium' | 'high';
+export type AssessmentBehaviorReversibility = 'not_applicable' | 'high' | 'medium' | 'low';
+export type AssessmentBehaviorUrgency = 'none' | 'low' | 'medium' | 'high';
+export type AssessmentBehaviorAuthorityContext = 'none' | 'present' | 'absent' | 'directive' | 'disagreement';
+export type AssessmentBehaviorInformationCompleteness = 'complete' | 'partial' | 'uncertain';
+export type AssessmentBehaviorCollectiveImpact = 'individual' | 'team' | 'third_party' | 'organization';
+export type AssessmentBehaviorPriorFailure = 'none' | 'suspected' | 'confirmed';
+export type AssessmentBehaviorSocialPressure = 'none' | 'low' | 'medium' | 'high';
+export type AssessmentBehaviorHelpAvailability = 'available' | 'limited' | 'unavailable' | 'not_applicable';
+export type AssessmentBehaviorWaitingCost = 'none' | 'low' | 'medium' | 'high';
+export type AssessmentBehaviorSmallScaleTestPossible = boolean | null;
 export type AssessmentValidationSeverity = 'error' | 'warning';
 export type AssessmentSessionStatus = 'not_started' | 'in_progress' | 'submitted' | 'expired' | 'abandoned' | 'cancelled';
 export type AssessmentDimensionResultStatus = 'measured' | 'insufficient_data' | 'not_measured';
@@ -61,6 +94,28 @@ export interface AssessmentQuestionOption {
   position: number;
   dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
   adminExplanation: string;
+  behaviorSignals?: Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>>;
+}
+
+export interface AssessmentBehaviorContext {
+  riskLevel: AssessmentBehaviorRiskLevel;
+  reversibility: AssessmentBehaviorReversibility;
+  urgency: AssessmentBehaviorUrgency;
+  authorityContext: AssessmentBehaviorAuthorityContext;
+  informationCompleteness: AssessmentBehaviorInformationCompleteness;
+  collectiveImpact: AssessmentBehaviorCollectiveImpact;
+  priorFailure: AssessmentBehaviorPriorFailure;
+  socialPressure: AssessmentBehaviorSocialPressure;
+  helpAvailability: AssessmentBehaviorHelpAvailability;
+  waitingCost: AssessmentBehaviorWaitingCost;
+  smallScaleTestPossible: AssessmentBehaviorSmallScaleTestPossible;
+}
+
+export interface AssessmentBehaviorModel {
+  primaryAxisCode: AssessmentBehaviorAxisCode;
+  secondaryAxisCodes: AssessmentBehaviorAxisCode[];
+  signalReliability: AssessmentSignalReliability;
+  context: AssessmentBehaviorContext;
 }
 
 export interface AssessmentQuestion {
@@ -74,6 +129,9 @@ export interface AssessmentQuestion {
   options: AssessmentQuestionOption[];
   primaryDimensionCodes: AssessmentDimensionCode[];
   secondaryDimensionCodes?: AssessmentDimensionCode[];
+  questionType?: AssessmentBehaviorQuestionType;
+  signalReliability?: AssessmentSignalReliability;
+  behaviorModel?: AssessmentBehaviorModel;
   difficulty: AssessmentQuestionDifficulty;
   estimatedReadingSeconds: number;
   adminRationale: string;
@@ -99,6 +157,7 @@ export interface AssessmentVersionDescriptor {
   extendedPoolSize?: number;
   essentialDrawSize?: number;
   extendedDrawSize?: number;
+  schemaVersion?: number;
   dimensions: AssessmentDimensionDefinition[];
   questions: AssessmentQuestion[];
   essentialQuestionCount: number;

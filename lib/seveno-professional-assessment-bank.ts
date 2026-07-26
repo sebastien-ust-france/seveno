@@ -1,14 +1,26 @@
 import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
-import { AssessmentModelError, SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES } from '@/lib/seveno-professional-assessment';
+import {
+  AssessmentModelError,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_CONTEXT_VALUES,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_QUESTION_TYPES,
+  SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES,
+  SEVENO_PROFESSIONAL_ASSESSMENT_SIGNAL_RELIABILITY_VALUES,
+} from '@/lib/seveno-professional-assessment';
 import type {
+  AssessmentBehaviorAxisCode,
+  AssessmentBehaviorContext,
+  AssessmentBehaviorQuestionType,
+  AssessmentBehaviorSignalValue,
   AssessmentDimensionCode,
   AssessmentDimensionDefinition,
   AssessmentInterpretationBlock,
   AssessmentQuestion,
   AssessmentQuestionDifficulty,
   AssessmentScoreValue,
+  AssessmentSignalReliability,
   AssessmentValidationIssue,
   AssessmentValidationResult,
   AssessmentVersionDescriptor,
@@ -21,6 +33,21 @@ export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE = 30
 export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_DRAW_SIZE = 20;
 export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE = 20;
 export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_MAX_DOCUMENT_BYTES = 600 * 1024;
+const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_V2_ROOT_KEYS = [
+  'versionMetadata',
+  'essentialQuestionPool',
+  'extendedQuestionPool',
+  'dimensionConfigurations',
+  'interpretationBlocks',
+  'interviewQuestions',
+] as const;
+const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_V2_INTERPRETATION_RANGES = [
+  { minScore: 0, maxScore: 39 },
+  { minScore: 40, maxScore: 59 },
+  { minScore: 60, maxScore: 74 },
+  { minScore: 75, maxScore: 89 },
+  { minScore: 90, maxScore: 100 },
+] as const;
 
 export const SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DRAW_PROFILE = {
   information_understanding: 3,
@@ -41,6 +68,7 @@ export interface SevenoProfessionalAssessmentBankVersionMetadata {
   extendedPoolSize: number;
   essentialDrawSize: number;
   extendedDrawSize: number;
+  schemaVersion: 1 | 2;
 }
 
 export interface SevenoProfessionalAssessmentBankQuestionOption {
@@ -49,6 +77,7 @@ export interface SevenoProfessionalAssessmentBankQuestionOption {
   order: number;
   dimensionScores: Partial<Record<AssessmentDimensionCode, AssessmentScoreValue>>;
   adminExplanation: string;
+  behaviorSignals?: Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>>;
 }
 
 export interface SevenoProfessionalAssessmentBankQuestion {
@@ -58,6 +87,14 @@ export interface SevenoProfessionalAssessmentBankQuestion {
   instruction: string;
   primaryDimensionCodes: AssessmentDimensionCode[];
   secondaryDimensionCode?: AssessmentDimensionCode | null;
+  questionType?: AssessmentBehaviorQuestionType;
+  signalReliability?: AssessmentSignalReliability;
+  behaviorModel?: {
+    primaryAxisCode: AssessmentBehaviorAxisCode;
+    secondaryAxisCodes: AssessmentBehaviorAxisCode[];
+    signalReliability: AssessmentSignalReliability;
+    context: AssessmentBehaviorContext;
+  };
   options: SevenoProfessionalAssessmentBankQuestionOption[];
   adminRationale: string;
   difficulty: AssessmentQuestionDifficulty;
@@ -134,6 +171,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function cloneValue<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -152,6 +197,89 @@ function isScore(value: unknown): value is AssessmentScoreValue {
 
 function isKnownDimensionCode(value: unknown): value is AssessmentDimensionCode {
   return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES as readonly string[]).includes(value);
+}
+
+function isKnownBehaviorAxisCode(value: unknown): value is AssessmentBehaviorAxisCode {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES as readonly string[]).includes(value);
+}
+
+function isKnownBehaviorQuestionType(value: unknown): value is AssessmentBehaviorQuestionType {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_QUESTION_TYPES as readonly string[]).includes(value);
+}
+
+function isKnownSignalReliability(value: unknown): value is AssessmentSignalReliability {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_SIGNAL_RELIABILITY_VALUES as readonly string[]).includes(value);
+}
+
+function isKnownBehaviorContextValue<K extends keyof AssessmentBehaviorContext>(
+  key: K,
+  value: unknown,
+): value is AssessmentBehaviorContext[K] {
+  return (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_CONTEXT_VALUES[key] as readonly unknown[]).includes(value);
+}
+
+function normalizeBehaviorSignals(
+  raw: unknown,
+): Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>> | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  return cloneValue(raw) as Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>>;
+}
+
+function normalizeBehaviorContext(raw: unknown): AssessmentBehaviorContext | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  const context: AssessmentBehaviorContext = {
+    riskLevel: isKnownBehaviorContextValue('riskLevel', raw.riskLevel) ? raw.riskLevel : 'none',
+    reversibility: isKnownBehaviorContextValue('reversibility', raw.reversibility) ? raw.reversibility : 'not_applicable',
+    urgency: isKnownBehaviorContextValue('urgency', raw.urgency) ? raw.urgency : 'none',
+    authorityContext: isKnownBehaviorContextValue('authorityContext', raw.authorityContext) ? raw.authorityContext : 'none',
+    informationCompleteness: isKnownBehaviorContextValue('informationCompleteness', raw.informationCompleteness) ? raw.informationCompleteness : 'partial',
+    collectiveImpact: isKnownBehaviorContextValue('collectiveImpact', raw.collectiveImpact) ? raw.collectiveImpact : 'individual',
+    priorFailure: isKnownBehaviorContextValue('priorFailure', raw.priorFailure) ? raw.priorFailure : 'none',
+    socialPressure: isKnownBehaviorContextValue('socialPressure', raw.socialPressure) ? raw.socialPressure : 'none',
+    helpAvailability: isKnownBehaviorContextValue('helpAvailability', raw.helpAvailability) ? raw.helpAvailability : 'not_applicable',
+    waitingCost: isKnownBehaviorContextValue('waitingCost', raw.waitingCost) ? raw.waitingCost : 'none',
+    smallScaleTestPossible: typeof raw.smallScaleTestPossible === 'boolean' || raw.smallScaleTestPossible === null
+      ? raw.smallScaleTestPossible
+      : null,
+  };
+
+  return context;
+}
+
+function normalizeBehaviorModel(raw: unknown) {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  const secondaryAxisCodes = Array.isArray(raw.secondaryAxisCodes)
+    ? [...new Set(raw.secondaryAxisCodes.map((item) => cleanString(item)).filter(isKnownBehaviorAxisCode))]
+    : [];
+
+  if (!isKnownBehaviorAxisCode(raw.primaryAxisCode) || !isKnownSignalReliability(raw.signalReliability)) {
+    return undefined;
+  }
+
+  const context = normalizeBehaviorContext(raw.context);
+  if (!context) {
+    return undefined;
+  }
+
+  return {
+    primaryAxisCode: raw.primaryAxisCode,
+    secondaryAxisCodes,
+    signalReliability: raw.signalReliability,
+    context,
+  } satisfies NonNullable<SevenoProfessionalAssessmentBankQuestion['behaviorModel']>;
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
 }
 
 function sortedUnique<T extends string>(values: readonly T[]): T[] {
@@ -185,6 +313,7 @@ function normalizeOption(raw: unknown, questionId: string, index: number): Seven
     order: isPositiveInteger(source.order) ? source.order : index + 1,
     dimensionScores,
     adminExplanation: cleanString(source.adminExplanation),
+    ...(normalizeBehaviorSignals(source.behaviorSignals) ? { behaviorSignals: normalizeBehaviorSignals(source.behaviorSignals) } : {}),
   };
 }
 
@@ -202,6 +331,9 @@ function normalizeQuestion(raw: unknown, index: number): SevenoProfessionalAsses
     instruction: cleanString(source.instruction),
     primaryDimensionCodes: normalizeDimensionCodes(source.primaryDimensionCodes),
     ...(isKnownDimensionCode(source.secondaryDimensionCode) ? { secondaryDimensionCode: source.secondaryDimensionCode } : {}),
+    ...(isKnownBehaviorQuestionType(source.questionType) ? { questionType: source.questionType } : {}),
+    ...(isKnownSignalReliability(source.signalReliability) ? { signalReliability: source.signalReliability } : {}),
+    ...(normalizeBehaviorModel(source.behaviorModel) ? { behaviorModel: normalizeBehaviorModel(source.behaviorModel) } : {}),
     options,
     adminRationale: cleanString(source.adminRationale),
     difficulty: source.difficulty === 'standard' || source.difficulty === 'advanced' ? source.difficulty : 'introductory',
@@ -303,6 +435,7 @@ function scanForForbiddenKeys(value: unknown, path = ''): AssessmentValidationIs
 function normalizeBankDocument(raw: unknown): SevenoProfessionalAssessmentBankDocument {
   const source = isRecord(raw) ? raw : {};
   const versionMetadata = isRecord(source.versionMetadata) ? source.versionMetadata : {};
+  const schemaVersion = versionMetadata.schemaVersion === 2 ? 2 : 1;
   return {
     versionMetadata: {
       name: cleanString(versionMetadata.name),
@@ -321,6 +454,7 @@ function normalizeBankDocument(raw: unknown): SevenoProfessionalAssessmentBankDo
       extendedDrawSize: isPositiveInteger(versionMetadata.extendedDrawSize)
         ? Number(versionMetadata.extendedDrawSize)
         : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
+      schemaVersion,
     },
     essentialQuestionPool: Array.isArray(source.essentialQuestionPool) ? source.essentialQuestionPool.map((question, index) => normalizeQuestion(question, index)) : [],
     extendedQuestionPool: Array.isArray(source.extendedQuestionPool) ? source.extendedQuestionPool.map((question, index) => normalizeQuestion(question, index)) : [],
@@ -343,6 +477,173 @@ function uniqueKeySetsMatch(options: SevenoProfessionalAssessmentBankQuestionOpt
 
   const firstSet = JSON.stringify(sortedUnique(Object.keys(options[0]!.dimensionScores ?? {})));
   return options.every((option) => JSON.stringify(sortedUnique(Object.keys(option.dimensionScores ?? {}))) === firstSet);
+}
+
+function validateBehaviorSignals(
+  behaviorSignals: unknown,
+  context: string,
+  allowedAxes: readonly AssessmentBehaviorAxisCode[],
+  requireBehaviorSignals: boolean,
+  requireExactAxisSet: boolean,
+) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(behaviorSignals)) {
+    if (requireBehaviorSignals) {
+      issues.push(createIssue('bank_option_missing_behavior_signals', `${context}.behaviorSignals`, 'Les signaux comportementaux sont obligatoires pour une question V2.'));
+    }
+
+    return issues;
+  }
+
+  const allowedAxisCodes = new Set<string>(allowedAxes);
+  if (requireExactAxisSet) {
+    for (const axisCode of allowedAxes) {
+      if (!(axisCode in behaviorSignals)) {
+        issues.push(createIssue('bank_option_missing_behavior_axis', `${context}.behaviorSignals.${axisCode}`, 'Chaque option V2 doit contenir exactement les axes comportementaux declares.'));
+      }
+    }
+  }
+
+  for (const [axisCode, value] of Object.entries(behaviorSignals)) {
+    if (!isKnownBehaviorAxisCode(axisCode)) {
+      issues.push(createIssue('bank_option_unknown_behavior_axis', `${context}.behaviorSignals.${axisCode}`, 'Un axe comportemental inconnu a ete trouve.'));
+      continue;
+    }
+
+    if (!allowedAxisCodes.has(axisCode)) {
+      issues.push(createIssue('bank_option_disallowed_behavior_axis', `${context}.behaviorSignals.${axisCode}`, 'Un signal comportemental ne peut utiliser qu un axe declare dans le modele comportemental de la question.'));
+    }
+
+    const numericValue = typeof value === 'number' ? value : Number.NaN;
+    if (!Number.isInteger(numericValue) || numericValue < -2 || numericValue > 2) {
+      issues.push(createIssue('bank_option_invalid_behavior_signal', `${context}.behaviorSignals.${axisCode}`, 'Un signal comportemental doit etre compris entre -2 et 2.'));
+    }
+  }
+
+  return issues;
+}
+
+function validateBehaviorContext(context: unknown, path: string) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(context)) {
+    issues.push(createIssue('bank_question_missing_behavior_context', path, 'Le contexte comportemental est obligatoire.'));
+    return issues;
+  }
+
+  const allowedKeys: Array<keyof AssessmentBehaviorContext> = [
+    'riskLevel',
+    'reversibility',
+    'urgency',
+    'authorityContext',
+    'informationCompleteness',
+    'collectiveImpact',
+    'priorFailure',
+    'socialPressure',
+    'helpAvailability',
+    'waitingCost',
+    'smallScaleTestPossible',
+  ];
+
+  for (const key of Object.keys(context)) {
+    if (!allowedKeys.includes(key as keyof AssessmentBehaviorContext)) {
+      issues.push(createIssue('bank_question_unknown_behavior_context_field', `${path}.${key}`, 'Le contexte comportemental contient un champ inconnu.'));
+    }
+  }
+
+  if (!isKnownBehaviorContextValue('riskLevel', context.riskLevel)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.riskLevel`, 'Le niveau de risque est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('reversibility', context.reversibility)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.reversibility`, 'La reversibilite est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('urgency', context.urgency)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.urgency`, "Le niveau d'urgence est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('authorityContext', context.authorityContext)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.authorityContext`, "Le contexte d'autorite est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('informationCompleteness', context.informationCompleteness)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.informationCompleteness`, 'Le niveau de completude de l information est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('collectiveImpact', context.collectiveImpact)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.collectiveImpact`, "L'impact collectif est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('priorFailure', context.priorFailure)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.priorFailure`, 'Le niveau de precedent echec est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('socialPressure', context.socialPressure)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.socialPressure`, 'La pression sociale est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('helpAvailability', context.helpAvailability)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.helpAvailability`, "La disponibilite d aide est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('waitingCost', context.waitingCost)) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.waitingCost`, "Le cout de l'attente est invalide."));
+  }
+
+  if (typeof context.smallScaleTestPossible !== 'boolean' && context.smallScaleTestPossible !== null) {
+    issues.push(createIssue('bank_question_invalid_behavior_context', `${path}.smallScaleTestPossible`, 'La possibilite de test a petite echelle est invalide.'));
+  }
+
+  return issues;
+}
+
+function validateBehaviorModel(model: unknown, path: string) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(model)) {
+    issues.push(createIssue('bank_question_missing_behavior_model', path, 'Le modele comportemental de la question est obligatoire.'));
+    return issues;
+  }
+
+  if (!isKnownBehaviorAxisCode(model.primaryAxisCode)) {
+    issues.push(createIssue('bank_question_invalid_primary_behavior_axis', `${path}.primaryAxisCode`, 'L axe comportemental principal est invalide.'));
+  }
+
+  if (!Array.isArray(model.secondaryAxisCodes)) {
+    issues.push(createIssue('bank_question_missing_secondary_behavior_axes', `${path}.secondaryAxisCodes`, 'Les axes secondaires comportementaux doivent etre un tableau.'));
+  } else {
+    const secondaryAxisCodes = model.secondaryAxisCodes.filter(isKnownBehaviorAxisCode);
+    if (secondaryAxisCodes.length !== model.secondaryAxisCodes.length) {
+      issues.push(createIssue('bank_question_invalid_secondary_behavior_axis', `${path}.secondaryAxisCodes`, 'Chaque axe secondaire comportemental doit appartenir au referentiel autorise.'));
+    }
+
+    if (secondaryAxisCodes.length > 2) {
+      issues.push(createIssue('bank_question_too_many_secondary_behavior_axes', `${path}.secondaryAxisCodes`, 'Une question ne peut pas avoir plus de deux axes secondaires comportementaux.'));
+    }
+
+    if (secondaryAxisCodes.length !== sortedUnique(secondaryAxisCodes).length) {
+      issues.push(createIssue('bank_question_duplicate_behavior_axes', `${path}.secondaryAxisCodes`, 'Les axes secondaires comportementaux doivent etre uniques.'));
+    }
+
+    if (isKnownBehaviorAxisCode(model.primaryAxisCode) && secondaryAxisCodes.includes(model.primaryAxisCode)) {
+      issues.push(createIssue('bank_question_behavior_axis_overlap', `${path}.secondaryAxisCodes`, 'L axe comportemental principal ne peut pas aussi etre secondaire.'));
+    }
+  }
+
+  const behaviorAxisCodes = [
+    ...(isKnownBehaviorAxisCode(model.primaryAxisCode) ? [model.primaryAxisCode] : []),
+    ...(Array.isArray(model.secondaryAxisCodes) ? model.secondaryAxisCodes.filter(isKnownBehaviorAxisCode) : []),
+  ];
+  const uniqueBehaviorAxisCodes = sortedUnique(behaviorAxisCodes);
+  if (uniqueBehaviorAxisCodes.length > 3) {
+    issues.push(createIssue('bank_question_too_many_behavior_axes', path, 'Une question ne peut pas observer plus de trois axes comportementaux au total.'));
+  }
+
+  if (!isKnownSignalReliability(model.signalReliability)) {
+    issues.push(createIssue('bank_question_invalid_signal_reliability', `${path}.signalReliability`, 'La fiabilite du signal comportemental est invalide.'));
+  }
+
+  issues.push(...validateBehaviorContext(model.context, `${path}.context`));
+  return issues;
 }
 
 function optionFingerprint(option: SevenoProfessionalAssessmentBankQuestionOption) {
@@ -368,7 +669,7 @@ function questionFingerprint(question: SevenoProfessionalAssessmentBankQuestion)
   });
 }
 
-function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, context: string) {
+function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, context: string, schemaVersion: 1 | 2) {
   const issues: AssessmentValidationIssue[] = [];
 
   if (!isNonEmptyString(question.questionId)) {
@@ -385,6 +686,27 @@ function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, co
 
   if (!isNonEmptyString(question.instruction)) {
     issues.push(createIssue('bank_question_missing_instruction', `${context}.instruction`, 'La consigne de la question est obligatoire.'));
+  }
+
+  if (schemaVersion >= 2) {
+    if (!isKnownBehaviorQuestionType(question.questionType)) {
+      issues.push(createIssue('bank_question_missing_type', `${context}.questionType`, 'Chaque question V2 doit contenir un type de question comportementale.'));
+    }
+
+    if (!isKnownSignalReliability(question.signalReliability)) {
+      issues.push(createIssue('bank_question_missing_signal_reliability', `${context}.signalReliability`, 'Chaque question V2 doit contenir une fiabilite de signal.'));
+    }
+
+    issues.push(...validateBehaviorModel(question.behaviorModel, `${context}.behaviorModel`));
+
+    if (
+      isKnownSignalReliability(question.signalReliability)
+      && isRecord(question.behaviorModel)
+      && isKnownSignalReliability(question.behaviorModel.signalReliability)
+      && question.signalReliability !== question.behaviorModel.signalReliability
+    ) {
+      issues.push(createIssue('bank_question_signal_reliability_mismatch', `${context}.signalReliability`, 'La fiabilite du signal doit etre identique dans la question et dans le modele comportemental.'));
+    }
   }
 
   if (!Array.isArray(question.options) || question.options.length !== 4) {
@@ -436,6 +758,13 @@ function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, co
     issues.push(createIssue('bank_question_dimension_key_mismatch', `${context}.options`, 'Les options doivent partager exactement les mêmes dimensions de score.'));
   }
 
+  const allowedBehaviorAxisCodes = schemaVersion >= 2 && isRecord(question.behaviorModel)
+    ? uniqueStrings([
+        ...(isKnownBehaviorAxisCode(question.behaviorModel.primaryAxisCode) ? [question.behaviorModel.primaryAxisCode] : []),
+        ...(Array.isArray(question.behaviorModel.secondaryAxisCodes) ? question.behaviorModel.secondaryAxisCodes.filter(isKnownBehaviorAxisCode) : []),
+      ]) as AssessmentBehaviorAxisCode[]
+    : SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES;
+
   if (!Array.isArray(question.primaryDimensionCodes) || question.primaryDimensionCodes.length < 1 || question.primaryDimensionCodes.length > 2) {
     issues.push(createIssue('bank_question_invalid_primary_dimensions', `${context}.primaryDimensionCodes`, 'Une question doit avoir une ou deux dimensions principales.'));
   }
@@ -450,6 +779,18 @@ function validateQuestion(question: SevenoProfessionalAssessmentBankQuestion, co
 
   if (question.difficulty !== 'introductory' && question.difficulty !== 'standard' && question.difficulty !== 'advanced') {
     issues.push(createIssue('bank_question_invalid_difficulty', `${context}.difficulty`, 'La difficulté de la question est invalide.'));
+  }
+
+  for (const [index, option] of question.options.entries()) {
+    if (schemaVersion >= 2) {
+      if (!isRecord(option.behaviorSignals)) {
+        issues.push(createIssue('bank_option_missing_behavior_signals', `${context}.options[${index}].behaviorSignals`, 'Chaque option V2 doit contenir des signaux comportementaux.'));
+      } else {
+        issues.push(...validateBehaviorSignals(option.behaviorSignals, `${context}.options[${index}]`, allowedBehaviorAxisCodes, true, true));
+      }
+    } else if (option.behaviorSignals !== undefined) {
+      issues.push(...validateBehaviorSignals(option.behaviorSignals, `${context}.options[${index}]`, allowedBehaviorAxisCodes, false, false));
+    }
   }
 
   if (Array.isArray(question.internalTags)) {
@@ -482,14 +823,98 @@ function bankQuestionToAssessmentQuestion(
       position: option.order,
       dimensionScores: { ...option.dimensionScores },
       adminExplanation: option.adminExplanation,
+      ...(option.behaviorSignals ? { behaviorSignals: { ...option.behaviorSignals } } : {}),
     })),
     primaryDimensionCodes: [...question.primaryDimensionCodes],
     ...(question.secondaryDimensionCode ? { secondaryDimensionCodes: [question.secondaryDimensionCode] } : {}),
+    ...(question.questionType ? { questionType: question.questionType } : {}),
+    ...(question.signalReliability ? { signalReliability: question.signalReliability } : {}),
+    ...(question.behaviorModel ? { behaviorModel: { ...question.behaviorModel, secondaryAxisCodes: [...question.behaviorModel.secondaryAxisCodes], context: { ...question.behaviorModel.context } } } : {}),
     difficulty: question.difficulty,
     estimatedReadingSeconds: question.path === 'essential' ? 30 : 45,
     adminRationale: question.adminRationale,
     isActive: true,
   };
+}
+
+function collectV2RawQuestionContractIssues(rawDocument: unknown): AssessmentValidationIssue[] {
+  const issues: AssessmentValidationIssue[] = [];
+
+  if (!isRecord(rawDocument)) {
+    return issues;
+  }
+
+  const metadata = isRecord(rawDocument.versionMetadata) ? rawDocument.versionMetadata : {};
+  if (metadata.schemaVersion !== 2) {
+    return issues;
+  }
+
+  const questionPools = [
+    { poolKey: 'essentialQuestionPool', poolLabel: 'essentialQuestionPool' },
+    { poolKey: 'extendedQuestionPool', poolLabel: 'extendedQuestionPool' },
+  ] as const;
+
+  for (const { poolKey, poolLabel } of questionPools) {
+    const rawQuestions = Array.isArray(rawDocument[poolKey]) ? rawDocument[poolKey] : [];
+
+    for (const [questionIndex, rawQuestion] of rawQuestions.entries()) {
+      if (!isRecord(rawQuestion)) {
+        continue;
+      }
+
+      const context = `${poolLabel}[${questionIndex}]`;
+
+      const rawPrimaryDimensionCodes = Array.isArray(rawQuestion.primaryDimensionCodes)
+        ? rawQuestion.primaryDimensionCodes
+        : [];
+      const knownPrimaryDimensionCodes = rawPrimaryDimensionCodes.filter(isKnownDimensionCode);
+
+      for (const [dimensionIndex, dimensionCode] of rawPrimaryDimensionCodes.entries()) {
+        if (!isKnownDimensionCode(dimensionCode)) {
+          issues.push(createIssue(
+            'bank_question_invalid_primary_dimension_code',
+            `${context}.primaryDimensionCodes[${dimensionIndex}]`,
+            'Une dimension principale doit appartenir au referentiel SevenO autorise.',
+          ));
+        }
+      }
+
+      if (rawPrimaryDimensionCodes.length !== sortedUnique(knownPrimaryDimensionCodes).length) {
+        issues.push(createIssue(
+          'bank_question_duplicate_primary_dimension_code',
+          `${context}.primaryDimensionCodes`,
+          'Les dimensions principales doivent etre uniques.',
+        ));
+      }
+
+      if ('secondaryDimensionCode' in rawQuestion && rawQuestion.secondaryDimensionCode !== undefined && !isKnownDimensionCode(rawQuestion.secondaryDimensionCode)) {
+        issues.push(createIssue(
+          'bank_question_invalid_secondary_dimension_code',
+          `${context}.secondaryDimensionCode`,
+          'La dimension secondaire doit appartenir au referentiel SevenO autorise.',
+        ));
+      }
+
+      const rawOptions = Array.isArray(rawQuestion.options) ? rawQuestion.options : [];
+      for (const [optionIndex, rawOption] of rawOptions.entries()) {
+        if (!isRecord(rawOption) || !isRecord(rawOption.dimensionScores)) {
+          continue;
+        }
+
+        for (const [dimensionCode] of Object.entries(rawOption.dimensionScores)) {
+          if (!isKnownDimensionCode(dimensionCode)) {
+            issues.push(createIssue(
+              'bank_option_unknown_dimension',
+              `${context}.options[${optionIndex}].dimensionScores.${dimensionCode}`,
+              'Une dimension inconnue a ete trouvee.',
+            ));
+          }
+        }
+      }
+    }
+  }
+
+  return issues;
 }
 
 function buildVersionDimensions(
@@ -934,6 +1359,19 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
     issues.push(createIssue('bank_missing_version_description', 'versionMetadata.description', 'La description de la version est obligatoire.'));
   }
 
+  if (metadata.schemaVersion !== undefined && metadata.schemaVersion !== 1 && metadata.schemaVersion !== 2) {
+    issues.push(createIssue('bank_invalid_schema_version', 'versionMetadata.schemaVersion', 'La version de schema doit etre 1 ou 2.'));
+  }
+
+  const schemaVersion = metadata.schemaVersion === 2 ? 2 : 1;
+  if (schemaVersion === 2) {
+    const rootKeys = sortedUnique(Object.keys(rawDocument));
+    const expectedRootKeys = sortedUnique([...SEVENO_PROFESSIONAL_ASSESSMENT_BANK_V2_ROOT_KEYS]);
+    if (rootKeys.length !== expectedRootKeys.length || rootKeys.some((key, index) => key !== expectedRootKeys[index])) {
+      issues.push(createIssue('bank_v2_root_keys_mismatch', 'root', 'Un JSON V2 doit contenir exactement les six cles racine attendues.'));
+    }
+  }
+
   if (!isPositiveInteger(document.versionMetadata.essentialPoolSize) || document.versionMetadata.essentialPoolSize !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE) {
     issues.push(createIssue('bank_invalid_essential_pool_size', 'versionMetadata.essentialPoolSize', `La banque doit contenir exactement ${SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_ESSENTIAL_POOL_SIZE} questions essentielles.`));
   }
@@ -973,6 +1411,16 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
   const interpretationCodes = document.interpretationBlocks.map((group) => group.dimensionCode);
   if (interpretationCodes.length !== SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.length) {
     issues.push(createIssue('bank_interpretation_group_count', 'interpretationBlocks', 'Chaque dimension doit disposer de ses blocs d interprétation.'));
+  }
+
+  if (
+    schemaVersion === 2
+    && (
+      sortedUnique(interpretationCodes).length !== SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.length
+      || SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.some((dimensionCode) => !interpretationCodes.includes(dimensionCode))
+    )
+  ) {
+    issues.push(createIssue('bank_interpretation_group_exact_coverage', 'interpretationBlocks', 'En V2, chaque dimension doit apparaitre exactement une fois dans interpretationBlocks.'));
   }
 
   const questionPools = [
@@ -1027,6 +1475,23 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
       continue;
     }
 
+    if (schemaVersion === 2) {
+      if (group.blocks.length !== SEVENO_PROFESSIONAL_ASSESSMENT_BANK_V2_INTERPRETATION_RANGES.length) {
+        issues.push(createIssue('bank_interpretation_invalid_block_count', `interpretationBlocks[${groupIndex}].blocks`, 'Chaque dimension V2 doit contenir exactement cinq blocs d interpretation.'));
+      }
+
+      for (const [thresholdIndex, expectedRange] of SEVENO_PROFESSIONAL_ASSESSMENT_BANK_V2_INTERPRETATION_RANGES.entries()) {
+        const block = group.blocks[thresholdIndex];
+        if (!block) {
+          continue;
+        }
+
+        if (block.minScore !== expectedRange.minScore || block.maxScore !== expectedRange.maxScore) {
+          issues.push(createIssue('bank_interpretation_invalid_range', `interpretationBlocks[${groupIndex}].blocks[${thresholdIndex}]`, 'Les plages V2 doivent respecter exactement 0-39, 40-59, 60-74, 75-89 et 90-100.'));
+        }
+      }
+    }
+
     for (const [blockIndex, block] of group.blocks.entries()) {
       if (!Array.isArray(block.interviewQuestionIds) || block.interviewQuestionIds.length === 0) {
         issues.push(createIssue('bank_interpretation_missing_interview_question_ids', `interpretationBlocks[${groupIndex}].blocks[${blockIndex}].interviewQuestionIds`, 'Chaque bloc d interprétation doit référencer au moins une interviewQuestion.'));
@@ -1057,7 +1522,7 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
 
   for (const { question, pool } of questionPools) {
     const context = `${pool}QuestionPool.${question.questionId}`;
-    issues.push(...validateQuestion(question, context));
+    issues.push(...validateQuestion(question, context, schemaVersion));
 
     for (const code of [...question.primaryDimensionCodes, ...(question.secondaryDimensionCode ? [question.secondaryDimensionCode] : [])]) {
       coveredDimensions.add(code);
@@ -1102,8 +1567,12 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
 }
 
 export function validateSevenoProfessionalAssessmentBankDocument(rawDocument: unknown): AssessmentValidationResult {
+  const rawV2Issues = collectV2RawQuestionContractIssues(rawDocument);
   const normalized = normalizeBankDocument(rawDocument);
-  return resultFromIssues(collectBankValidationIssues(rawDocument, normalized));
+  return resultFromIssues([
+    ...rawV2Issues,
+    ...collectBankValidationIssues(rawDocument, normalized),
+  ]);
 }
 
 export function parseSevenoProfessionalAssessmentBankDocument(jsonText: string) {
@@ -1171,7 +1640,7 @@ export function buildSevenoProfessionalAssessmentDraftFromBankDocument(
       document.interviewQuestions.map((question) => [question.questionId, `${question.prompt} ${question.rationale}`.trim()] as const),
     ),
     revisionNumber: 1,
-    schemaVersion: 1,
+    schemaVersion: document.versionMetadata.schemaVersion,
     sourceVersionId: null,
     hasStartedSessions: false,
   } satisfies SevenoAssessmentStoredVersion;

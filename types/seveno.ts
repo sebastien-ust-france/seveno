@@ -1,4 +1,20 @@
 import type { FieldValue, Timestamp } from 'firebase/firestore';
+import type {
+  AssessmentBehaviorAxisCode,
+  AssessmentBehaviorContext,
+  AssessmentBehaviorModel,
+  AssessmentBehaviorQuestionType,
+  AssessmentBehaviorSignalValue,
+  AssessmentSignalReliability,
+} from '@/types/seveno-assessment';
+export type {
+  AssessmentBehaviorAxisCode,
+  AssessmentBehaviorContext,
+  AssessmentBehaviorModel,
+  AssessmentBehaviorQuestionType,
+  AssessmentBehaviorSignalValue,
+  AssessmentSignalReliability,
+} from '@/types/seveno-assessment';
 
 export type FirestoreDateValue = Timestamp | FieldValue;
 
@@ -547,6 +563,7 @@ export interface TestQuestionOption {
   order?: number;
   /** Server-only value used to score a Seven'O general assessment. */
   score?: number;
+  behaviorSignals?: Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>>;
 }
 
 export interface PublicTestQuestion {
@@ -557,6 +574,9 @@ export interface PublicTestQuestion {
   difficulty?: TestQuestionDifficulty;
   skillTags?: string[];
   dimension?: SevenoAssessmentDimension;
+  questionType?: AssessmentBehaviorQuestionType;
+  signalReliability?: AssessmentSignalReliability;
+  behaviorModel?: AssessmentBehaviorModel;
 }
 
 export interface TestQuestion extends PublicTestQuestion {
@@ -576,6 +596,7 @@ export interface QuestionBank {
   isActive: boolean;
   durationSeconds?: number;
   threshold?: number;
+  schemaVersion?: number;
   questions: TestQuestion[];
   createdAt: FirestoreDateValue;
   updatedAt?: FirestoreDateValue;
@@ -591,6 +612,8 @@ export interface TestSession {
   publicCandidateId?: string;
   candidateProfileId?: string;
   assessmentType?: AssessmentType;
+  professionalAssessmentVersionId?: string | null;
+  attemptSeed?: string | null;
   questionnaireVersion?: string;
   applicationId?: string;
   offerId?: string;
@@ -603,6 +626,10 @@ export interface TestSession {
   questionBankVersion?: string;
   status: TestSessionStatus;
   questionIds: string[];
+  currentQuestionIndex?: number;
+  questionStartedAt?: FirestoreDateValue | null;
+  questionExpiresAt?: FirestoreDateValue | null;
+  questionTimeSeconds?: number;
   answersCount: number;
   durationSeconds: number;
   threshold: number;
@@ -685,12 +712,18 @@ export type CompanyApplicationAssessmentResult = TestResult & CompanyApplication
 
 export interface TestSessionStartResult {
   sessionId: string;
+  professionalAssessmentVersionId?: string | null;
+  attemptSeed?: string | null;
   questionBankCode: string;
   durationSeconds: number;
   threshold: number;
   startedAt: string;
   expiresAt: string;
   serverNow: string;
+  currentQuestionIndex: number;
+  questionStartedAt: string;
+  questionExpiresAt: string | null;
+  questionTimeSeconds: number;
   questions: PublicTestQuestion[];
   totalQuestions: number;
 }
@@ -700,6 +733,8 @@ export interface SevenoTestStartState {
   assessment: SevenoAssessmentSummary | null;
   session: TestSessionStartResult | null;
 }
+
+export type SevenoTestSubmissionResponse = TestSessionSubmitResult | SevenoTestStartState;
 
 export interface SevenoAssessmentPreparation {
   questionBankCode: string;

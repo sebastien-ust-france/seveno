@@ -5,6 +5,10 @@ import type {
   AssessmentCoverageSnapshot,
   AssessmentDimensionCode,
   AssessmentDimensionDefinition,
+  AssessmentBehaviorAxisCode,
+  AssessmentBehaviorContext,
+  AssessmentBehaviorQuestionType,
+  AssessmentSignalReliability,
   AssessmentDimensionResult,
   AssessmentEngineRequest,
   AssessmentInterpretationBlock,
@@ -40,6 +44,52 @@ const DIMENSION_CODES: AssessmentDimensionCode[] = [
 ];
 
 const PATHS: AssessmentPath[] = ['essential', 'extended'];
+const BEHAVIOR_AXIS_DEFINITIONS = [
+  { code: 'decision_pace', kind: 'bipolar', negativeLabel: 'deliberation', positiveLabel: 'action' },
+  { code: 'risk_orientation', kind: 'bipolar', negativeLabel: 'security', positiveLabel: 'risk_taking' },
+  { code: 'initiative_validation', kind: 'bipolar', negativeLabel: 'validation', positiveLabel: 'initiative' },
+  { code: 'framework_adaptation', kind: 'bipolar', negativeLabel: 'framework', positiveLabel: 'adaptation' },
+  { code: 'persistence_switching', kind: 'bipolar', negativeLabel: 'persistence', positiveLabel: 'strategy_switching' },
+  { code: 'analysis_experimentation', kind: 'bipolar', negativeLabel: 'analysis', positiveLabel: 'experimentation' },
+  { code: 'speed_precision', kind: 'bipolar', negativeLabel: 'precision', positiveLabel: 'speed' },
+  { code: 'ambiguity_tolerance', kind: 'bipolar', negativeLabel: 'clarification', positiveLabel: 'ambiguity_tolerance' },
+  { code: 'authority_challenge', kind: 'bipolar', negativeLabel: 'execution', positiveLabel: 'challenge' },
+  { code: 'disagreement_style', kind: 'bipolar', negativeLabel: 'consensus', positiveLabel: 'constructive_confrontation' },
+  { code: 'method_exploration', kind: 'bipolar', negativeLabel: 'proven_method', positiveLabel: 'exploration' },
+  { code: 'execution_improvement', kind: 'bipolar', negativeLabel: 'expected_execution', positiveLabel: 'spontaneous_improvement' },
+  { code: 'leadership_activation', kind: 'independent' },
+  { code: 'influence', kind: 'independent' },
+  { code: 'followership', kind: 'independent' },
+  { code: 'collective_support', kind: 'independent' },
+  { code: 'value_creation', kind: 'independent' },
+  { code: 'alerting_behavior', kind: 'independent' },
+] as const satisfies readonly {
+  code: AssessmentBehaviorAxisCode;
+  kind: 'bipolar' | 'independent';
+  negativeLabel?: string;
+  positiveLabel?: string;
+}[];
+const BEHAVIOR_AXIS_CODES = BEHAVIOR_AXIS_DEFINITIONS.map((definition) => definition.code) as AssessmentBehaviorAxisCode[];
+const BEHAVIOR_QUESTION_TYPES: AssessmentBehaviorQuestionType[] = [
+  'behavioral_situation',
+  'tradeoff',
+  'direct_self_report',
+  'work_preference',
+];
+const BEHAVIOR_SIGNAL_RELIABILITIES: AssessmentSignalReliability[] = ['high', 'medium', 'low', 'descriptive'];
+const BEHAVIOR_CONTEXT_VALUES: Record<keyof AssessmentBehaviorContext, readonly (string | boolean | null)[]> = {
+  riskLevel: ['none', 'low', 'medium', 'high'],
+  reversibility: ['not_applicable', 'high', 'medium', 'low'],
+  urgency: ['none', 'low', 'medium', 'high'],
+  authorityContext: ['none', 'present', 'absent', 'directive', 'disagreement'],
+  informationCompleteness: ['complete', 'partial', 'uncertain'],
+  collectiveImpact: ['individual', 'team', 'third_party', 'organization'],
+  priorFailure: ['none', 'suspected', 'confirmed'],
+  socialPressure: ['none', 'low', 'medium', 'high'],
+  helpAvailability: ['available', 'limited', 'unavailable', 'not_applicable'],
+  waitingCost: ['none', 'low', 'medium', 'high'],
+  smallScaleTestPossible: [true, false, null],
+};
 const SESSION_STATUSES: AssessmentSessionStatus[] = [
   'not_started',
   'in_progress',
@@ -61,6 +111,11 @@ const MAX_SUGGESTED_QUESTIONS = 6;
 
 export const SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES = DIMENSION_CODES as readonly AssessmentDimensionCode[];
 export const SEVENO_PROFESSIONAL_ASSESSMENT_PATHS = PATHS as readonly AssessmentPath[];
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_DEFINITIONS = BEHAVIOR_AXIS_DEFINITIONS;
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES = BEHAVIOR_AXIS_CODES as readonly AssessmentBehaviorAxisCode[];
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_QUESTION_TYPES = BEHAVIOR_QUESTION_TYPES as readonly AssessmentBehaviorQuestionType[];
+export const SEVENO_PROFESSIONAL_ASSESSMENT_SIGNAL_RELIABILITY_VALUES = BEHAVIOR_SIGNAL_RELIABILITIES as readonly AssessmentSignalReliability[];
+export const SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_CONTEXT_VALUES = BEHAVIOR_CONTEXT_VALUES;
 export const SEVENO_PROFESSIONAL_ASSESSMENT_SESSION_STATUSES = SESSION_STATUSES as readonly AssessmentSessionStatus[];
 export const SEVENO_PROFESSIONAL_ASSESSMENT_PRECISION_LEVELS = PRECISION_LEVELS as readonly AssessmentPrecisionLevel[];
 export const SEVENO_PROFESSIONAL_ASSESSMENT_DEFAULT_SCORING_ENGINE_VERSION = DEFAULT_SCORING_ENGINE_VERSION;
@@ -149,6 +204,25 @@ const KNOWN_DIMENSION_CODES = dimensionCodeSet(DIMENSION_CODES);
 
 function isKnownDimensionCode(value: unknown): value is AssessmentDimensionCode {
   return typeof value === 'string' && KNOWN_DIMENSION_CODES.has(value as AssessmentDimensionCode);
+}
+
+function isKnownBehaviorAxisCode(value: unknown): value is AssessmentBehaviorAxisCode {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES as readonly string[]).includes(value);
+}
+
+function isKnownBehaviorQuestionType(value: unknown): value is AssessmentBehaviorQuestionType {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_QUESTION_TYPES as readonly string[]).includes(value);
+}
+
+function isKnownSignalReliability(value: unknown): value is AssessmentSignalReliability {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_SIGNAL_RELIABILITY_VALUES as readonly string[]).includes(value);
+}
+
+function isKnownBehaviorContextValue<K extends keyof AssessmentBehaviorContext>(
+  key: K,
+  value: unknown,
+): value is AssessmentBehaviorContext[K] {
+  return (BEHAVIOR_CONTEXT_VALUES[key] as readonly unknown[]).includes(value);
 }
 
 function isKnownPath(value: unknown): value is AssessmentPath {
@@ -258,6 +332,11 @@ function buildReportText(parts: string[], fallback: string) {
   return cleaned.length > 0 ? cleaned.join(' ') : fallback;
 }
 
+type AssessmentOptionValidationContext = {
+  allowedBehaviorAxisCodes?: readonly AssessmentBehaviorAxisCode[];
+  requireBehaviorSignals?: boolean;
+};
+
 function collectVersionIssues(version: AssessmentVersionDescriptor, options: AssessmentVersionValidationOptions = {}) {
   const issues: AssessmentValidationIssue[] = [];
   const mode = options.mode ?? 'definition';
@@ -327,7 +406,171 @@ function collectVersionIssues(version: AssessmentVersionDescriptor, options: Ass
   return issues;
 }
 
-export function validateAssessmentOption(option: AssessmentQuestionOption): AssessmentValidationResult {
+function validateAssessmentBehaviorSignals(
+  behaviorSignals: unknown,
+  context: string,
+  allowedBehaviorAxisCodes: readonly AssessmentBehaviorAxisCode[],
+  requireBehaviorSignals: boolean,
+) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(behaviorSignals)) {
+    if (requireBehaviorSignals) {
+      issues.push(createIssue('assessment_option_missing_behavior_signals', `${context}.behaviorSignals`, 'Les signaux comportementaux sont obligatoires pour une question V2.'));
+    }
+
+    return resultFromIssues(issues);
+  }
+
+  const allowedAxisCodes = new Set<string>(allowedBehaviorAxisCodes);
+  for (const [axisCode, value] of Object.entries(behaviorSignals)) {
+    if (!isKnownBehaviorAxisCode(axisCode)) {
+      issues.push(createIssue('assessment_option_unknown_behavior_axis', `${context}.behaviorSignals.${axisCode}`, 'Un axe comportemental inconnu a ete trouve.'));
+      continue;
+    }
+
+    if (!allowedAxisCodes.has(axisCode)) {
+      issues.push(createIssue('assessment_option_disallowed_behavior_axis', `${context}.behaviorSignals.${axisCode}`, 'Un signal comportemental ne peut utiliser qu un axe declare dans le modele comportemental de la question.'));
+    }
+
+    const numericValue = typeof value === 'number' ? value : Number.NaN;
+    if (!Number.isInteger(numericValue) || numericValue < -2 || numericValue > 2) {
+      issues.push(createIssue('assessment_option_invalid_behavior_signal', `${context}.behaviorSignals.${axisCode}`, 'Un signal comportemental doit etre compris entre -2 et 2.'));
+    }
+  }
+
+  return resultFromIssues(issues);
+}
+
+function validateAssessmentBehaviorContext(context: unknown, path: string) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(context)) {
+    issues.push(createIssue('assessment_question_missing_behavior_context', path, 'Le contexte comportemental est obligatoire.'));
+    return resultFromIssues(issues);
+  }
+
+  const allowedKeys: Array<keyof AssessmentBehaviorContext> = [
+    'riskLevel',
+    'reversibility',
+    'urgency',
+    'authorityContext',
+    'informationCompleteness',
+    'collectiveImpact',
+    'priorFailure',
+    'socialPressure',
+    'helpAvailability',
+    'waitingCost',
+    'smallScaleTestPossible',
+  ];
+
+  for (const key of Object.keys(context)) {
+    if (!allowedKeys.includes(key as keyof AssessmentBehaviorContext)) {
+      issues.push(createIssue('assessment_question_unknown_behavior_context_field', `${path}.${key}`, 'Le contexte comportemental contient un champ inconnu.'));
+    }
+  }
+
+  if (!isKnownBehaviorContextValue('riskLevel', context.riskLevel)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.riskLevel`, 'Le niveau de risque est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('reversibility', context.reversibility)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.reversibility`, 'La reversibilite est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('urgency', context.urgency)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.urgency`, "Le niveau d'urgence est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('authorityContext', context.authorityContext)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.authorityContext`, "Le contexte d'autorite est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('informationCompleteness', context.informationCompleteness)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.informationCompleteness`, 'Le niveau de completude de l information est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('collectiveImpact', context.collectiveImpact)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.collectiveImpact`, "L'impact collectif est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('priorFailure', context.priorFailure)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.priorFailure`, 'Le niveau de precedent echec est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('socialPressure', context.socialPressure)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.socialPressure`, 'La pression sociale est invalide.'));
+  }
+
+  if (!isKnownBehaviorContextValue('helpAvailability', context.helpAvailability)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.helpAvailability`, "La disponibilite d aide est invalide."));
+  }
+
+  if (!isKnownBehaviorContextValue('waitingCost', context.waitingCost)) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.waitingCost`, "Le cout de l'attente est invalide."));
+  }
+
+  if (typeof context.smallScaleTestPossible !== 'boolean' && context.smallScaleTestPossible !== null) {
+    issues.push(createIssue('assessment_question_invalid_behavior_context', `${path}.smallScaleTestPossible`, 'La possibilite de test a petite echelle est invalide.'));
+  }
+
+  return resultFromIssues(issues);
+}
+
+function validateAssessmentBehaviorModel(model: unknown, path: string) {
+  const issues: AssessmentValidationIssue[] = [];
+  if (!isRecord(model)) {
+    issues.push(createIssue('assessment_question_missing_behavior_model', path, 'Le modele comportemental de la question est obligatoire.'));
+    return resultFromIssues(issues);
+  }
+
+  const rawSecondaryAxisCodes = Array.isArray(model.secondaryAxisCodes) ? model.secondaryAxisCodes : null;
+  const secondaryAxisCodes = rawSecondaryAxisCodes ? rawSecondaryAxisCodes.filter(isKnownBehaviorAxisCode) : [];
+
+  if (!isKnownBehaviorAxisCode(model.primaryAxisCode)) {
+    issues.push(createIssue('assessment_question_invalid_primary_behavior_axis', `${path}.primaryAxisCode`, 'L axe comportemental principal est invalide.'));
+  }
+
+  if (!Array.isArray(model.secondaryAxisCodes)) {
+    issues.push(createIssue('assessment_question_missing_secondary_behavior_axes', `${path}.secondaryAxisCodes`, 'Les axes secondaires comportementaux doivent etre un tableau.'));
+  } else {
+    if (secondaryAxisCodes.length !== model.secondaryAxisCodes.length) {
+      issues.push(createIssue('assessment_question_invalid_secondary_behavior_axis', `${path}.secondaryAxisCodes`, 'Chaque axe secondaire comportemental doit appartenir au referentiel autorise.'));
+    }
+
+    if (secondaryAxisCodes.length > 2) {
+      issues.push(createIssue('assessment_question_too_many_secondary_behavior_axes', `${path}.secondaryAxisCodes`, 'Une question ne peut pas avoir plus de deux axes secondaires comportementaux.'));
+    }
+
+    if (secondaryAxisCodes.length !== uniqueStrings(secondaryAxisCodes).length) {
+      issues.push(createIssue('assessment_question_duplicate_behavior_axes', `${path}.secondaryAxisCodes`, 'Les axes secondaires comportementaux doivent etre uniques.'));
+    }
+
+    if (isKnownBehaviorAxisCode(model.primaryAxisCode) && secondaryAxisCodes.includes(model.primaryAxisCode)) {
+      issues.push(createIssue('assessment_question_behavior_axis_overlap', `${path}.secondaryAxisCodes`, 'L axe comportemental principal ne peut pas aussi etre secondaire.'));
+    }
+  }
+
+  const allAxisCodes = uniqueStrings([
+    ...(isKnownBehaviorAxisCode(model.primaryAxisCode) ? [model.primaryAxisCode] : []),
+    ...secondaryAxisCodes,
+  ]);
+
+  if (allAxisCodes.length > 3) {
+    issues.push(createIssue('assessment_question_too_many_behavior_axes', path, 'Une question ne peut pas observer plus de trois axes comportementaux au total.'));
+  }
+
+  if (!isKnownSignalReliability(model.signalReliability)) {
+    issues.push(createIssue('assessment_question_invalid_signal_reliability', `${path}.signalReliability`, 'La fiabilite du signal comportemental est invalide.'));
+  }
+
+  issues.push(...validateAssessmentBehaviorContext(model.context, `${path}.context`).issues);
+
+  return resultFromIssues(issues);
+}
+
+export function validateAssessmentOption(
+  option: AssessmentQuestionOption,
+  context: AssessmentOptionValidationContext = {},
+): AssessmentValidationResult {
   const issues: AssessmentValidationIssue[] = [];
 
   if (!isNonEmptyString(option.id)) {
@@ -378,6 +621,11 @@ export function validateAssessmentOption(option: AssessmentQuestionOption): Asse
     issues.push(createIssue('assessment_option_missing_admin_explanation', 'option.adminExplanation', 'Une explication administrateur est obligatoire.'));
   }
 
+  const behaviorAxes = context.allowedBehaviorAxisCodes ?? SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES;
+  if (context.requireBehaviorSignals || option.behaviorSignals !== undefined) {
+    issues.push(...validateAssessmentBehaviorSignals(option.behaviorSignals, 'option', behaviorAxes, Boolean(context.requireBehaviorSignals)).issues);
+  }
+
   return resultFromIssues(issues);
 }
 
@@ -416,6 +664,33 @@ export function validateAssessmentQuestion(
     issues.push(createIssue('assessment_question_missing_instruction', `${questionPath}.instruction`, 'La consigne de la question ne peut pas etre vide.'));
   }
 
+  const schemaVersion = typeof version.schemaVersion === 'number' && version.schemaVersion >= 2 ? 2 : 1;
+  const hasBehaviorModel = Boolean(question.behaviorModel);
+
+  if (schemaVersion >= 2) {
+    if (!isKnownBehaviorQuestionType(question.questionType)) {
+      issues.push(createIssue('assessment_question_missing_type', `${questionPath}.questionType`, 'Le type de question comportementale est obligatoire.'));
+    }
+
+    if (!isKnownSignalReliability(question.signalReliability)) {
+      issues.push(createIssue('assessment_question_missing_signal_reliability', `${questionPath}.signalReliability`, 'La fiabilite du signal est obligatoire.'));
+    }
+
+    issues.push(...validateAssessmentBehaviorModel(question.behaviorModel, `${questionPath}.behaviorModel`).issues);
+  } else {
+    if (question.questionType && !isKnownBehaviorQuestionType(question.questionType)) {
+      issues.push(createIssue('assessment_question_invalid_type', `${questionPath}.questionType`, 'Le type de question comportementale est invalide.'));
+    }
+
+    if (question.signalReliability && !isKnownSignalReliability(question.signalReliability)) {
+      issues.push(createIssue('assessment_question_invalid_signal_reliability', `${questionPath}.signalReliability`, 'La fiabilite du signal est invalide.'));
+    }
+
+    if (hasBehaviorModel) {
+      issues.push(...validateAssessmentBehaviorModel(question.behaviorModel, `${questionPath}.behaviorModel`).issues);
+    }
+  }
+
   if (!Array.isArray(question.options) || question.options.length < 2) {
     issues.push(createIssue('assessment_question_not_enough_options', `${questionPath}.options`, 'Une question doit proposer au moins deux options.'));
   }
@@ -429,8 +704,18 @@ export function validateAssessmentQuestion(
       issues.push(createIssue('assessment_question_duplicate_option_ids', `${questionPath}.options`, 'Les identifiants d options doivent etre uniques.'));
     }
 
+    const allowedBehaviorAxisCodes = schemaVersion >= 2 && hasBehaviorModel && isRecord(question.behaviorModel)
+      ? uniqueStrings([
+          ...(isKnownBehaviorAxisCode(question.behaviorModel.primaryAxisCode) ? [question.behaviorModel.primaryAxisCode] : []),
+          ...(Array.isArray(question.behaviorModel.secondaryAxisCodes) ? question.behaviorModel.secondaryAxisCodes.filter(isKnownBehaviorAxisCode) : []),
+        ]) as AssessmentBehaviorAxisCode[]
+      : SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES;
+
     for (const option of question.options) {
-      const optionValidation = validateAssessmentOption(option);
+      const optionValidation = validateAssessmentOption(option, {
+        allowedBehaviorAxisCodes,
+        requireBehaviorSignals: schemaVersion >= 2,
+      });
       for (const issue of optionValidation.issues) {
         issues.push({ ...issue, path: `${questionPath}.options.${option.id || 'unknown'}.${issue.path}` });
       }

@@ -9,6 +9,7 @@ import {
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import {
   AssessmentModelError,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES,
   SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES,
   calculateProfessionalAssessmentOutcome,
   projectAssessmentReportForCandidate,
@@ -25,6 +26,11 @@ import {
   SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_POOL_SIZE,
 } from '@/lib/seveno-professional-assessment-bank';
 import type {
+  AssessmentBehaviorAxisCode,
+  AssessmentBehaviorContext,
+  AssessmentBehaviorModel,
+  AssessmentBehaviorQuestionType,
+  AssessmentBehaviorSignalValue,
   AssessmentDimensionCode,
   AssessmentDimensionDefinition,
   AssessmentQuestion,
@@ -32,6 +38,7 @@ import type {
   AssessmentResponse,
   AssessmentVersionDescriptor,
   AssessmentScoreValue,
+  AssessmentSignalReliability,
 } from '@/types/seveno-assessment';
 import type { SevenoAssessmentHumanReviewStatus } from '@/types/seveno-assessment-review';
 import type {
@@ -160,6 +167,39 @@ function isFiniteInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value);
 }
 
+function isKnownBehaviorAxisCode(value: unknown): value is AssessmentBehaviorAxisCode {
+  return typeof value === 'string' && (SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES as readonly string[]).includes(value);
+}
+
+function isKnownSignalReliability(value: unknown): value is AssessmentSignalReliability {
+  return typeof value === 'string' && ['high', 'medium', 'low', 'descriptive'].includes(value);
+}
+
+function isKnownBehaviorQuestionType(value: unknown): value is AssessmentBehaviorQuestionType {
+  return typeof value === 'string' && ['behavioral_situation', 'tradeoff', 'direct_self_report', 'work_preference'].includes(value);
+}
+
+function isKnownBehaviorContextValue<K extends keyof AssessmentBehaviorContext>(
+  key: K,
+  value: unknown,
+): value is AssessmentBehaviorContext[K] {
+  const contextValues: Record<keyof AssessmentBehaviorContext, readonly unknown[]> = {
+    riskLevel: ['none', 'low', 'medium', 'high'],
+    reversibility: ['not_applicable', 'high', 'medium', 'low'],
+    urgency: ['none', 'low', 'medium', 'high'],
+    authorityContext: ['none', 'present', 'absent', 'directive', 'disagreement'],
+    informationCompleteness: ['complete', 'partial', 'uncertain'],
+    collectiveImpact: ['individual', 'team', 'third_party', 'organization'],
+    priorFailure: ['none', 'suspected', 'confirmed'],
+    socialPressure: ['none', 'low', 'medium', 'high'],
+    helpAvailability: ['available', 'limited', 'unavailable', 'not_applicable'],
+    waitingCost: ['none', 'low', 'medium', 'high'],
+    smallScaleTestPossible: [true, false, null],
+  };
+
+  return (contextValues[key] ?? []).includes(value);
+}
+
 function toIsoDate(value: unknown): SevenoAssessmentStoredDate {
   if (typeof value === 'string') {
     const parsed = new Date(value);
@@ -262,7 +302,7 @@ function fromRuntimeVersion(version: RuntimeVersionLike, options: { sourceVersio
     extendedDrawSize: isFiniteInteger(version.extendedDrawSize) ? version.extendedDrawSize : SEVENO_PROFESSIONAL_ASSESSMENT_BANK_DEFAULT_EXTENDED_DRAW_SIZE,
     revisionNotes: [...version.revisionNotes],
     revisionNumber: 1,
-    schemaVersion: PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
+    schemaVersion: isFiniteInteger(version.schemaVersion) && version.schemaVersion > 0 ? version.schemaVersion : PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
     ...(version.interviewQuestionCatalog ? { interviewQuestionCatalog: { ...version.interviewQuestionCatalog } } : {}),
     ...(options.sourceVersionId ? { sourceVersionId: options.sourceVersionId } : {}),
     ...(typeof options.hasStartedSessions === 'boolean' ? { hasStartedSessions: options.hasStartedSessions } : {}),
@@ -325,7 +365,7 @@ function createBlankDraftTemplate(source: SevenoAssessmentStoredVersion) {
     essentialQuestionCount: 0,
     extendedQuestionCount: 0,
     revisionNumber: 1,
-    schemaVersion: PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
+    schemaVersion: source.schemaVersion ?? PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
     revisionNotes: ['Brouillon vide créé depuis le socle Phase 2.'],
     interviewQuestionCatalog: {},
     sourceVersionId: null,
@@ -338,6 +378,64 @@ function alignQuestionsToVersionId(questions: AssessmentQuestion[], versionId: s
     ...cloneValue(question),
     assessmentVersionId: versionId,
   }));
+}
+
+function normalizeBehaviorSignals(raw: unknown): Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>> | undefined {
+  if (!isPlainObject(raw)) {
+    return undefined;
+  }
+
+  const signals: Partial<Record<AssessmentBehaviorAxisCode, AssessmentBehaviorSignalValue>> = {};
+  for (const [axisCode, rawValue] of Object.entries(raw)) {
+    const numericValue = typeof rawValue === 'number' ? rawValue : Number.NaN;
+    if (!isKnownBehaviorAxisCode(axisCode) || !Number.isInteger(numericValue) || numericValue < -2 || numericValue > 2) {
+      continue;
+    }
+
+    signals[axisCode] = numericValue as AssessmentBehaviorSignalValue;
+  }
+
+  return Object.keys(signals).length > 0 ? signals : undefined;
+}
+
+function normalizeBehaviorModel(raw: unknown): AssessmentBehaviorModel | undefined {
+  if (!isPlainObject(raw)) {
+    return undefined;
+  }
+
+  const primaryAxisCode = isKnownBehaviorAxisCode(raw.primaryAxisCode) ? raw.primaryAxisCode : null;
+  const secondaryAxisCodes = Array.isArray(raw.secondaryAxisCodes)
+    ? raw.secondaryAxisCodes.map((item) => cleanString(item)).filter(isKnownBehaviorAxisCode)
+    : [];
+  const signalReliability = isKnownSignalReliability(raw.signalReliability) ? raw.signalReliability : null;
+  const context = isPlainObject(raw.context)
+    ? {
+        riskLevel: isKnownBehaviorContextValue('riskLevel', raw.context.riskLevel) ? raw.context.riskLevel : 'none',
+        reversibility: isKnownBehaviorContextValue('reversibility', raw.context.reversibility) ? raw.context.reversibility : 'not_applicable',
+        urgency: isKnownBehaviorContextValue('urgency', raw.context.urgency) ? raw.context.urgency : 'none',
+        authorityContext: isKnownBehaviorContextValue('authorityContext', raw.context.authorityContext) ? raw.context.authorityContext : 'none',
+        informationCompleteness: isKnownBehaviorContextValue('informationCompleteness', raw.context.informationCompleteness) ? raw.context.informationCompleteness : 'partial',
+        collectiveImpact: isKnownBehaviorContextValue('collectiveImpact', raw.context.collectiveImpact) ? raw.context.collectiveImpact : 'individual',
+        priorFailure: isKnownBehaviorContextValue('priorFailure', raw.context.priorFailure) ? raw.context.priorFailure : 'none',
+        socialPressure: isKnownBehaviorContextValue('socialPressure', raw.context.socialPressure) ? raw.context.socialPressure : 'none',
+        helpAvailability: isKnownBehaviorContextValue('helpAvailability', raw.context.helpAvailability) ? raw.context.helpAvailability : 'not_applicable',
+        waitingCost: isKnownBehaviorContextValue('waitingCost', raw.context.waitingCost) ? raw.context.waitingCost : 'none',
+        smallScaleTestPossible: typeof raw.context.smallScaleTestPossible === 'boolean' || raw.context.smallScaleTestPossible === null
+          ? raw.context.smallScaleTestPossible
+          : null,
+      }
+    : null;
+
+  if (!primaryAxisCode || !signalReliability || !context) {
+    return undefined;
+  }
+
+  return {
+    primaryAxisCode,
+    secondaryAxisCodes,
+    signalReliability,
+    context,
+  };
 }
 
 function normalizeQuestionOption(
@@ -374,6 +472,7 @@ function normalizeQuestionOption(
     position: isFiniteInteger(source.position) ? source.position : position + 1,
     dimensionScores,
     adminExplanation: cleanString(source.adminExplanation),
+    ...(normalizeBehaviorSignals(source.behaviorSignals) ? { behaviorSignals: normalizeBehaviorSignals(source.behaviorSignals) } : {}),
   } satisfies AssessmentQuestionOption;
 }
 
@@ -436,6 +535,9 @@ function normalizeQuestion(
           .map((item) => cleanString(item))
           .filter((item): item is AssessmentDimensionCode => SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES.includes(item as AssessmentDimensionCode))
       : [],
+    ...(isKnownBehaviorQuestionType(source.questionType) ? { questionType: source.questionType } : {}),
+    ...(isKnownSignalReliability(source.signalReliability) ? { signalReliability: source.signalReliability } : {}),
+    ...(normalizeBehaviorModel(source.behaviorModel) ? { behaviorModel: normalizeBehaviorModel(source.behaviorModel) } : {}),
     difficulty: source.difficulty === 'standard' || source.difficulty === 'advanced' ? source.difficulty : 'introductory',
     estimatedReadingSeconds: isFiniteInteger(source.estimatedReadingSeconds) ? source.estimatedReadingSeconds : 30,
     adminRationale: cleanString(source.adminRationale),
@@ -528,7 +630,7 @@ function normalizeStoredVersionInput(
     interpretationEngineVersion: fallback.interpretationEngineVersion,
     legalNoticeVersion: fallback.legalNoticeVersion,
     revisionNumber: fallback.revisionNumber + 1,
-    schemaVersion: fallback.schemaVersion ?? PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
+    schemaVersion: isFiniteInteger(input.schemaVersion) && input.schemaVersion > 0 ? input.schemaVersion : (fallback.schemaVersion ?? PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION),
   } satisfies SevenoAssessmentStoredVersion;
 }
 
@@ -723,7 +825,7 @@ export class SevenoProfessionalAssessmentRepository implements ProfessionalAsses
           sourceVersionId: source.id,
           hasStartedSessions: false,
           revisionNumber: 1,
-          schemaVersion: PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
+          schemaVersion: source.schemaVersion ?? PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
         }
       : {
           ...duplicateSource,
@@ -739,7 +841,7 @@ export class SevenoProfessionalAssessmentRepository implements ProfessionalAsses
           sourceVersionId: source.id,
           hasStartedSessions: false,
           revisionNumber: 1,
-          schemaVersion: PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
+          schemaVersion: source.schemaVersion ?? PROFESSIONAL_ASSESSMENT_SCHEMA_VERSION,
           questions: [],
         };
 
