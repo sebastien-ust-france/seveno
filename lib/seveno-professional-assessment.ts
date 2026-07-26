@@ -8,6 +8,7 @@ import type {
   AssessmentBehaviorAxisCode,
   AssessmentBehaviorContext,
   AssessmentBehaviorQuestionType,
+  AssessmentBehaviorSignalValue,
   AssessmentSignalReliability,
   AssessmentDimensionResult,
   AssessmentEngineRequest,
@@ -30,6 +31,16 @@ import type {
   AssessmentVersionSnapshot,
   AssessmentVersionValidationOptions,
   AssessmentCompanyProjection,
+  ProfessionalAssessmentAxisDirection,
+  ProfessionalAssessmentAxisEvidenceLevel,
+  ProfessionalAssessmentAxisKind,
+  ProfessionalAssessmentAxisResult,
+  ProfessionalAssessmentAxisStability,
+  ProfessionalAssessmentCandidateBehavioralProfile,
+  ProfessionalAssessmentCandidateThemeGroup,
+  ProfessionalAssessmentCandidateThemeGroupCode,
+  ProfessionalAssessmentCompanyBehavioralProfile,
+  ProfessionalAssessmentContextFactor,
   SevenoProfessionalAssessmentReport,
 } from '@/types/seveno-assessment';
 
@@ -121,6 +132,193 @@ export const SEVENO_PROFESSIONAL_ASSESSMENT_PRECISION_LEVELS = PRECISION_LEVELS 
 export const SEVENO_PROFESSIONAL_ASSESSMENT_DEFAULT_SCORING_ENGINE_VERSION = DEFAULT_SCORING_ENGINE_VERSION;
 export const SEVENO_PROFESSIONAL_ASSESSMENT_DEFAULT_INTERPRETATION_ENGINE_VERSION = DEFAULT_INTERPRETATION_ENGINE_VERSION;
 export const SEVENO_PROFESSIONAL_ASSESSMENT_DEFAULT_LEGAL_NOTICE_CODE = DEFAULT_LEGAL_NOTICE_CODE;
+
+const BEHAVIORAL_PROFILE_GROUPS = {
+  ACTION_DECISION: [
+    'decision_pace',
+    'risk_orientation',
+    'initiative_validation',
+    'ambiguity_tolerance',
+  ],
+  PROBLEM_ADAPTATION: [
+    'framework_adaptation',
+    'persistence_switching',
+    'analysis_experimentation',
+    'method_exploration',
+    'execution_improvement',
+  ],
+  COLLECTIVE: [
+    'leadership_activation',
+    'influence',
+    'followership',
+    'collective_support',
+    'disagreement_style',
+    'authority_challenge',
+  ],
+  RELIABILITY_VALUE: [
+    'speed_precision',
+    'alerting_behavior',
+    'value_creation',
+  ],
+} as const satisfies Record<string, readonly AssessmentBehaviorAxisCode[]>;
+
+const BEHAVIORAL_PROFILE_SELECTION_RULES: Array<[BehavioralAxisGroupKey, number]> = [
+  ['ACTION_DECISION', 1],
+  ['PROBLEM_ADAPTATION', 2],
+  ['COLLECTIVE', 2],
+  ['RELIABILITY_VALUE', 1],
+];
+
+const BEHAVIORAL_PROFILE_THEME_GROUPS = [
+  {
+    code: 'WORKING_STYLE',
+    title: 'Décision et façon de travailler',
+    axisCodes: [
+      ...BEHAVIORAL_PROFILE_GROUPS.ACTION_DECISION,
+      ...BEHAVIORAL_PROFILE_GROUPS.PROBLEM_ADAPTATION,
+    ],
+  },
+  {
+    code: 'COLLECTIVE',
+    title: 'Fonctionnement collectif',
+    axisCodes: [...BEHAVIORAL_PROFILE_GROUPS.COLLECTIVE],
+  },
+  {
+    code: 'CONTRIBUTION',
+    title: 'Contribution et vigilance',
+    axisCodes: [...BEHAVIORAL_PROFILE_GROUPS.RELIABILITY_VALUE],
+  },
+] as const satisfies readonly {
+  code: ProfessionalAssessmentCandidateThemeGroupCode;
+  title: string;
+  axisCodes: readonly AssessmentBehaviorAxisCode[];
+}[];
+
+const BEHAVIORAL_PROFILE_CONTEXT_FACTOR_LABELS: Record<ProfessionalAssessmentContextFactor, string> = {
+  riskLevel: 'le niveau de risque',
+  urgency: "le degré d’urgence",
+  authorityContext: 'le cadre hiérarchique',
+  informationCompleteness: "le niveau d’information disponible",
+  collectiveImpact: 'l’impact sur le collectif',
+};
+
+const BIPOLAR_AXIS_TEXTS = {
+  decision_pace: {
+    negative: 'une préférence pour préparer les décisions avant de trancher',
+    mixed: 'un rythme de décision qui semble s’adapter à la situation',
+    positive: 'une tendance à trancher assez rapidement avec les éléments disponibles',
+  },
+  risk_orientation: {
+    negative: 'une recherche de sécurisation avant de prendre un risque',
+    mixed: 'une prise de risque qui semble dépendre des conséquences possibles',
+    positive: 'une certaine aisance avec le risque lorsqu’il paraît maîtrisable',
+  },
+  initiative_validation: {
+    negative: 'une préférence pour sécuriser les décisions par un cadre de validation',
+    mixed: 'un degré d’autonomie qui semble varier selon la situation',
+    positive: 'une prise d’initiative assez naturelle lorsque le périmètre paraît clair',
+  },
+  framework_adaptation: {
+    negative: 'une préférence pour travailler dans un cadre et une méthode bien définis',
+    mixed: 'une capacité à adapter le cadre lorsque la situation le nécessite',
+    positive: 'une aisance à redéfinir la manière de faire lorsque le contexte le demande',
+  },
+  persistence_switching: {
+    negative: 'une tendance à approfondir l’approche engagée avant d’en changer',
+    mixed: 'une tendance à réévaluer l’approche avant de décider de poursuivre ou de changer',
+    positive: 'une capacité à changer assez rapidement d’approche lorsque les résultats stagnent',
+  },
+  analysis_experimentation: {
+    negative: 'une préférence pour comprendre et analyser avant d’expérimenter',
+    mixed: 'un fonctionnement qui combine analyse et essais ciblés',
+    positive: 'une tendance à apprendre rapidement par l’essai et l’ajustement',
+  },
+  speed_precision: {
+    negative: 'une attention marquée à la précision et à la vérification',
+    mixed: 'un arbitrage entre délai et précision qui semble dépendre de l’enjeu',
+    positive: 'une tendance à préserver le rythme avec des contrôles ciblés',
+  },
+  ambiguity_tolerance: {
+    negative: 'une préférence pour clarifier suffisamment la situation avant d’avancer',
+    mixed: 'une capacité à avancer sur les éléments certains tout en clarifiant le reste',
+    positive: 'une certaine aisance à avancer même lorsque toutes les informations ne sont pas disponibles',
+  },
+  authority_challenge: {
+    negative: 'une tendance à respecter le cadre de décision hiérarchique établi',
+    mixed: 'une tendance à demander des précisions ou exprimer des réserves lorsque cela paraît nécessaire',
+    positive: 'une facilité à signaler un désaccord et à proposer une alternative argumentée',
+  },
+  disagreement_style: {
+    negative: 'une recherche prioritaire d’apaisement ou de compromis en cas de désaccord',
+    mixed: 'une manière d’aborder les désaccords qui semble s’adapter à la situation',
+    positive: 'une certaine aisance avec le débat professionnel direct et argumenté',
+  },
+  method_exploration: {
+    negative: 'une préférence pour les méthodes éprouvées tant qu’elles restent efficaces',
+    mixed: 'une ouverture à comparer ponctuellement différentes façons de faire',
+    positive: 'une tendance à explorer régulièrement de nouvelles méthodes',
+  },
+  execution_improvement: {
+    negative: 'une préférence pour terminer selon le cadre prévu avant d’envisager des améliorations',
+    mixed: 'une tendance à apporter des améliorations ciblées pendant l’exécution',
+    positive: 'une tendance à optimiser activement la manière de faire pendant l’activité',
+  },
+} as const satisfies Partial<Record<AssessmentBehaviorAxisCode, Record<'negative' | 'mixed' | 'positive', string>>>;
+
+const INDEPENDENT_AXIS_TEXTS = {
+  leadership_activation: {
+    low: 'une contribution au collectif sans recherche particulière d’un rôle de coordination',
+    moderate: 'une capacité à contribuer à la structuration ou à prendre ponctuellement la coordination',
+    high: 'une tendance à prendre spontanément un rôle de coordination lorsque le groupe en a besoin',
+  },
+  influence: {
+    low: 'une tendance à partager son point de vue sans chercher particulièrement à créer l’adhésion',
+    moderate: 'une tendance à expliquer, argumenter ou faciliter la décision collective',
+    high: 'une tendance à chercher activement l’adhésion autour d’une proposition',
+  },
+  followership: {
+    low: 'une préférence pour conserver une certaine autonomie dans sa manière d’avancer',
+    moderate: 'une capacité à s’aligner de façon constructive lorsque le collectif le nécessite',
+    high: 'une tendance à soutenir activement une direction collective une fois celle-ci décidée',
+  },
+  collective_support: {
+    low: 'une concentration prioritaire sur son propre périmètre de responsabilité',
+    moderate: 'une disponibilité pour apporter une aide ciblée au collectif',
+    high: 'une tendance à soutenir spontanément les autres lorsque le collectif en a besoin',
+  },
+  value_creation: {
+    low: 'une préférence pour se concentrer sur le périmètre et le résultat attendus',
+    moderate: 'une tendance à identifier ou proposer des améliorations utiles',
+    high: 'une tendance à rechercher activement une valeur supplémentaire au-delà du résultat attendu',
+  },
+  alerting_behavior: {
+    low: 'une tendance à traiter d’abord localement un problème avant d’alerter',
+    moderate: 'une tendance à alerter lorsque les éléments paraissent suffisamment établis',
+    high: 'une tendance à alerter assez tôt lorsqu’un risque commence à apparaître',
+  },
+} as const satisfies Partial<Record<AssessmentBehaviorAxisCode, Record<'low' | 'moderate' | 'high', string>>>;
+
+const BEHAVIORAL_PROFILE_INSUFFICIENT_CANDIDATE_SUMMARY = "Vos réponses fournissent encore trop peu d’observations croisées pour dégager plusieurs tendances professionnelles de façon suffisamment prudente.";
+const BEHAVIORAL_PROFILE_INSUFFICIENT_COMPANY_SUMMARY = "Les réponses disponibles fournissent trop peu d’observations croisées pour dégager plusieurs tendances professionnelles de façon suffisamment prudente.";
+const BEHAVIORAL_PROFILE_CANDIDATE_PREFIX = 'Vos réponses suggèrent plusieurs tendances professionnelles : ';
+const BEHAVIORAL_PROFILE_COMPANY_PREFIX = 'Les réponses du candidat suggèrent plusieurs tendances professionnelles : ';
+const BEHAVIORAL_PROFILE_CANDIDATE_DISCLAIMER = "Ce profil est une estimation de tendances professionnelles à partir de vos réponses. Il ne constitue ni un diagnostic, ni une évaluation définitive de vos capacités.";
+
+const BEHAVIORAL_PROFILE_AXIS_KIND_BY_CODE = new Map<AssessmentBehaviorAxisCode, ProfessionalAssessmentAxisKind>(
+  BEHAVIOR_AXIS_DEFINITIONS.map((definition) => [definition.code, definition.kind] as const),
+);
+
+type BehavioralObservation = {
+  axisCode: AssessmentBehaviorAxisCode;
+  value: AssessmentBehaviorSignalValue;
+  weight: number;
+  questionId: string;
+  questionType?: AssessmentBehaviorQuestionType;
+  signalReliability?: AssessmentSignalReliability;
+  context: AssessmentBehaviorContext;
+};
+
+type BehavioralAxisGroupKey = keyof typeof BEHAVIORAL_PROFILE_GROUPS;
 
 export class AssessmentModelError extends Error {
   issues: AssessmentValidationIssue[];
@@ -1360,6 +1558,511 @@ function selectReportItems(
   };
 }
 
+function getBehaviorObservationWeight(signalReliability: AssessmentSignalReliability | undefined) {
+  switch (signalReliability) {
+    case 'high':
+      return 1;
+    case 'medium':
+      return 0.8;
+    case 'low':
+      return 0.5;
+    case 'descriptive':
+      return 0.55;
+    default:
+      return 0.5;
+  }
+}
+
+function capitalizeSentence(text: string) {
+  const normalized = text.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.charAt(0).toLocaleUpperCase('fr-FR') + normalized.slice(1);
+}
+
+function getBehavioralAxisExpression(
+  axisCode: AssessmentBehaviorAxisCode,
+  direction: ProfessionalAssessmentAxisDirection,
+) {
+  const kind = BEHAVIORAL_PROFILE_AXIS_KIND_BY_CODE.get(axisCode) ?? 'bipolar';
+  if (kind === 'independent') {
+    const expressions = INDEPENDENT_AXIS_TEXTS[axisCode as keyof typeof INDEPENDENT_AXIS_TEXTS];
+    return expressions[direction as 'low' | 'moderate' | 'high'];
+  }
+
+  const expressions = BIPOLAR_AXIS_TEXTS[axisCode as keyof typeof BIPOLAR_AXIS_TEXTS];
+  return expressions[direction as 'negative' | 'mixed' | 'positive'];
+}
+
+function getBehavioralAxisKind(axisCode: AssessmentBehaviorAxisCode): ProfessionalAssessmentAxisKind {
+  return BEHAVIORAL_PROFILE_AXIS_KIND_BY_CODE.get(axisCode) ?? 'bipolar';
+}
+
+function getBehavioralAxisDirection(
+  axisKind: ProfessionalAssessmentAxisKind,
+  weightedMean: number,
+): ProfessionalAssessmentAxisDirection {
+  if (axisKind === 'independent') {
+    if (weightedMean < 0.67) {
+      return 'low';
+    }
+    if (weightedMean < 1.34) {
+      return 'moderate';
+    }
+    return 'high';
+  }
+
+  if (weightedMean <= -0.35) {
+    return 'negative';
+  }
+  if (weightedMean < 0.35) {
+    return 'mixed';
+  }
+  return 'positive';
+}
+
+function getBehavioralAxisStrength(axisKind: ProfessionalAssessmentAxisKind, weightedMean: number) {
+  if (axisKind === 'independent') {
+    return Math.min(Math.abs(weightedMean - 1), 1);
+  }
+
+  return Math.min(Math.abs(weightedMean) / 2, 1);
+}
+
+function getBehavioralAxisStability(axisKind: ProfessionalAssessmentAxisKind, deviation: number): ProfessionalAssessmentAxisStability {
+  if (axisKind === 'independent') {
+    if (deviation <= 0.35) {
+      return 'stable';
+    }
+    if (deviation <= 0.75) {
+      return 'variable';
+    }
+    return 'highly_variable';
+  }
+
+  if (deviation <= 0.55) {
+    return 'stable';
+  }
+  if (deviation <= 1.15) {
+    return 'variable';
+  }
+  return 'highly_variable';
+}
+
+function getBehavioralAxisEvidenceLevel(observationCount: number, weightedEvidence: number): ProfessionalAssessmentAxisEvidenceLevel {
+  if (observationCount === 1 || weightedEvidence < 1.5) {
+    return 'limited';
+  }
+
+  if (weightedEvidence < 2.4) {
+    return 'moderate';
+  }
+
+  return 'supported';
+}
+
+function buildBehavioralSummaryItem(
+  axisResult: ProfessionalAssessmentAxisResult,
+) {
+  const expression = getBehavioralAxisExpression(axisResult.axisCode, axisResult.direction);
+  const baseSentence = capitalizeSentence(expression);
+  if (!axisResult.contextSensitive || axisResult.contextFactors.length === 0) {
+    return `${baseSentence}.`;
+  }
+
+  const contextSentence = axisResult.contextFactors.length === 1
+    ? `Cette tendance paraît toutefois varier selon ${BEHAVIORAL_PROFILE_CONTEXT_FACTOR_LABELS[axisResult.contextFactors[0]]}.`
+    : 'Cette tendance paraît toutefois varier selon plusieurs éléments du contexte.';
+
+  return `${baseSentence}. ${contextSentence}`;
+}
+
+function compareBehavioralAxisResults(
+  left: ProfessionalAssessmentAxisResult,
+  right: ProfessionalAssessmentAxisResult,
+) {
+  const evidenceOrder: Record<ProfessionalAssessmentAxisEvidenceLevel, number> = {
+    supported: 0,
+    moderate: 1,
+    limited: 2,
+  };
+
+  return (
+    evidenceOrder[left.evidenceLevel] - evidenceOrder[right.evidenceLevel]
+    || (right.weightedEvidence - left.weightedEvidence)
+    || (right.strength - left.strength)
+    || left.axisCode.localeCompare(right.axisCode)
+  );
+}
+
+function selectCandidateBehavioralAxisResults(
+  axisResults: ProfessionalAssessmentAxisResult[],
+) {
+  const selectedAxisResults = axisResults.filter((result) => result.observationCount >= 2);
+  if (selectedAxisResults.length < 3) {
+    return [] as ProfessionalAssessmentAxisResult[];
+  }
+
+  const selectedByGroup: ProfessionalAssessmentAxisResult[] = [];
+  for (const [groupKey, limit] of BEHAVIORAL_PROFILE_SELECTION_RULES) {
+    const groupAxisCodes = new Set(BEHAVIORAL_PROFILE_GROUPS[groupKey]);
+    const groupResults = selectedAxisResults
+      .filter((result) => groupAxisCodes.has(result.axisCode))
+      .sort(compareBehavioralAxisResults);
+
+    selectedByGroup.push(...groupResults.slice(0, limit));
+  }
+
+  if (selectedByGroup.length < 3) {
+    const selectedAxisCodes = new Set(selectedByGroup.map((result) => result.axisCode));
+    const fallbackResults = selectedAxisResults
+      .filter((result) => !selectedAxisCodes.has(result.axisCode))
+      .sort(compareBehavioralAxisResults);
+
+    for (const result of fallbackResults) {
+      if (selectedByGroup.length >= 3) {
+        break;
+      }
+
+      selectedByGroup.push(result);
+    }
+  }
+
+  return selectedByGroup;
+}
+
+function buildNarrativeParagraph(
+  prefix: string | null,
+  clauses: string[],
+  capitalizeFirstClause = false,
+) {
+  const normalizedClauses = clauses
+    .map((clause) => clause.trim())
+    .filter((clause) => Boolean(clause));
+
+  if (normalizedClauses.length === 0) {
+    return null;
+  }
+
+  const sentenceParts = normalizedClauses.map((clause, index) => {
+    if (index === 0) {
+      return capitalizeFirstClause ? capitalizeSentence(clause) : clause;
+    }
+
+    return capitalizeSentence(clause);
+  });
+
+  const body = sentenceParts.join('. ');
+  return prefix ? `${prefix}${body}.` : `${body}.`;
+}
+
+function buildCandidateWorkingStyleParagraph(
+  selectedAxisResults: ProfessionalAssessmentAxisResult[],
+) {
+  const selectedByAxisCode = new Map(selectedAxisResults.map((result) => [result.axisCode, result] as const));
+  const clauses: string[] = [];
+
+  const decisionPace = selectedByAxisCode.get('decision_pace');
+  if (decisionPace?.direction === 'positive') {
+    clauses.push('vous avez tendance à prendre vos décisions assez rapidement avec les éléments disponibles');
+  } else if (decisionPace?.direction === 'negative') {
+    clauses.push('vous semblez préférer préparer vos décisions avant de trancher');
+  }
+
+  const methodExploration = selectedByAxisCode.get('method_exploration');
+  const executionImprovement = selectedByAxisCode.get('execution_improvement');
+  if (methodExploration?.direction === 'positive' && executionImprovement?.direction === 'negative') {
+    clauses.push('vous explorez volontiers de nouvelles méthodes, tout en préférant généralement aller au bout du cadre prévu avant d’introduire des améliorations');
+  } else {
+    if (methodExploration?.direction === 'positive') {
+      clauses.push('vous explorez volontiers de nouvelles méthodes');
+    } else if (methodExploration?.direction === 'negative') {
+      clauses.push('vous semblez préférer les méthodes éprouvées tant qu’elles restent efficaces');
+    }
+
+    if (executionImprovement?.direction === 'negative') {
+      clauses.push('vous semblez préférer aller au bout du cadre prévu avant d’introduire des améliorations');
+    } else if (executionImprovement?.direction === 'positive') {
+      clauses.push('vous avez tendance à améliorer activement votre manière de faire pendant l’activité');
+    }
+  }
+
+  return buildNarrativeParagraph('Dans votre manière de travailler, ', clauses);
+}
+
+function buildCandidateCollectiveParagraph(
+  selectedAxisResults: ProfessionalAssessmentAxisResult[],
+) {
+  const selectedByAxisCode = new Map(selectedAxisResults.map((result) => [result.axisCode, result] as const));
+  const leadershipActivation = selectedByAxisCode.get('leadership_activation');
+  if (!leadershipActivation) {
+    return null;
+  }
+
+  const clauses: string[] = [];
+  if (leadershipActivation.direction === 'high') {
+    clauses.push('vous prenez assez naturellement un rôle de coordination lorsque la situation le demande');
+  } else if (leadershipActivation.direction === 'moderate') {
+    clauses.push('vous pouvez contribuer à structurer le travail ou prendre ponctuellement la coordination');
+  } else {
+    clauses.push('vous semblez davantage contribuer depuis votre propre rôle que rechercher spontanément la coordination');
+  }
+
+  if (leadershipActivation.contextSensitive) {
+    clauses[0] = `${clauses[0]}, même si cette tendance paraît varier selon le contexte`;
+  }
+
+  const influence = selectedByAxisCode.get('influence');
+  if (influence?.direction === 'moderate') {
+    clauses.push('vous avez également tendance à expliquer et argumenter pour faciliter la décision collective');
+  } else if (influence?.direction === 'high') {
+    clauses.push('vous cherchez volontiers à créer de l’adhésion autour d’une proposition');
+  } else if (influence?.direction === 'low') {
+    clauses.push('vous partagez plutôt votre point de vue sans chercher systématiquement à convaincre');
+  }
+
+  return buildNarrativeParagraph('Dans le travail collectif, ', clauses);
+}
+
+function buildCandidateContributionParagraph(
+  selectedAxisResults: ProfessionalAssessmentAxisResult[],
+) {
+  const selectedByAxisCode = new Map(selectedAxisResults.map((result) => [result.axisCode, result] as const));
+  const valueCreation = selectedByAxisCode.get('value_creation');
+  if (!valueCreation) {
+    return null;
+  }
+
+  if (valueCreation.direction === 'high') {
+    return buildNarrativeParagraph(null, [
+      'vous avez tendance à rechercher activement des améliorations utiles au-delà du résultat attendu',
+    ], true);
+  }
+
+  if (valueCreation.direction === 'low') {
+    return buildNarrativeParagraph(null, [
+      'vous semblez privilégier avant tout le périmètre et le résultat initialement attendus',
+    ], true);
+  }
+
+  return buildNarrativeParagraph(null, [
+      'vous semblez attentif aux possibilités d’amélioration utiles au-delà de la tâche immédiate',
+  ], true);
+}
+
+function buildCandidateThemeGroups(
+  selectedAxisResults: ProfessionalAssessmentAxisResult[],
+): ProfessionalAssessmentCandidateThemeGroup[] {
+  return BEHAVIORAL_PROFILE_THEME_GROUPS.flatMap((group) => {
+    const groupAxisCodes = new Set<AssessmentBehaviorAxisCode>(group.axisCodes);
+    const items = selectedAxisResults
+      .filter((result) => groupAxisCodes.has(result.axisCode))
+      .map((result) => buildBehavioralSummaryItem(result));
+
+    if (items.length === 0) {
+      return [];
+    }
+
+    return [{
+      code: group.code,
+      title: group.title,
+      items,
+    }];
+  });
+}
+
+export function buildProfessionalAssessmentCandidateBehavioralProfile(
+  axisResults: ProfessionalAssessmentAxisResult[],
+): ProfessionalAssessmentCandidateBehavioralProfile {
+  const selectedAxisResults = selectCandidateBehavioralAxisResults(axisResults);
+  if (selectedAxisResults.length < 3) {
+    return {
+      axisResults: axisResults.map((axisResult) => ({
+        ...axisResult,
+        contextFactors: [...axisResult.contextFactors],
+      })),
+      candidateSummaryItems: [],
+      candidateSummary: BEHAVIORAL_PROFILE_INSUFFICIENT_CANDIDATE_SUMMARY,
+      candidateNarrativeParagraphs: [],
+      candidateThemeGroups: [],
+      disclaimer: BEHAVIORAL_PROFILE_CANDIDATE_DISCLAIMER,
+    };
+  }
+
+  const candidateSummaryItems = selectedAxisResults.map((axisResult) => buildBehavioralSummaryItem(axisResult));
+  const workingStyleParagraph = buildCandidateWorkingStyleParagraph(selectedAxisResults);
+  const collectiveParagraph = buildCandidateCollectiveParagraph(selectedAxisResults);
+  const contributionParagraph = buildCandidateContributionParagraph(selectedAxisResults);
+  return {
+    axisResults: axisResults.map((axisResult) => ({
+      ...axisResult,
+      contextFactors: [...axisResult.contextFactors],
+    })),
+    candidateSummaryItems,
+    candidateSummary: `${BEHAVIORAL_PROFILE_CANDIDATE_PREFIX}${candidateSummaryItems.join(' ')}`.trim(),
+    candidateNarrativeParagraphs: [
+      ...(workingStyleParagraph ? [workingStyleParagraph] : []),
+      ...(collectiveParagraph ? [collectiveParagraph] : []),
+      ...(contributionParagraph ? [contributionParagraph] : []),
+    ],
+    candidateThemeGroups: buildCandidateThemeGroups(selectedAxisResults),
+    disclaimer: BEHAVIORAL_PROFILE_CANDIDATE_DISCLAIMER,
+  };
+}
+
+function buildBehavioralObservations(
+  questions: AssessmentQuestion[],
+  responses: AssessmentResponse[],
+) {
+  const questionLookup = new Map(questions.map((question) => [question.id, question] as const));
+  const observations: BehavioralObservation[] = [];
+
+  for (const response of responses) {
+    const question = questionLookup.get(response.questionId);
+    if (!question || !question.behaviorModel) {
+      continue;
+    }
+
+    const selectedOption = question.options.find((option) => option.id === response.optionId);
+    if (!selectedOption || !selectedOption.behaviorSignals) {
+      continue;
+    }
+
+    const weight = getBehaviorObservationWeight(question.signalReliability ?? question.behaviorModel.signalReliability);
+    for (const [axisCode, value] of Object.entries(selectedOption.behaviorSignals)) {
+      if (!BEHAVIORAL_PROFILE_AXIS_KIND_BY_CODE.has(axisCode as AssessmentBehaviorAxisCode)) {
+        continue;
+      }
+
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        continue;
+      }
+
+      observations.push({
+        axisCode: axisCode as AssessmentBehaviorAxisCode,
+        value: value as AssessmentBehaviorSignalValue,
+        weight,
+        questionId: question.id,
+        questionType: question.questionType,
+        signalReliability: question.signalReliability ?? question.behaviorModel.signalReliability,
+        context: question.behaviorModel.context,
+      });
+    }
+  }
+
+  return observations;
+}
+
+function computeBehavioralAxisResults(
+  observations: BehavioralObservation[],
+) {
+  const groupedObservations = new Map<AssessmentBehaviorAxisCode, BehavioralObservation[]>();
+  for (const observation of observations) {
+    const current = groupedObservations.get(observation.axisCode) ?? [];
+    current.push(observation);
+    groupedObservations.set(observation.axisCode, current);
+  }
+
+  const axisResults: ProfessionalAssessmentAxisResult[] = [];
+  for (const axisCode of BEHAVIOR_AXIS_CODES) {
+    const axisObservations = groupedObservations.get(axisCode);
+    if (!axisObservations || axisObservations.length === 0) {
+      continue;
+    }
+
+    const axisKind = getBehavioralAxisKind(axisCode);
+    const weightedEvidence = axisObservations.reduce((sum, observation) => sum + observation.weight, 0);
+    const weightedValue = axisObservations.reduce((sum, observation) => sum + observation.value * observation.weight, 0);
+    const weightedMean = weightedEvidence > 0 ? weightedValue / weightedEvidence : 0;
+    const deviation = weightedEvidence > 0
+      ? Math.sqrt(axisObservations.reduce((sum, observation) => sum + observation.weight * ((observation.value - weightedMean) ** 2), 0) / weightedEvidence)
+      : 0;
+    const contextFactors = (['riskLevel', 'urgency', 'authorityContext', 'informationCompleteness', 'collectiveImpact'] as const).filter((factor) => {
+      const buckets = new Map<string, { weightedEvidence: number; weightedValue: number }>();
+      for (const observation of axisObservations) {
+        const rawValue = observation.context[factor];
+        const bucketKey = String(rawValue);
+        const bucket = buckets.get(bucketKey) ?? { weightedEvidence: 0, weightedValue: 0 };
+        bucket.weightedEvidence += observation.weight;
+        bucket.weightedValue += observation.value * observation.weight;
+        buckets.set(bucketKey, bucket);
+      }
+
+      if (buckets.size < 2) {
+        return false;
+      }
+
+      const groupMeans = [...buckets.values()].map((bucket) => bucket.weightedValue / Math.max(bucket.weightedEvidence, 1e-9));
+      const gap = Math.max(...groupMeans) - Math.min(...groupMeans);
+      return axisKind === 'independent' ? gap >= 0.75 : gap >= 1.5;
+    });
+
+    axisResults.push({
+      axisCode,
+      axisKind,
+      observationCount: axisObservations.length,
+      weightedEvidence,
+      weightedMean,
+      direction: getBehavioralAxisDirection(axisKind, weightedMean),
+      strength: getBehavioralAxisStrength(axisKind, weightedMean),
+      stability: axisObservations.length < 2
+        ? 'unknown'
+        : getBehavioralAxisStability(axisKind, deviation),
+      evidenceLevel: getBehavioralAxisEvidenceLevel(axisObservations.length, weightedEvidence),
+      contextSensitive: contextFactors.length > 0,
+      contextFactors,
+    });
+  }
+
+  return axisResults;
+}
+
+function buildBehavioralProfile(
+  questions: AssessmentQuestion[],
+  responses: AssessmentResponse[],
+) {
+  const observations = buildBehavioralObservations(questions, responses);
+  const axisResults = computeBehavioralAxisResults(observations);
+  const candidatePresentation = buildProfessionalAssessmentCandidateBehavioralProfile(axisResults);
+
+  if (candidatePresentation.candidateSummaryItems.length === 0) {
+    return {
+      axisResults,
+      candidateSummaryItems: [] as string[],
+      companySummaryItems: [] as string[],
+      candidateSummary: BEHAVIORAL_PROFILE_INSUFFICIENT_CANDIDATE_SUMMARY,
+      companySummary: BEHAVIORAL_PROFILE_INSUFFICIENT_COMPANY_SUMMARY,
+      candidateNarrativeParagraphs: [] as string[],
+      candidateThemeGroups: [] as ProfessionalAssessmentCandidateThemeGroup[],
+      disclaimer: BEHAVIORAL_PROFILE_CANDIDATE_DISCLAIMER,
+    };
+  }
+
+  const candidateSummaryItems = [...candidatePresentation.candidateSummaryItems];
+  const companySummaryItems = [...candidateSummaryItems];
+  const candidateSummary = candidatePresentation.candidateSummary;
+  const candidateNarrativeParagraphs = candidatePresentation.candidateNarrativeParagraphs ?? [];
+  const candidateThemeGroups = candidatePresentation.candidateThemeGroups ?? [];
+  const companySummary = `${BEHAVIORAL_PROFILE_COMPANY_PREFIX}${companySummaryItems.join(' ')}`.trim();
+
+  return {
+    axisResults,
+    candidateSummaryItems,
+    companySummaryItems,
+    candidateSummary,
+    companySummary,
+    candidateNarrativeParagraphs: [...candidateNarrativeParagraphs],
+    candidateThemeGroups: candidateThemeGroups.map((group) => ({
+      code: group.code,
+      title: group.title,
+      items: [...group.items],
+    })),
+    disclaimer: candidatePresentation.disclaimer,
+  };
+}
+
 export function calculateProfessionalAssessmentOutcome(
   input: AssessmentEngineRequest,
 ): AssessmentCalculationOutcome {
@@ -1405,6 +2108,10 @@ export function calculateProfessionalAssessmentOutcome(
   };
 
   const selected = selectReportItems(dimensionResults, input.version);
+  const schemaVersion = input.version.schemaVersion === 2 ? 2 : 1;
+  const behavioralProfile = schemaVersion === 2
+    ? buildBehavioralProfile(consideredQuestions, input.responses)
+    : null;
   const completedAt = input.completedAt ?? input.responses
     .slice()
     .sort((left, right) => left.responseOrder - right.responseOrder)
@@ -1419,8 +2126,9 @@ export function calculateProfessionalAssessmentOutcome(
     strengths: selected.strengths,
     interviewFocusAreas: selected.interviewFocusAreas,
     suggestedInterviewQuestions: selected.suggestedInterviewQuestions,
-    candidateSummary: selected.candidateSummary,
-    companySummary: selected.companySummary,
+    candidateSummary: behavioralProfile?.candidateSummary ?? selected.candidateSummary,
+    companySummary: behavioralProfile?.companySummary ?? selected.companySummary,
+    ...(behavioralProfile ? { behavioralProfile } : {}),
     limitations: uniqueStrings(
       dimensionResults.flatMap((result) => result.limitations),
     ),
@@ -1470,6 +2178,16 @@ export function projectAssessmentReportForCandidate(
     throw new AssessmentModelError('Le rapport professionnel candidat ne peut pas etre construit a partir dun legacy.', legacyIssues.issues);
   }
 
+  const behavioralProfile = report.behavioralProfile
+    ? {
+        ...buildProfessionalAssessmentCandidateBehavioralProfile(report.behavioralProfile.axisResults),
+        axisResults: report.behavioralProfile.axisResults.map((axisResult) => ({
+          ...axisResult,
+          contextFactors: [...axisResult.contextFactors],
+        })),
+      } satisfies ProfessionalAssessmentCandidateBehavioralProfile
+    : undefined;
+
   return {
     assessmentVersion: report.assessmentVersion,
     completedPath: report.completedPath,
@@ -1480,6 +2198,7 @@ export function projectAssessmentReportForCandidate(
     interviewFocusAreas: report.interviewFocusAreas.map(buildProjectionFocusArea),
     suggestedInterviewQuestions: report.suggestedInterviewQuestions.map((question) => ({ ...question })),
     candidateSummary: report.candidateSummary,
+    ...(behavioralProfile ? { behavioralProfile } : {}),
     limitations: [...report.limitations],
     legalNoticeCode: report.legalNoticeCode,
     scoringEngineVersion: report.scoringEngineVersion,
@@ -1495,6 +2214,18 @@ export function projectAssessmentReportForCompany(
     throw new AssessmentModelError('Le rapport professionnel entreprise ne peut pas etre construit a partir dun legacy.', legacyIssues.issues);
   }
 
+  const behavioralProfile = report.behavioralProfile
+    ? {
+        axisResults: report.behavioralProfile.axisResults.map((axisResult) => ({
+          ...axisResult,
+          contextFactors: [...axisResult.contextFactors],
+        })),
+        companySummaryItems: [...report.behavioralProfile.companySummaryItems],
+        companySummary: report.behavioralProfile.companySummary,
+        disclaimer: report.behavioralProfile.disclaimer,
+      } satisfies ProfessionalAssessmentCompanyBehavioralProfile
+    : undefined;
+
   return {
     assessmentVersion: report.assessmentVersion,
     completedPath: report.completedPath,
@@ -1505,6 +2236,7 @@ export function projectAssessmentReportForCompany(
     interviewFocusAreas: report.interviewFocusAreas.map(buildProjectionFocusArea),
     suggestedInterviewQuestions: report.suggestedInterviewQuestions.map((question) => ({ ...question })),
     companySummary: report.companySummary,
+    ...(behavioralProfile ? { behavioralProfile } : {}),
     limitations: [...report.limitations],
     legalNoticeCode: report.legalNoticeCode,
     scoringEngineVersion: report.scoringEngineVersion,

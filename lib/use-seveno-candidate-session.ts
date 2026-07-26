@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { getCandidateProfile } from '@/lib/seveno-candidates';
-import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import { ensureSevenoUser, hasSevenoTermsAcceptance, resolveSevenoRedirect } from '@/lib/seveno-users';
 import { shouldAllowCandidateOnboardingWithoutProfile } from '@/lib/seveno-candidate-session-gate';
 import type { CandidateProfile } from '@/types/seveno';
 
@@ -37,6 +37,12 @@ export function useSevenoCandidateSession() {
           router.replace(resolveSevenoRedirect(sevenoUser));
           return;
         }
+
+        if (!hasSevenoTermsAcceptance(sevenoUser, 'candidate_account') && pathname !== '/candidat/onboarding') {
+          router.replace('/cgu');
+          return;
+        }
+
         const candidateProfile = await getCandidateProfile(sevenoUser.uid);
         if (!active) return;
         if (!candidateProfile) {

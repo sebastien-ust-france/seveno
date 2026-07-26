@@ -21,6 +21,8 @@ import type {
   AssessmentBehaviorQuestionType,
   AssessmentBehaviorSignalValue,
   AssessmentSignalReliability,
+  ProfessionalAssessmentAxisResult,
+  ProfessionalAssessmentBehavioralProfile,
   CandidateProfile,
   QuestionBank,
   SevenoUser,
@@ -602,6 +604,40 @@ function buildSubmitResult(result: TestResult): TestSessionSubmitResult {
   };
 }
 
+function readStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => toTrimmedString(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function readProfessionalAssessmentBehavioralProfile(data: FirestoreRecord): ProfessionalAssessmentBehavioralProfile | null {
+  const behavioralProfileSource = isPlainObject(data.behavioralProfile)
+    ? (data.behavioralProfile as FirestoreRecord)
+    : data;
+  const axisResultsValue = behavioralProfileSource.axisResults;
+  if (!Array.isArray(axisResultsValue) || axisResultsValue.length === 0) {
+    return null;
+  }
+
+  const axisResults = axisResultsValue.filter(isPlainObject);
+  if (axisResults.length === 0) {
+    return null;
+  }
+
+  return {
+    axisResults: axisResults as unknown as ProfessionalAssessmentAxisResult[],
+    candidateSummaryItems: readStringArray(behavioralProfileSource.candidateSummaryItems),
+    companySummaryItems: readStringArray(behavioralProfileSource.companySummaryItems),
+    candidateSummary: toTrimmedString(behavioralProfileSource.candidateSummary) || '',
+    companySummary: toTrimmedString(behavioralProfileSource.companySummary) || '',
+    disclaimer: toTrimmedString(behavioralProfileSource.disclaimer) || '',
+  };
+}
+
 function scoreSevenoGeneralAssessment(
   bank: QuestionBank,
   answers: Record<string, string>,
@@ -927,6 +963,19 @@ async function submitSevenoProfessionalAssessment(
       responses,
       completedAt: transactionNow,
     });
+    const behavioralProfile = outcome.report.behavioralProfile ?? null;
+    const professionalAssessmentSchemaVersion = professionalVersion.schemaVersion ?? 1;
+    const persistedBehavioralProfile = behavioralProfile
+      ? {
+          ...behavioralProfile,
+          axisResults: behavioralProfile.axisResults.map((axisResult) => ({
+            ...axisResult,
+            contextFactors: [...axisResult.contextFactors],
+          })),
+          candidateSummaryItems: [...behavioralProfile.candidateSummaryItems],
+          companySummaryItems: [...behavioralProfile.companySummaryItems],
+        }
+      : null;
 
     const scoresByDimension = Object.fromEntries(
       outcome.report.dimensionResults
@@ -952,6 +1001,9 @@ async function submitSevenoProfessionalAssessment(
       score: overallScore,
       overallScore,
       scoresByDimension,
+      professionalAssessmentVersionId: professionalVersion.id,
+      professionalAssessmentSchemaVersion,
+      behavioralProfile: persistedBehavioralProfile,
       correctAnswers: 0,
       totalQuestions: questionIds.length,
       passed: true,
@@ -982,11 +1034,25 @@ async function submitSevenoProfessionalAssessment(
       overallScore,
       scoresByDimension,
       questionnaireVersion: professionalVersion.version,
+      professionalAssessmentVersionId: professionalVersion.id,
+      professionalAssessmentSchemaVersion,
       sessionId,
       resultId: resultRef.id,
       completedAt,
       updatedAt: completedAt,
-    });
+      candidateSummary: persistedBehavioralProfile?.candidateSummary ?? null,
+      companySummary: persistedBehavioralProfile?.companySummary ?? null,
+      candidateSummaryItems: persistedBehavioralProfile ? [...persistedBehavioralProfile.candidateSummaryItems] : [],
+      companySummaryItems: persistedBehavioralProfile ? [...persistedBehavioralProfile.companySummaryItems] : [],
+      disclaimer: persistedBehavioralProfile?.disclaimer ?? null,
+      axisResults: persistedBehavioralProfile
+        ? persistedBehavioralProfile.axisResults.map((axisResult) => ({
+            ...axisResult,
+            contextFactors: [...axisResult.contextFactors],
+          }))
+        : [],
+      behavioralProfile: persistedBehavioralProfile,
+    }, { merge: true });
     transaction.set(attemptRef, {
       attemptSeed: session.attemptSeed ?? null,
       professionalAssessmentVersionId: professionalVersion.id,
@@ -1807,6 +1873,7 @@ export async function getSevenoAssessmentSummary(uid: string) {
     return null;
   }
 
+  const summaryData = snapshot.data() as FirestoreRecord;
   const completedAt = toTimestamp(snapshot.get('completedAt'));
   const overallScore = snapshot.get('overallScore');
   const scoresByDimension = snapshot.get('scoresByDimension');
@@ -1825,5 +1892,14 @@ export async function getSevenoAssessmentSummary(uid: string) {
     scoresByDimension: scoresByDimension as SevenoAssessmentScores,
     questionnaireVersion: toTrimmedString(snapshot.get('questionnaireVersion')) ?? '',
     completedAt: completedAt.toDate().toISOString(),
+    professionalAssessmentVersionId: toTrimmedString(summaryData.professionalAssessmentVersionId) || null,
+    professionalAssessmentSchemaVersion: toPositiveInteger(summaryData.professionalAssessmentSchemaVersion),
+    candidateSummaryItems: readStringArray(summaryData.candidateSummaryItems),
+    companySummaryItems: readStringArray(summaryData.companySummaryItems),
+    candidateSummary: toTrimmedString(summaryData.candidateSummary) || null,
+    companySummary: toTrimmedString(summaryData.companySummary) || null,
+    disclaimer: toTrimmedString(summaryData.disclaimer) || null,
+    axisResults: Array.isArray(summaryData.axisResults) ? (summaryData.axisResults as ProfessionalAssessmentAxisResult[]) : undefined,
+    behavioralProfile: readProfessionalAssessmentBehavioralProfile(summaryData),
   };
 }

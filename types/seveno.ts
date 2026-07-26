@@ -6,6 +6,8 @@ import type {
   AssessmentBehaviorQuestionType,
   AssessmentBehaviorSignalValue,
   AssessmentSignalReliability,
+  ProfessionalAssessmentAxisResult,
+  ProfessionalAssessmentBehavioralProfile,
 } from '@/types/seveno-assessment';
 export type {
   AssessmentBehaviorAxisCode,
@@ -14,6 +16,8 @@ export type {
   AssessmentBehaviorQuestionType,
   AssessmentBehaviorSignalValue,
   AssessmentSignalReliability,
+  ProfessionalAssessmentAxisResult,
+  ProfessionalAssessmentBehavioralProfile,
 } from '@/types/seveno-assessment';
 
 export type FirestoreDateValue = Timestamp | FieldValue;
@@ -64,6 +68,15 @@ export interface SevenoAssessmentSummary {
   scoresByDimension: SevenoAssessmentScores;
   questionnaireVersion: string;
   completedAt: string;
+  professionalAssessmentVersionId?: string | null;
+  professionalAssessmentSchemaVersion?: number | null;
+  candidateSummaryItems?: string[];
+  companySummaryItems?: string[];
+  candidateSummary?: string | null;
+  companySummary?: string | null;
+  disclaimer?: string | null;
+  axisResults?: ProfessionalAssessmentAxisResult[];
+  behavioralProfile?: ProfessionalAssessmentBehavioralProfile | null;
 }
 export type CompanyProfileStatus = 'draft' | 'active' | 'suspended';
 export type CompanyVerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
@@ -670,6 +683,9 @@ export interface TestResult {
   score: number;
   overallScore?: number;
   scoresByDimension?: SevenoAssessmentScores;
+  professionalAssessmentVersionId?: string | null;
+  professionalAssessmentSchemaVersion?: number | null;
+  behavioralProfile?: ProfessionalAssessmentBehavioralProfile | null;
   correctAnswers: number;
   totalQuestions: number;
   passed: boolean;

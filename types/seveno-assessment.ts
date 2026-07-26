@@ -34,6 +34,61 @@ export type AssessmentBehaviorAxisCode =
 export type AssessmentBehaviorQuestionType = 'behavioral_situation' | 'tradeoff' | 'direct_self_report' | 'work_preference';
 export type AssessmentSignalReliability = 'high' | 'medium' | 'low' | 'descriptive';
 export type AssessmentBehaviorSignalValue = -2 | -1 | 0 | 1 | 2;
+export type ProfessionalAssessmentAxisKind = 'bipolar' | 'independent';
+export type ProfessionalAssessmentAxisDirection =
+  | 'negative'
+  | 'mixed'
+  | 'positive'
+  | 'low'
+  | 'moderate'
+  | 'high';
+export type ProfessionalAssessmentAxisStability = 'unknown' | 'stable' | 'variable' | 'highly_variable';
+export type ProfessionalAssessmentAxisEvidenceLevel = 'limited' | 'moderate' | 'supported';
+export type ProfessionalAssessmentContextFactor =
+  | 'riskLevel'
+  | 'urgency'
+  | 'authorityContext'
+  | 'informationCompleteness'
+  | 'collectiveImpact';
+
+export interface ProfessionalAssessmentAxisResult {
+  axisCode: AssessmentBehaviorAxisCode;
+  axisKind: ProfessionalAssessmentAxisKind;
+  observationCount: number;
+  weightedEvidence: number;
+  weightedMean: number;
+  direction: ProfessionalAssessmentAxisDirection;
+  strength: number;
+  stability: ProfessionalAssessmentAxisStability;
+  evidenceLevel: ProfessionalAssessmentAxisEvidenceLevel;
+  contextSensitive: boolean;
+  contextFactors: ProfessionalAssessmentContextFactor[];
+}
+
+export interface ProfessionalAssessmentBehavioralProfile {
+  axisResults: ProfessionalAssessmentAxisResult[];
+  candidateSummaryItems: string[];
+  companySummaryItems: string[];
+  candidateSummary: string;
+  companySummary: string;
+  candidateNarrativeParagraphs?: string[];
+  candidateThemeGroups?: ProfessionalAssessmentCandidateThemeGroup[];
+  disclaimer: string;
+}
+export type ProfessionalAssessmentCandidateThemeGroupCode = 'WORKING_STYLE' | 'COLLECTIVE' | 'CONTRIBUTION';
+export interface ProfessionalAssessmentCandidateThemeGroup {
+  code: ProfessionalAssessmentCandidateThemeGroupCode;
+  title: string;
+  items: string[];
+}
+export type ProfessionalAssessmentCandidateBehavioralProfile = Pick<
+  ProfessionalAssessmentBehavioralProfile,
+  'axisResults' | 'candidateSummaryItems' | 'candidateSummary' | 'candidateNarrativeParagraphs' | 'candidateThemeGroups' | 'disclaimer'
+>;
+export type ProfessionalAssessmentCompanyBehavioralProfile = Pick<
+  ProfessionalAssessmentBehavioralProfile,
+  'axisResults' | 'companySummaryItems' | 'companySummary' | 'disclaimer'
+>;
 export type AssessmentBehaviorRiskLevel = 'none' | 'low' | 'medium' | 'high';
 export type AssessmentBehaviorReversibility = 'not_applicable' | 'high' | 'medium' | 'low';
 export type AssessmentBehaviorUrgency = 'none' | 'low' | 'medium' | 'high';
@@ -285,6 +340,7 @@ export interface SevenoProfessionalAssessmentReport {
   suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
   candidateSummary: string;
   companySummary: string;
+  behavioralProfile?: ProfessionalAssessmentBehavioralProfile;
   limitations: string[];
   legalNoticeCode: string;
   scoringEngineVersion: string;
@@ -327,6 +383,7 @@ export interface AssessmentCandidateProjection {
   interviewFocusAreas: AssessmentProjectionFocusArea[];
   suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
   candidateSummary: string;
+  behavioralProfile?: ProfessionalAssessmentCandidateBehavioralProfile;
   limitations: string[];
   legalNoticeCode: string;
   scoringEngineVersion: string;
@@ -343,6 +400,7 @@ export interface AssessmentCompanyProjection {
   interviewFocusAreas: AssessmentProjectionFocusArea[];
   suggestedInterviewQuestions: AssessmentSuggestedInterviewQuestion[];
   companySummary: string;
+  behavioralProfile?: ProfessionalAssessmentCompanyBehavioralProfile;
   limitations: string[];
   legalNoticeCode: string;
   scoringEngineVersion: string;

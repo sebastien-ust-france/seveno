@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  buildProfessionalAssessmentCandidateBehavioralProfile,
   buildProfessionalAssessmentReport,
   calculateProfessionalAssessmentOutcome,
   AssessmentModelError,
@@ -19,9 +20,13 @@ import {
   SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION,
 } from '@/lib/seveno-professional-assessment-fixtures';
 import type {
+  AssessmentBehaviorAxisCode,
   AssessmentQuestion,
   AssessmentQuestionOption,
   AssessmentVersionDescriptor,
+  ProfessionalAssessmentAxisDirection,
+  ProfessionalAssessmentAxisKind,
+  ProfessionalAssessmentAxisResult,
 } from '@/types/seveno-assessment';
 
 function readSource(relativePath: string) {
@@ -66,6 +71,49 @@ function buildOption(dimensionScores: AssessmentQuestionOption['dimensionScores'
     dimensionScores,
     adminExplanation: 'Explication de test.',
   };
+}
+
+const INDEPENDENT_BEHAVIOR_AXIS_CODES = new Set<AssessmentBehaviorAxisCode>([
+  'leadership_activation',
+  'influence',
+  'followership',
+  'collective_support',
+  'value_creation',
+  'alerting_behavior',
+]);
+
+function buildAxisResult(
+  axisCode: AssessmentBehaviorAxisCode,
+  direction: ProfessionalAssessmentAxisDirection,
+  overrides: Partial<ProfessionalAssessmentAxisResult> = {},
+): ProfessionalAssessmentAxisResult {
+  const axisKind: ProfessionalAssessmentAxisKind = INDEPENDENT_BEHAVIOR_AXIS_CODES.has(axisCode)
+    ? 'independent'
+    : 'bipolar';
+
+  return {
+    axisCode,
+    axisKind,
+    observationCount: 2,
+    weightedEvidence: 2,
+    weightedMean: axisKind === 'independent'
+      ? ({ low: 0.4, moderate: 1, high: 1.6 } as const)[direction as 'low' | 'moderate' | 'high'] ?? 1
+      : ({ negative: -0.7, mixed: 0, positive: 0.7 } as const)[direction as 'negative' | 'mixed' | 'positive'] ?? 0,
+    direction,
+    strength: axisKind === 'independent' ? 0.65 : 0.5,
+    stability: 'stable',
+    evidenceLevel: 'supported',
+    contextSensitive: false,
+    contextFactors: [],
+    ...overrides,
+  };
+}
+
+function assertNarrativeFormatting(paragraphs: string[]) {
+  assert.equal(paragraphs.every((paragraph) => paragraph.length > 0), true);
+  assert.equal(paragraphs.every((paragraph) => !paragraph.includes('undefined')), true);
+  assert.equal(paragraphs.every((paragraph) => !paragraph.includes('  ')), true);
+  assert.equal(paragraphs.every((paragraph) => !/[.?!]{2,}|,,/.test(paragraph)), true);
 }
 
 function mutateForNotMeasured(version: AssessmentVersionDescriptor) {
@@ -296,6 +344,66 @@ function main() {
   assert.equal('evidenceCodes' in (companyProjection.dimensionResults[0] ?? {}), false);
   assert.equal('candidateSummary' in companyProjection, false);
   assert.equal('companySummary' in candidateProjection, false);
+
+  const referenceBehavioralProfile = buildProfessionalAssessmentCandidateBehavioralProfile([
+    buildAxisResult('decision_pace', 'positive'),
+    buildAxisResult('method_exploration', 'positive'),
+    buildAxisResult('execution_improvement', 'negative'),
+    buildAxisResult('leadership_activation', 'high', {
+      contextSensitive: true,
+      contextFactors: ['riskLevel'],
+    }),
+    buildAxisResult('influence', 'moderate'),
+    buildAxisResult('value_creation', 'moderate'),
+  ]);
+
+  assert.equal(referenceBehavioralProfile.candidateNarrativeParagraphs?.length ?? 0, 3);
+  assert.deepStrictEqual(referenceBehavioralProfile.candidateNarrativeParagraphs, [
+    'Dans votre manière de travailler, vous avez tendance à prendre vos décisions assez rapidement avec les éléments disponibles. Vous explorez volontiers de nouvelles méthodes, tout en préférant généralement aller au bout du cadre prévu avant d’introduire des améliorations.',
+    'Dans le travail collectif, vous prenez assez naturellement un rôle de coordination lorsque la situation le demande, même si cette tendance paraît varier selon le contexte. Vous avez également tendance à expliquer et argumenter pour faciliter la décision collective.',
+    'Vous semblez attentif aux possibilités d’amélioration utiles au-delà de la tâche immédiate.',
+  ]);
+  assert.deepStrictEqual(referenceBehavioralProfile.candidateThemeGroups?.map((group) => group.title), [
+    'Décision et façon de travailler',
+    'Fonctionnement collectif',
+    'Contribution et vigilance',
+  ]);
+  assert.deepStrictEqual(referenceBehavioralProfile.candidateThemeGroups?.map((group) => group.items.length), [3, 2, 1]);
+  assertNarrativeFormatting(referenceBehavioralProfile.candidateNarrativeParagraphs ?? []);
+
+  const noCollectiveBehavioralProfile = buildProfessionalAssessmentCandidateBehavioralProfile([
+    buildAxisResult('decision_pace', 'positive'),
+    buildAxisResult('method_exploration', 'positive'),
+    buildAxisResult('execution_improvement', 'negative'),
+    buildAxisResult('value_creation', 'moderate'),
+  ]);
+  assert.equal(noCollectiveBehavioralProfile.candidateThemeGroups?.some((group) => group.code === 'COLLECTIVE'), false);
+  assert.equal(noCollectiveBehavioralProfile.candidateNarrativeParagraphs?.some((paragraph) => paragraph.includes('travail collectif')), false);
+  assertNarrativeFormatting(noCollectiveBehavioralProfile.candidateNarrativeParagraphs ?? []);
+
+  const noContributionBehavioralProfile = buildProfessionalAssessmentCandidateBehavioralProfile([
+    buildAxisResult('decision_pace', 'positive'),
+    buildAxisResult('method_exploration', 'positive'),
+    buildAxisResult('execution_improvement', 'negative'),
+    buildAxisResult('leadership_activation', 'high', {
+      contextSensitive: true,
+      contextFactors: ['riskLevel'],
+    }),
+    buildAxisResult('influence', 'moderate'),
+  ]);
+  assert.equal(noContributionBehavioralProfile.candidateThemeGroups?.some((group) => group.code === 'CONTRIBUTION'), false);
+  assert.equal(noContributionBehavioralProfile.candidateNarrativeParagraphs?.length ?? 0, 2);
+  assertNarrativeFormatting(noContributionBehavioralProfile.candidateNarrativeParagraphs ?? []);
+
+  const minimalBehavioralProfile = buildProfessionalAssessmentCandidateBehavioralProfile([
+    buildAxisResult('decision_pace', 'positive'),
+    buildAxisResult('leadership_activation', 'high'),
+    buildAxisResult('value_creation', 'moderate'),
+  ]);
+  assert.equal(minimalBehavioralProfile.candidateSummaryItems.length, 3);
+  assert.equal(minimalBehavioralProfile.candidateNarrativeParagraphs?.length ?? 0, 3);
+  assert.equal(minimalBehavioralProfile.candidateThemeGroups?.length ?? 0, 3);
+  assertNarrativeFormatting(minimalBehavioralProfile.candidateNarrativeParagraphs ?? []);
 
   const engineSource = readSource('lib/seveno-professional-assessment.ts');
   assert.doesNotMatch(engineSource, /candidate_profiles/);

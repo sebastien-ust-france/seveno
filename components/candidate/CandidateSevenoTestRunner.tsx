@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
+import { buildProfessionalAssessmentCandidateBehavioralProfile } from '@/lib/seveno-professional-assessment';
 import { useSevenoCandidateSession } from '@/lib/use-seveno-candidate-session';
 import {
   getCandidateSevenoTestStateClient,
@@ -110,6 +111,19 @@ export function CandidateSevenoTestRunner() {
   const questionnaireStatusNote = getQuestionnaireStateNote(state);
   const finalScore = state?.assessment?.overallScore ?? null;
   const dimensionScores = getDimensionLabel(state?.assessment?.scoresByDimension);
+  const completedAssessment = state?.assessment ?? null;
+  const completedBehavioralProfile = completedAssessment?.behavioralProfile ?? null;
+  const completedAssessmentSchemaVersion = completedAssessment?.professionalAssessmentSchemaVersion ?? null;
+  const completedBehavioralProfileV2 = completedAssessmentSchemaVersion === 2;
+  const completedBehavioralPresentation = completedBehavioralProfileV2 && completedBehavioralProfile
+    ? buildProfessionalAssessmentCandidateBehavioralProfile(completedBehavioralProfile.axisResults)
+    : null;
+  const completedBehavioralNarrativeParagraphs = completedBehavioralPresentation?.candidateNarrativeParagraphs ?? [];
+  const completedBehavioralThemeGroups = completedBehavioralPresentation?.candidateThemeGroups ?? [];
+  const completedBehavioralDisclaimer = completedBehavioralPresentation?.disclaimer
+    ?? completedBehavioralProfile?.disclaimer
+    ?? completedAssessment?.disclaimer
+    ?? null;
 
   const preparationCardItems = state
     ? [
@@ -323,6 +337,72 @@ export function CandidateSevenoTestRunner() {
   }
 
   if (questionnaireCompleted && state?.assessment) {
+    if (completedBehavioralProfileV2) {
+      return (
+        <CandidateShell
+          title="Questionnaire général Seven’O"
+          description="Cette page ouvre la session réelle du moteur Seven’O. Elle conserve la durée, l’état actif et le résultat final du candidat."
+          actions={(
+            <Link
+              href="/candidat"
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Retour au tableau de bord candidat
+            </Link>
+          )}
+        >
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              {preparationCardItems.map((card) => (
+                <CandidateStatusCard
+                  key={card.label}
+                  tone={card.tone}
+                  label={card.label}
+                  value={card.value}
+                  note={card.note}
+                />
+              ))}
+            </div>
+
+            <SevenoPanel tone="cyan" className="p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">PROFIL COMPORTEMENTAL</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Votre profil de tendances professionnelles</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                Voici les principales tendances qui ressortent de vos réponses.
+              </p>
+
+              {completedBehavioralNarrativeParagraphs.length > 0 ? (
+                <div className="mt-5 space-y-3 rounded-[20px] border border-cyan-300/15 bg-cyan-400/10 px-4 py-4 text-sm leading-7 text-cyan-50">
+                  {completedBehavioralNarrativeParagraphs.map((paragraph, index) => (
+                    <p key={`${index}-${paragraph}`}>{paragraph}</p>
+                  ))}
+                </div>
+              ) : null}
+
+              {completedBehavioralThemeGroups.length > 0 ? (
+                <div className="mt-5 grid gap-3">
+                  {completedBehavioralThemeGroups.map((group) => (
+                    <article key={group.code} className="rounded-[20px] border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">{group.title}</p>
+                      <div className="mt-3 space-y-2">
+                        {group.items.map((item, index) => (
+                          <p key={`${group.code}-${index}`} className="text-sm leading-7 text-slate-200">{item}</p>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {completedBehavioralDisclaimer ? (
+                <p className="mt-5 text-sm leading-7 text-slate-300">{completedBehavioralDisclaimer}</p>
+              ) : null}
+            </SevenoPanel>
+          </div>
+        </CandidateShell>
+      );
+    }
+
     return (
       <CandidateShell
         title="Questionnaire général Seven’O"
