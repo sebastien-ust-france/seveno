@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { User } from 'firebase/auth';
 import { CANDIDATE_NAVIGATION } from '@/lib/seveno-navigation';
+import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
 import { COMPANY_INVITE_ONLY_MESSAGE, canAssignPublicRole } from '@/lib/seveno-users';
 import {
   resolveCandidateSessionGateState,
+  shouldAllowCandidateOnboardingWithoutProfile,
   shouldRenderCandidateChildren,
 } from '@/lib/seveno-candidate-session-gate';
 
@@ -70,20 +72,115 @@ assert.equal(shouldRenderCandidateChildren('loading'), false);
 assert.equal(shouldRenderCandidateChildren('redirecting'), false);
 assert.equal(shouldRenderCandidateChildren('error'), false);
 assert.equal(shouldRenderCandidateChildren('ready'), true);
+assert.equal(
+  shouldAllowCandidateOnboardingWithoutProfile('/candidat/onboarding', false),
+  true,
+);
+assert.equal(
+  shouldAllowCandidateOnboardingWithoutProfile('/candidat', false),
+  false,
+);
+assert.equal(
+  shouldAllowCandidateOnboardingWithoutProfile('/candidat/onboarding', true),
+  false,
+);
 
 const layoutSource = readSource('app/candidat/layout.tsx');
 assert.match(layoutSource, /CandidateSessionGate/);
 assert.doesNotMatch(layoutSource, /AuthenticatedAppShell/);
 
+const mojibakePattern = new RegExp(
+  '\\u00c3|\\u00c2|\\u00e2\\u20ac\\u2122|\\u00e2\\u20ac\\u0153|\\u00e2\\u20ac\\u2014|\\u00ef\\u00bf\\u00bd',
+);
+
 const candidateDashboardSource = readSource('app/candidat/page.tsx');
 assert.match(candidateDashboardSource, /Questionnaire général Seven’O/);
 assert.match(candidateDashboardSource, /Disponibilité quotidienne/);
+assert.doesNotMatch(candidateDashboardSource, mojibakePattern);
 assert.match(candidateDashboardSource, /\/candidat\/test/);
 assert.doesNotMatch(
   candidateDashboardSource,
-  /Les confirmations quotidiennes et le bouton de test seront réactivés lors de l'ouverture complète/,
+  /Les confirmations quotidiennes et le bouton de test seront réactivées lors de l'ouverture complète/,
 );
-assert.doesNotMatch(candidateDashboardSource, /Lancement candidat/);
+assert.doesNotMatch(candidateDashboardSource, mojibakePattern);
+
+const testRunnerSource = readSource('components/candidate/CandidateSevenoTestRunner.tsx');
+assert.match(testRunnerSource, /useSevenoCandidateSession/);
+assert.match(testRunnerSource, /currentQuestionIndex/);
+assert.match(testRunnerSource, /questionExpiresAt/);
+assert.match(testRunnerSource, /questionTimeSeconds/);
+assert.match(testRunnerSource, /Questionnaire général Seven’O/);
+assert.match(testRunnerSource, /Chargement de votre session Seven’O…/);
+assert.match(testRunnerSource, /Session chronométrée en cours/);
+assert.match(testRunnerSource, /Question suivante/);
+assert.doesNotMatch(testRunnerSource, mojibakePattern);
+
+const candidateSessionHookSource = readSource('lib/use-seveno-candidate-session.ts');
+assert.match(candidateSessionHookSource, /hasSevenoTermsAcceptance\(sevenoUser, 'candidate_account'\)/);
+assert.match(candidateSessionHookSource, /router\.replace\('\/cgu'\)/);
+assert.match(candidateSessionHookSource, /pathname !== '\/candidat\/onboarding'/);
+
+const franceIdentity = validateCandidateIdentity({
+  firstName: 'Alice',
+  lastName: 'Durand',
+  phone: '06 12 34 56 78',
+  addressLine1: '',
+  addressLine2: '',
+  postalCode: '75001',
+  city: 'Paris',
+  country: 'France',
+});
+
+assert.equal(franceIdentity.errors.phone, undefined);
+assert.equal(franceIdentity.data?.phone, '+33612345678');
+assert.equal(franceIdentity.data?.country, 'France');
+
+const belgiumIdentity = validateCandidateIdentity({
+  firstName: 'Alice',
+  lastName: 'Durand',
+  phone: '0470 12 34 56',
+  addressLine1: '',
+  addressLine2: '',
+  postalCode: '1000',
+  city: 'Bruxelles',
+  country: 'Belgique',
+});
+
+assert.equal(belgiumIdentity.errors.phone, undefined);
+assert.equal(belgiumIdentity.data?.phone, '+32470123456');
+assert.equal(belgiumIdentity.data?.country, 'Belgique');
+
+const belgiumInternationalIdentity = validateCandidateIdentity({
+  firstName: 'Alice',
+  lastName: 'Durand',
+  phone: '+32 470 12 34 56',
+  addressLine1: '',
+  addressLine2: '',
+  postalCode: '1000',
+  city: 'Bruxelles',
+  country: 'BE',
+});
+
+assert.equal(belgiumInternationalIdentity.errors.phone, undefined);
+assert.equal(belgiumInternationalIdentity.data?.phone, '+32470123456');
+assert.equal(belgiumInternationalIdentity.data?.country, 'Belgique');
+
+const belgiumInvalidIdentity = validateCandidateIdentity({
+  firstName: 'Alice',
+  lastName: 'Durand',
+  phone: '12345',
+  addressLine1: '',
+  addressLine2: '',
+  postalCode: '1000',
+  city: 'Bruxelles',
+  country: 'Belgique',
+});
+
+assert.equal(belgiumInvalidIdentity.data, null);
+assert.equal(
+  belgiumInvalidIdentity.errors.phone,
+  'Le numéro de téléphone n’est pas valide pour le pays sélectionné.',
+);
 
 const candidateOnboardingSource = readSource('app/candidat/onboarding/page.tsx');
 assert.match(candidateOnboardingSource, /completeCandidateOnboarding/);

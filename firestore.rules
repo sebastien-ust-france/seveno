@@ -361,11 +361,6 @@ service cloud.firestore {
       ]) || (
         resource.data.role == 'candidate'
         && request.resource.data.role == 'candidate'
-        && (
-          !exists(/databases/$(database)/documents/candidate_profiles/$(uid))
-          || get(/databases/$(database)/documents/candidate_profiles/$(uid)).data.profileStatus != 'active'
-          || hasCompleteCandidatePrivateIdentity(request.resource.data)
-        )
       );
     }
 

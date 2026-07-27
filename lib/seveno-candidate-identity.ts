@@ -24,8 +24,19 @@ export const CANDIDATE_IDENTITY_LIMITS = {
   country: 80,
 } as const;
 
+const BELGIUM_COUNTRY_VALUES = new Set(['belgique', 'belgium', 'be', 'bel']);
+
 function normalizeSpaces(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeCountry(value: string) {
+  const normalized = normalizeSpaces(value) || 'France';
+  return BELGIUM_COUNTRY_VALUES.has(normalized.toLocaleLowerCase('fr-FR')) ? 'Belgique' : normalized;
+}
+
+function isBelgiumCountry(value: string) {
+  return BELGIUM_COUNTRY_VALUES.has(normalizeCountry(value).toLocaleLowerCase('fr-FR'));
 }
 
 function normalizePhone(value: string, country: string) {
@@ -33,6 +44,8 @@ function normalizePhone(value: string, country: string) {
   if (compact.startsWith('00')) compact = `+${compact.slice(2)}`;
   if (country.toLocaleLowerCase('fr-FR') === 'france' && /^0[1-9]\d{8}$/.test(compact)) {
     compact = `+33${compact.slice(1)}`;
+  } else if (isBelgiumCountry(country) && /^0[1-9]\d{7,8}$/.test(compact)) {
+    compact = `+32${compact.slice(1)}`;
   }
   return compact;
 }
@@ -55,7 +68,7 @@ export function validateCandidateIdentity(values: CandidateIdentityFormValues): 
 } {
   const firstName = normalizeSpaces(values.firstName);
   const lastName = normalizeSpaces(values.lastName);
-  const country = normalizeSpaces(values.country) || 'France';
+  const country = normalizeCountry(values.country);
   const phone = normalizePhone(values.phone, country);
   const addressLine1 = normalizeSpaces(values.addressLine1);
   const addressLine2 = normalizeSpaces(values.addressLine2);
@@ -71,7 +84,7 @@ export function validateCandidateIdentity(values: CandidateIdentityFormValues): 
 
   if (!phone) errors.phone = 'Indiquez votre numéro de téléphone.';
   else if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
-    errors.phone = 'Utilisez un numéro valide, par exemple 06 12 34 56 78 ou +33 6 12 34 56 78.';
+    errors.phone = 'Le numéro de téléphone n’est pas valide pour le pays sélectionné.';
   }
 
   if (addressLine1.length > CANDIDATE_IDENTITY_LIMITS.addressLine1) errors.addressLine1 = 'L’adresse est trop longue.';
