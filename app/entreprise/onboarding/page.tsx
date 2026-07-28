@@ -45,31 +45,31 @@ function getCompanyProfileValidationMessage(input: {
   }
 
   if (input.companyName.trim().length > COMPANY_PROFILE_LIMITS.companyName) {
-    return `Le nom commercial doit contenir au maximum ${COMPANY_PROFILE_LIMITS.companyName} caracteres.`;
+    return `Le nom commercial doit contenir au maximum ${COMPANY_PROFILE_LIMITS.companyName} caractères.`;
   }
 
   if (input.companyType.trim().length === 0) {
-    return "Le type d entreprise est obligatoire.";
+    return "Le type d’entreprise est obligatoire.";
   }
 
   if (input.companyType.trim().length > COMPANY_PROFILE_LIMITS.companyType) {
-    return `Le type d entreprise doit contenir au maximum ${COMPANY_PROFILE_LIMITS.companyType} caracteres.`;
+    return `Le type d’entreprise doit contenir au maximum ${COMPANY_PROFILE_LIMITS.companyType} caractères.`;
   }
 
   if (input.legalName.trim().length > COMPANY_PROFILE_LIMITS.legalName) {
-    return `La raison sociale doit contenir au maximum ${COMPANY_PROFILE_LIMITS.legalName} caracteres.`;
+    return `La raison sociale doit contenir au maximum ${COMPANY_PROFILE_LIMITS.legalName} caractères.`;
   }
 
   if (input.website.trim().length > COMPANY_PROFILE_LIMITS.website) {
-    return `Le site web doit contenir au maximum ${COMPANY_PROFILE_LIMITS.website} caracteres.`;
+    return `Le site web doit contenir au maximum ${COMPANY_PROFILE_LIMITS.website} caractères.`;
   }
 
   if (input.businessSector.trim().length === 0) {
-    return "Le secteur d activite est obligatoire.";
+    return "Le secteur d’activité est obligatoire.";
   }
 
   if (input.businessSector.trim().length > COMPANY_PROFILE_LIMITS.businessSector) {
-    return `Le secteur d activite doit contenir au maximum ${COMPANY_PROFILE_LIMITS.businessSector} caracteres.`;
+    return `Le secteur d’activité doit contenir au maximum ${COMPANY_PROFILE_LIMITS.businessSector} caractères.`;
   }
 
   if (!input.companySize) {
@@ -81,7 +81,7 @@ function getCompanyProfileValidationMessage(input: {
   }
 
   if (input.headquartersArea.trim().length > COMPANY_PROFILE_LIMITS.headquartersArea) {
-    return `La zone du siege doit contenir au maximum ${COMPANY_PROFILE_LIMITS.headquartersArea} caracteres.`;
+    return `La zone du siège doit contenir au maximum ${COMPANY_PROFILE_LIMITS.headquartersArea} caractères.`;
   }
 
   if (input.recruitmentAreas.length === 0) {
@@ -97,7 +97,7 @@ function getCompanyProfileValidationMessage(input: {
   }
 
   if (input.contactRole.trim().length > COMPANY_PROFILE_LIMITS.contactRole) {
-    return `La fonction du contact doit contenir au maximum ${COMPANY_PROFILE_LIMITS.contactRole} caracteres.`;
+    return `La fonction du contact doit contenir au maximum ${COMPANY_PROFILE_LIMITS.contactRole} caractères.`;
   }
 
   if (input.siret.length > 0 && input.siret.length !== 14) {
@@ -137,7 +137,7 @@ export default function CompanyOnboardingPage() {
     async function loadCompanyOnboarding() {
       try {
         if (JOB_SECTORS.length === 0) {
-          throw new Error("La taxonomie des secteurs n est pas disponible.");
+          throw new Error("La taxonomie des secteurs n’est pas disponible.");
         }
 
         const authUser = await getCurrentAuthUser();
@@ -187,7 +187,7 @@ export default function CompanyOnboardingPage() {
             || typeof existingProfile.contactRole !== 'string'
             || existingProfile.contactRole.trim().length === 0
           ) {
-            warnings.push('Certains champs obligatoires de l ancien profil doivent etre completes.');
+            warnings.push('Certains champs obligatoires de l’ancien profil doivent être complétés.');
           }
           setCompanyName(typeof existingProfile.companyName === 'string' ? existingProfile.companyName : '');
           setCompanyType(typeof existingProfile.companyType === 'string' ? existingProfile.companyType : '');
@@ -202,12 +202,12 @@ export default function CompanyOnboardingPage() {
           if (JOB_SECTORS.some((sector) => sector.code === existingProfile.businessSector)) {
             setBusinessSector(existingProfile.businessSector);
           } else {
-            warnings.push('L ancien secteur n existe plus dans la taxonomie. Verifiez la selection.');
+            warnings.push('L’ancien secteur n’existe plus dans la taxonomie. Vérifiez la sélection.');
           }
           if (COMPANY_SIZE_OPTIONS.some((option) => option.value === existingProfile.companySize)) {
             setCompanySize(existingProfile.companySize);
           } else {
-            warnings.push('L ancienne taille d entreprise a ete remplacee par la valeur par defaut.');
+            warnings.push('L’ancienne taille d’entreprise a été remplacée par la valeur par défaut.');
           }
 
           const existingAreas = Array.isArray(existingProfile.recruitmentAreas)
@@ -217,7 +217,7 @@ export default function CompanyOnboardingPage() {
             : [];
           setRecruitmentAreas(existingAreas.length > 0 ? existingAreas : ['']);
           if (existingAreas.length === 0) {
-            warnings.push('Aucune zone de recrutement compatible n a ete trouvee. Completez ce champ.');
+            warnings.push('Aucune zone de recrutement compatible n’a été trouvée. Complétez ce champ.');
           }
 
           setCompatibilityWarning(warnings.length > 0 ? warnings.join(' ') : null);
@@ -229,7 +229,7 @@ export default function CompanyOnboardingPage() {
           return;
         }
 
-        setError("Le profil entreprise n a pas pu etre charge. Reessayez dans quelques instants.");
+        setError("Le profil entreprise n’a pas pu être chargé. Réessayez dans quelques instants.");
         setLoading(false);
       }
     }
@@ -338,11 +338,11 @@ export default function CompanyOnboardingPage() {
 
       await createOrUpdateCompanyProfile(sevenoUser.uid, payload);
       await markUserOnboardingCompleted(sevenoUser.uid);
-      setSuccessMessage('Profil entreprise enregistre. Redirection en cours vers votre dashboard.');
+      setSuccessMessage('Profil entreprise enregistré. Redirection en cours vers votre dashboard.');
       window.setTimeout(() => router.replace('/entreprise'), 700);
     } catch {
       submissionLockRef.current = false;
-      setError("Le profil entreprise n a pas pu etre enregistre. Verifiez les champs puis reessayez.");
+      setError("Le profil entreprise n’a pas pu être enregistré. Vérifiez les champs puis réessayez.");
       setSaving(false);
     }
   }
@@ -362,8 +362,8 @@ export default function CompanyOnboardingPage() {
                 {isEditing ? 'Modifier votre profil entreprise' : 'Construire votre profil entreprise'}
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                Les entreprises ne doivent jamais voir les donnees privees candidat. Ce formulaire ne stocke que
-                les informations utiles au profil anonyme cote entreprise.
+                Les entreprises ne doivent jamais voir les données privées candidat. Ce formulaire ne stocke que
+                les informations utiles au profil anonyme côté entreprise.
               </p>
             </div>
 
@@ -379,7 +379,7 @@ export default function CompanyOnboardingPage() {
 
           {loading ? (
             <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-300">
-              Verification de votre session...
+              Vérification de votre session...
             </div>
           ) : (
             <form className="mt-8 space-y-6" onSubmit={(event) => void handleSubmit(event)}>
@@ -408,7 +408,7 @@ export default function CompanyOnboardingPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-200">Type d entreprise *</span>
+                  <span className="text-sm font-medium text-slate-200">Type d’entreprise *</span>
                   <input
                     value={companyType}
                     onChange={(event) => setCompanyType(event.target.value)}
@@ -445,7 +445,7 @@ export default function CompanyOnboardingPage() {
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
                   />
                   <p className="text-xs leading-5 text-slate-400">
-                    Optionnel. Le chiffre est nettoye avant stockage, sans verification externe.
+                    Optionnel. Le chiffre est nettoyé avant stockage, sans vérification externe.
                   </p>
                 </label>
               </div>
@@ -464,7 +464,7 @@ export default function CompanyOnboardingPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-200">Secteur d activite *</span>
+                  <span className="text-sm font-medium text-slate-200">Secteur d’activité *</span>
                   <Select
                     value={businessSector}
                     onChange={(event) => setBusinessSector(event.target.value)}
@@ -480,7 +480,7 @@ export default function CompanyOnboardingPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-200">Taille de l entreprise *</span>
+                  <span className="text-sm font-medium text-slate-200">Taille de l’entreprise *</span>
                   <Select
                     value={companySize}
                     onChange={(event) => setCompanySize(event.target.value as CompanySize)}
@@ -494,7 +494,7 @@ export default function CompanyOnboardingPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-200">Zone du siege *</span>
+                  <span className="text-sm font-medium text-slate-200">Zone du siège *</span>
                   <input
                     value={headquartersArea}
                     onChange={(event) => setHeadquartersArea(event.target.value)}
@@ -606,7 +606,7 @@ export default function CompanyOnboardingPage() {
 
               <p className="text-xs leading-6 text-slate-400">
                 Le formulaire valide le profil avant envoi. Si une information requise manque, un message explicite
-                apparait au lieu d un echec silencieux.
+                apparaît au lieu d’un échec silencieux.
               </p>
             </form>
           )}

@@ -81,16 +81,16 @@ function formatQuestionnaireSummary(
             : 'Non demarre';
 
   return {
-    label: score !== null ? `Resultat : ${Math.round(score)} %` : statusLabel,
+    label: score !== null ? `Résultat : ${Math.round(score)} %` : statusLabel,
     note: assessment.manualReviewRequired
       ? assessment.manualReviewStatus === 'completed'
-        ? 'Validation manuelle terminee.'
+        ? 'Validation manuelle terminée.'
         : 'Correction manuelle requise avant validation finale.'
       : assessment.status === 'completed'
-        ? 'Resultat valide par le serveur.'
+        ? 'Résultat validé par le serveur.'
         : assessment.status === 'submitted' || assessment.status === 'in_progress'
-          ? 'Le questionnaire a ete transmis au candidat.'
-          : 'Aucun resultat disponible.',
+          ? 'Le questionnaire a été transmis au candidat.'
+          : 'Aucun résultat disponible.',
   };
 }
 
@@ -137,7 +137,7 @@ function ApplicationCard({ application }: { application: SerializedCandidateJobA
           </p>
           {questionnaireSummary ? (
             <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-              <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">Resultat du questionnaire</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">Résultat du questionnaire</p>
               <p className="mt-2 font-medium text-white">{questionnaireSummary.label}</p>
               <p className="mt-1 text-xs text-emerald-100/80">{questionnaireSummary.note}</p>
             </div>
@@ -261,7 +261,7 @@ export default function CompanyCandidateDetailPage() {
         setSelectedOfferId((current) => current || offersPayload.offers[0]?.id || '');
       } catch (thrownError) {
         if (active) {
-          setError(thrownError instanceof Error ? thrownError.message : 'Le profil anonyme n a pas pu etre charge.');
+          setError(thrownError instanceof Error ? thrownError.message : 'Le profil anonyme n’a pas pu être chargé.');
         }
       } finally {
         if (active) {
@@ -326,7 +326,7 @@ export default function CompanyCandidateDetailPage() {
     <SevenoSurface
       eyebrow="Entreprise"
       title="Profil candidat anonyme"
-      description="Sélectionnez une offre publiée pour envoyer une invitation au candidat. Aucune donnée privée n est exposée ici."
+      description="Sélectionnez une offre publiée pour envoyer une invitation au candidat. Aucune donnée privée n’est exposée ici."
       footer={profile ? <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entreprise : {profile.companyName}</p> : null}
       containerClassName="max-w-[86.4rem]"
     >
@@ -503,7 +503,7 @@ export default function CompanyCandidateDetailPage() {
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-white">Choisir une offre publiée</h3>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  La proposition est créée à partir d une offre publiée et du profil anonyme du candidat.
+                    La proposition est créée à partir d’une offre publiée et du profil anonyme du candidat.
                 </p>
 
                 <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
@@ -562,7 +562,7 @@ export default function CompanyCandidateDetailPage() {
                         ? 'Envoi en cours...'
                         : selectedOfferCapacityReached
                           ? 'Candidatures en cours à traiter'
-                          : 'Envoyer l invitation'}
+                          : 'Envoyer l’invitation'}
                     </button>
                     <Link
                       href="/entreprise/offres"

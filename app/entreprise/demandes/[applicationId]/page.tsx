@@ -79,18 +79,18 @@ function formatQuestionnaireSummary(
             : 'Non demarre';
 
   return {
-    label: scoreSummary?.label ?? (score !== null ? `Resultat : ${Math.round(score)} %` : statusLabel),
+    label: scoreSummary?.label ?? (score !== null ? `Résultat : ${Math.round(score)} %` : statusLabel),
     note: scoreSummary
       ? `${scoreSummary.scoreLabel} · ${scoreSummary.thresholdLabel}`
       : assessment.manualReviewRequired
         ? assessment.manualReviewStatus === 'completed'
-          ? 'Validation manuelle terminee.'
+          ? 'Validation manuelle terminée.'
           : 'Correction manuelle requise avant validation finale.'
         : assessment.status === 'completed'
-          ? 'Resultat valide par le serveur.'
+          ? 'Résultat validé par le serveur.'
           : assessment.status === 'submitted' || assessment.status === 'in_progress'
-            ? 'Le questionnaire a ete transmis au candidat.'
-            : 'Aucun resultat disponible.',
+          ? 'Le questionnaire a été transmis au candidat.'
+            : 'Aucun résultat disponible.',
   };
 }
 
@@ -166,7 +166,7 @@ export default function CompanyApplicationDetailPage() {
         }
       } catch (thrownError) {
         if (active) {
-          setError(thrownError instanceof Error ? thrownError.message : 'Le dossier n a pas pu etre charge.');
+        setError(thrownError instanceof Error ? thrownError.message : 'Le dossier n’a pas pu être chargé.');
         }
       } finally {
         if (active) {
@@ -207,11 +207,11 @@ export default function CompanyApplicationDetailPage() {
       setApplication(payload.application);
       setDecisionMessage(
         decision === 'interested'
-          ? 'Proposition envoyee. En attente de la reponse du candidat.'
+          ? 'Proposition envoyée. En attente de la réponse du candidat.'
           : 'Dossier refusé. La relation est maintenant clôturée.',
       );
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'La décision n a pas pu etre enregistrée.');
+      setError(thrownError instanceof Error ? thrownError.message : 'La décision n’a pas pu être enregistrée.');
     } finally {
       setDecisionLoading(null);
     }
@@ -229,9 +229,9 @@ export default function CompanyApplicationDetailPage() {
     try {
       const payload = await activateCompanyQuestionnaireClient(authUser, application.offerId);
       setQuestionnaire(payload.questionnaire);
-      setDecisionMessage('Questionnaire enregistre et envoye au candidat.');
+      setDecisionMessage('Questionnaire enregistré et envoyé au candidat.');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : "L'envoi du questionnaire a echoue.");
+      setError(thrownError instanceof Error ? thrownError.message : "L’envoi du questionnaire a échoué.");
     } finally {
       setQuestionnaireLoading(false);
     }
@@ -376,7 +376,7 @@ export default function CompanyApplicationDetailPage() {
                   </p>
                   {questionnaireSummary ? (
                     <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-                      <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">Resultat du questionnaire</p>
+                      <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">Résultat du questionnaire</p>
                       <p className="mt-2 font-semibold text-white">{questionnaireSummary.label}</p>
                       <p className="mt-1 text-xs text-emerald-100/80">{questionnaireSummary.note}</p>
                     </div>
@@ -445,14 +445,14 @@ export default function CompanyApplicationDetailPage() {
               {proposalPending ? (
                 <div className="mt-6 space-y-3">
                   <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-4 text-sm leading-7 text-cyan-100">
-                    Proposition envoyee. En attente de la reponse du candidat.
+                    Proposition envoyée. En attente de la réponse du candidat.
                   </div>
                   <button
                     type="button"
                     disabled
                     className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
                   >
-                    En attente de la reponse du candidat
+                    En attente de la réponse du candidat
                   </button>
                 </div>
               ) : null}
@@ -497,8 +497,8 @@ export default function CompanyApplicationDetailPage() {
 
               {proposalRefused ? (
                 <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm leading-7 text-slate-300">
-                  <p className="font-medium text-white">Mise en relation refusee par le candidat.</p>
-                  <p className="mt-2">La relation est cloturee sans ouverture de conversation.</p>
+                  <p className="font-medium text-white">Mise en relation refusée par le candidat.</p>
+                  <p className="mt-2">La relation est clôturée sans ouverture de conversation.</p>
                 </div>
               ) : null}
 
@@ -523,7 +523,7 @@ export default function CompanyApplicationDetailPage() {
                   conversationStatus={application.conversationStatus}
                   title="Conversation sécurisée"
                   description="Les échanges deviennent disponibles après acceptation explicite du dossier."
-                  emptyMessage="Aucun message n a encore été envoyé."
+                  emptyMessage="Aucun message n’a encore été envoyé."
                   onApplicationChange={setApplication}
                 />
               </div>
@@ -532,12 +532,12 @@ export default function CompanyApplicationDetailPage() {
                 <p className="font-medium text-white">Conversation fermée</p>
                 <p className="mt-3">
                   {application.status === 'contact_requested'
-                    ? 'En attente de la reponse du candidat.'
+                    ? 'En attente de la réponse du candidat.'
                     : application.status === 'candidate_declined'
-                      ? 'Le candidat n a pas souhaite poursuivre cette mise en relation.'
+                      ? 'Le candidat n’a pas souhaité poursuivre cette mise en relation.'
                       : application.status === 'invited'
-                        ? 'Le candidat doit d abord accepter votre invitation avant l ouverture de la conversation.'
-                        : 'La relation n est pas encore ouverte à la discussion sécurisée.'}
+                        ? 'Le candidat doit d’abord accepter votre invitation avant l’ouverture de la conversation.'
+                        : 'La relation n’est pas encore ouverte à la discussion sécurisée.'}
                 </p>
               </SevenoPanel>
             )}

@@ -33,10 +33,10 @@ const PROFILE_STATUS_LABELS: Record<CompanyProfileStatus, string> = {
 };
 
 const VERIFICATION_STATUS_LABELS: Record<CompanyVerificationStatus, string> = {
-  unverified: 'Non verifie',
+  unverified: 'Non vérifiée',
   pending: 'En attente',
-  verified: 'Verifie',
-  rejected: 'Refuse',
+  verified: 'Vérifiée',
+  rejected: 'Refusée',
 };
 
 const COMPANY_SIZE_LABELS: Record<CompanySize, string> = {
@@ -48,17 +48,17 @@ const COMPANY_SIZE_LABELS: Record<CompanySize, string> = {
 };
 
 const AVAILABILITY_OPTIONS: Array<{ value: CandidateAvailability; label: string }> = [
-  { value: 'immediate', label: 'Immediatement' },
-  { value: 'less_than_1_month', label: 'Moins d un mois' },
-  { value: 'one_to_three_months', label: 'Sous 1 a 3 mois' },
-  { value: 'listening', label: 'En ecoute' },
+  { value: 'immediate', label: 'Immédiatement' },
+  { value: 'less_than_1_month', label: 'Moins d’un mois' },
+  { value: 'one_to_three_months', label: 'Sous 1 à 3 mois' },
+  { value: 'listening', label: 'En écoute' },
   { value: 'not_available', label: 'Non disponible' },
 ];
 
 const EXPERIENCE_OPTIONS: Array<{ value: CandidateExperienceLevel; label: string }> = [
-  { value: 'beginner', label: 'Debutant' },
-  { value: 'intermediate', label: 'Intermediaire' },
-  { value: 'confirmed', label: 'Confirme' },
+  { value: 'beginner', label: 'Débutant' },
+  { value: 'intermediate', label: 'Intermédiaire' },
+  { value: 'confirmed', label: 'Confirmé' },
   { value: 'senior', label: 'Senior' },
   { value: 'expert', label: 'Expert' },
 ];
@@ -233,7 +233,7 @@ export default function CompanyDashboardPage() {
             setCandidateProfiles([]);
             setNextCursor(null);
             setCandidateError(
-              thrownError instanceof Error ? thrownError.message : 'La recherche de profils a echoue.',
+              thrownError instanceof Error ? thrownError.message : 'La recherche de profils a échoué.',
             );
           } finally {
             if (active) setSearchLoading(false);
@@ -246,7 +246,7 @@ export default function CompanyDashboardPage() {
           return;
         }
 
-        setError(thrownError instanceof Error ? thrownError.message : 'L espace entreprise n a pas pu etre charge.');
+        setError(thrownError instanceof Error ? thrownError.message : 'L’espace entreprise n’a pas pu être chargé.');
         setLoading(false);
       }
     }
@@ -276,7 +276,7 @@ export default function CompanyDashboardPage() {
     try {
       return await searchVisibleCandidateProfiles(firebaseUser, filters, cursor);
     } catch (thrownError) {
-      setCandidateError(thrownError instanceof Error ? thrownError.message : 'La recherche de profils a echoue.');
+      setCandidateError(thrownError instanceof Error ? thrownError.message : 'La recherche de profils a échoué.');
       return null;
     } finally {
       setSearchLoading(false);
@@ -289,7 +289,7 @@ export default function CompanyDashboardPage() {
 
     if (!selectedSector || !selectedFamily || !hasSelectedJobRole) {
       setCandidateProfiles([]);
-      setCandidateError('Selectionnez un secteur, une famille et un metier precis pour lancer la recherche.');
+      setCandidateError('Sélectionnez un secteur, une famille et un métier précis pour lancer la recherche.');
       return;
     }
 
@@ -334,7 +334,7 @@ export default function CompanyDashboardPage() {
     setNextCursor(result.nextCursor);
   }
 
-  const businessSectorLabel = profile ? findSectorLabel(profile.businessSector) ?? 'Secteur non renseigne' : null;
+  const businessSectorLabel = profile ? findSectorLabel(profile.businessSector) ?? 'Secteur non renseigné' : null;
   const recruitmentAreas = profile?.recruitmentAreas ?? [];
   const companyIsSuspended = profile?.profileStatus === 'suspended';
   const companyIsIncomplete = profile ? isIncompleteCompanyProfile(profile) : false;
@@ -348,8 +348,8 @@ export default function CompanyDashboardPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/80">Espace entreprise</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">Votre profil entreprise</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                Cet espace ne contient que les informations publiques de l entreprise. Les profils candidats affiches
-                ici restent anonymes et limites aux competences verifiees.
+                Cet espace ne contient que les informations publiques de l’entreprise. Les profils candidats affichés
+                ici restent anonymes et limités aux compétences vérifiées.
               </p>
             </div>
 
@@ -363,7 +363,7 @@ export default function CompanyDashboardPage() {
             <div className="mt-8 space-y-8">
               <div className="flex flex-wrap gap-3">
                 <Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110">
-                  Creer une offre
+                  Créer une offre
                 </Link>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -373,7 +373,7 @@ export default function CompanyDashboardPage() {
                 </article>
 
                 <article className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Type d entreprise</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Type d’entreprise</p>
                   <p className="mt-3 text-lg font-semibold text-white">{profile?.companyType ?? 'Non disponible'}</p>
                 </article>
 
@@ -416,7 +416,7 @@ export default function CompanyDashboardPage() {
                         </span>
                       ))
                     ) : (
-                      <span className="text-sm text-slate-400">Non renseignees</span>
+                      <span className="text-sm text-slate-400">Non renseignées</span>
                     )}
                   </div>
                 </article>
@@ -457,24 +457,24 @@ export default function CompanyDashboardPage() {
                   </h2>
                   <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
                     Sélectionnez un métier et vos principaux critères pour consulter les profils anonymes
-                    correspondants. Aucune donnee d identite n est transmise.
+                    correspondants. Aucune donnée d’identité n’est transmise.
                   </p>
 
                   {companyIsSuspended ? (
                     <div className="mt-7 rounded-[22px] border border-rose-400/15 bg-[linear-gradient(180deg,rgba(18,15,24,0.96),rgba(8,15,28,0.92))] p-5 text-sm leading-7 text-rose-100">
-                      Votre acces entreprise est suspendu. Les profils anonymes ne sont pas affiches tant que le
-                      statut n a pas ete reactive.
+                      Votre accès entreprise est suspendu. Les profils anonymes ne sont pas affichés tant que le
+                      statut n’a pas été réactivé.
                     </div>
                   ) : companyIsIncomplete ? (
                     <div className="mt-7 rounded-[22px] border border-amber-400/15 bg-[linear-gradient(180deg,rgba(18,15,24,0.96),rgba(8,15,28,0.92))] p-5 text-sm leading-7 text-amber-100">
-                      Votre profil entreprise est incomplet. Completez les informations requises pour consulter les
+                      Votre profil entreprise est incomplet. Complétez les informations requises pour consulter les
                       profils anonymes.
                       <div className="mt-4">
                         <Link
                           href="/entreprise/onboarding"
                           className="inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-100 transition hover:border-amber-300/30 hover:bg-amber-400/15"
                         >
-                          Completer mon entreprise
+                           Compléter mon entreprise
                         </Link>
                       </div>
                     </div>
@@ -563,7 +563,7 @@ export default function CompanyDashboardPage() {
                               value={availability}
                               onChange={(event) => setAvailability(event.target.value as CandidateAvailability | '')}
                             >
-                              <option value="">Toutes les disponibilites</option>
+                              <option value="">Toutes les disponibilités</option>
                               {AVAILABILITY_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
                                   {option.label}
@@ -573,7 +573,7 @@ export default function CompanyDashboardPage() {
                           </label>
 
                           <label className="space-y-2 text-sm text-slate-200">
-                            <span className="font-medium text-white">Niveau d experience</span>
+                            <span className="font-medium text-white">Niveau d’expérience</span>
                             <Select
                               value={experienceLevel}
                               onChange={(event) =>
@@ -599,7 +599,7 @@ export default function CompanyDashboardPage() {
                           >
                             {searchLoading ? 'Recherche...' : 'Lancer la recherche'}
                           </button>
-                          <p className="text-xs leading-6 text-slate-400">Le metier precis est obligatoire.</p>
+                          <p className="text-xs leading-6 text-slate-400">Le métier précis est obligatoire.</p>
                         </div>
                       </form>
 
@@ -632,7 +632,7 @@ export default function CompanyDashboardPage() {
                         <>
                           <p className="mt-6 text-sm leading-7 text-slate-200">
                             {candidateProfiles.length}{' '}
-                            {candidateProfiles.length > 1 ? 'resultats affiches' : 'resultat affiche'} sur cette page.
+                            {candidateProfiles.length > 1 ? 'résultats affichés' : 'résultat affiché'} sur cette page.
                           </p>
                           <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                             {candidateProfiles.map((candidate) => (
@@ -652,7 +652,7 @@ export default function CompanyDashboardPage() {
                                 disabled={pageIndex === 0 || searchLoading}
                                 className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                Page precedente
+                                Page précédente
                               </button>
                               <button
                                 type="button"
@@ -672,10 +672,10 @@ export default function CompanyDashboardPage() {
               </section>
 
               <div className="rounded-[24px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.9),rgba(8,15,28,0.86))] p-5 text-sm leading-7 text-slate-300">
-                <p className="font-medium text-white">Prochaine etape</p>
+                <p className="font-medium text-white">Prochaine étape</p>
                 <p className="mt-3">
                   La mise en relation explicite viendra ensuite. Pour le moment, vous consultez uniquement des profils
-                  anonymes, sans aucune donnee privee exposee.
+                  anonymes, sans aucune donnée privée exposée.
                 </p>
               </div>
 
@@ -684,7 +684,7 @@ export default function CompanyDashboardPage() {
                   href="/entreprise/offres/nouvelle"
                   className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
                 >
-                  Creer une offre
+                  Créer une offre
                 </Link>
               </div>
 

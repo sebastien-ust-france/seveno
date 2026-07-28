@@ -65,8 +65,8 @@ function newQuestion(order: number): EditorQuestion {
     type: 'single_choice',
     required: true,
     options: [
-      { id: 'option-1', label: 'Reponse A', order: 1 },
-      { id: 'option-2', label: 'Reponse B', order: 2 },
+      { id: 'option-1', label: 'Réponse A', order: 1 },
+      { id: 'option-2', label: 'Réponse B', order: 2 },
     ],
     correctionMode: 'automatic',
     numberOperator: 'equals',
@@ -121,26 +121,26 @@ function formatExpectedAnswerText(question: {
 function validateChoiceQuestion(question: EditorQuestion) {
   if (question.type !== 'single_choice' && question.type !== 'multiple_choice') return;
   if (question.options.length < 2 || question.options.length > 4) {
-    throw new Error('Une question a choix doit proposer entre deux et quatre reponses.');
+    throw new Error('Une question à choix doit proposer entre deux et quatre réponses.');
   }
   if (question.options.some((option) => !option.label.trim())) {
     throw new Error('Chaque réponse proposée doit avoir un libellé.');
   }
   if (new Set(question.options.map((option) => option.id)).size !== question.options.length) {
-    throw new Error('Les identifiants des reponses proposees doivent etre uniques.');
+    throw new Error('Les identifiants des réponses proposées doivent être uniques.');
   }
   if (new Set(question.options.map((option) => normalizeOptionLabel(option.label))).size !== question.options.length) {
     throw new Error('Deux réponses proposées ne peuvent pas avoir le même libellé.');
   }
   const selected = selectedOptionIds(question);
   if (question.correctionMode === 'automatic' && selected.length === 0) {
-    throw new Error('Selectionnez au moins une bonne reponse pour la correction automatique.');
+    throw new Error('Sélectionnez au moins une bonne réponse pour la correction automatique.');
   }
   if (question.type === 'single_choice' && selected.length > 1) {
-    throw new Error('Un choix unique ne peut avoir qu une seule bonne reponse.');
+    throw new Error('Un choix unique ne peut avoir qu’une seule bonne réponse.');
   }
   if (selected.some((id) => !question.options.some((option) => option.id === id))) {
-    throw new Error('Une bonne reponse fait reference a une option supprimee.');
+    throw new Error('Une bonne réponse fait référence à une option supprimée.');
   }
 }
 
@@ -152,7 +152,7 @@ function parseExpectedAnswer(question: EditorQuestion) {
   if (question.type === 'boolean') {
     const value = question.expectedAnswerText.trim().toLowerCase();
     if (value !== 'true' && value !== 'false') {
-      throw new Error('La reponse attendue d une question vrai/faux doit etre true ou false.');
+      throw new Error('La réponse attendue d’une question vrai/faux doit être true ou false.');
     }
     return value === 'true';
   }
@@ -160,7 +160,7 @@ function parseExpectedAnswer(question: EditorQuestion) {
   if (question.type === 'number') {
     const value = Number(question.expectedAnswerText);
     if (!Number.isFinite(value)) {
-      throw new Error('La reponse attendue d une question numerique doit etre un nombre valide.');
+      throw new Error('La réponse attendue d’une question numérique doit être un nombre valide.');
     }
     return value;
   }
@@ -266,7 +266,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
         }
       } catch (thrownError) {
         if (active) {
-          setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire n a pas pu etre charge.');
+          setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire n’a pas pu être chargé.');
         }
       } finally {
         if (active) setLoading(false);
@@ -323,7 +323,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
   function removeOption(question: EditorQuestion, optionId: string) {
     if (question.options.length <= 2) return;
     const selected = selectedOptionIds(question);
-    if (selected.includes(optionId) && !window.confirm('Cette reponse est configuree comme correcte. Confirmer sa suppression ?')) {
+    if (selected.includes(optionId) && !window.confirm('Cette réponse est configurée comme correcte. Confirmer sa suppression ?')) {
       return;
     }
     const remainingSelected = selected.filter((id) => id !== optionId);
@@ -397,7 +397,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
     })));
     setAiImportWarnings(result.warnings);
     setAiValidationConfirmed(false);
-    setMessage('Questionnaire importe. Verifiez-le avant validation.');
+    setMessage('Questionnaire importé. Vérifiez-le avant validation.');
     setError(null);
   }
 
@@ -410,7 +410,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
       setAiImportText(text);
       applyAiImport(text);
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le JSON importe est invalide.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le JSON importé est invalide.');
     }
   }
 
@@ -423,7 +423,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
   async function save() {
     if (!authUser) return null;
     if (creationMode === 'ai_import' && !aiValidationConfirmed) {
-      setError('Validez le questionnaire importe avant de l enregistrer.');
+      setError('Validez le questionnaire importé avant de l’enregistrer.');
       return null;
     }
 
@@ -452,10 +452,10 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
       })));
       setCreationMode(payload.questionnaire.creationMode);
       setAiValidationConfirmed(true);
-      setMessage('Questionnaire enregistre en brouillon.');
+      setMessage('Questionnaire enregistré en brouillon.');
       return payload.questionnaire;
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire n a pas pu etre enregistre.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire n’a pas pu être enregistré.');
       return null;
     } finally {
       setSaving(false);
@@ -474,9 +474,9 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
     try {
       const payload = await activateCompanyQuestionnaireClient(authUser, offerId);
       setQuestionnaire(payload.questionnaire);
-      setMessage('Questionnaire actif. Sa correction reste exclusivement cote serveur.');
+      setMessage('Questionnaire actif. Sa correction reste exclusivement côté serveur.');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'L activation a echoue.');
+      setError(thrownError instanceof Error ? thrownError.message : 'L’activation a échoué.');
     } finally {
       setSaving(false);
     }
@@ -502,8 +502,8 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
             { label: 'Questionnaire entreprise' },
           ]}
         />
-        {profile?.profileStatus === 'suspended' ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil suspendu : le questionnaire ne peut pas etre modifie.</p></SevenoPanel> : null}
-        {profile && isCompanyProfileIncomplete(profile) ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil entreprise incomplet : le questionnaire peut rester en brouillon, mais l offre ne pourra pas etre publiee.</p></SevenoPanel> : null}
+        {profile?.profileStatus === 'suspended' ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil suspendu : le questionnaire ne peut pas être modifié.</p></SevenoPanel> : null}
+        {profile && isCompanyProfileIncomplete(profile) ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil entreprise incomplet : le questionnaire peut rester en brouillon, mais l’offre ne pourra pas être publiée.</p></SevenoPanel> : null}
         {sessionError || error ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">{sessionError ?? error}</p></SevenoPanel> : null}
         {message ? <SevenoPanel tone="cyan"><p className="text-sm text-cyan-100">{message}</p></SevenoPanel> : null}
 
@@ -532,7 +532,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                 </article>
                 <article className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Mode</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{creationMode === 'ai_import' ? 'Import IA' : 'Creation manuelle'}</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{creationMode === 'ai_import' ? 'Import IA' : 'Création manuelle'}</p>
                 </article>
               </div>
               <p className="mt-3 text-xs text-slate-400">
@@ -564,7 +564,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Preparation IA</p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">Genere un prompt puis importe un JSON</h3>
+                  <h3 className="mt-2 text-xl font-semibold text-white">Génère un prompt puis importe un JSON</h3>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button type="button" onClick={() => void copyPrompt()} disabled={!aiPrompt} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 disabled:opacity-40">Copier le prompt IA</button>
@@ -577,18 +577,18 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
 
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
-                  <p className="text-sm font-medium text-white">Prompt a envoyer a l IA externe</p>
+                  <p className="text-sm font-medium text-white">Prompt à envoyer à l’IA externe</p>
                   <textarea value={aiPrompt} readOnly rows={18} className={`${FIELD} font-mono text-xs leading-6`} />
                 </div>
                 <div className="space-y-3">
-                  <p className="text-sm font-medium text-white">JSON importe</p>
+                  <p className="text-sm font-medium text-white">JSON importé</p>
                   <textarea
                     value={aiImportText}
                     onChange={(event) => {
                       setAiImportText(event.target.value);
                       resetAiValidation();
                     }}
-                    placeholder="Collez ici le JSON genere par l IA, puis validez son import."
+                    placeholder="Collez ici le JSON généré par l’IA, puis validez son import."
                     rows={18}
                     className={`${FIELD} font-mono text-xs leading-6`}
                   />
@@ -599,12 +599,12 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                         try {
                           applyAiImport(aiImportText);
                         } catch (thrownError) {
-                          setError(thrownError instanceof Error ? thrownError.message : 'Le JSON importe est invalide.');
+                          setError(thrownError instanceof Error ? thrownError.message : 'Le JSON importé est invalide.');
                         }
                       }}
                       className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100"
                     >
-                      Valider l import
+                      Valider l’import
                     </button>
                     <button
                       type="button"
@@ -630,7 +630,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                      Le JSON importe doit etre relu par l entreprise avant enregistrement.
+                      Le JSON importé doit être relu par l’entreprise avant enregistrement.
                     </div>
                   )}
                   {creationMode === 'ai_import' ? (
@@ -709,11 +709,11 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                               <p className="text-sm font-medium text-white">Réponses proposées</p>
                               <p className="mt-1 text-xs text-slate-400">
                                 {question.type === 'single_choice'
-                                  ? 'Le candidat pourra selectionner une seule reponse.'
-                                  : 'Le candidat pourra selectionner plusieurs reponses.'}
+                                  ? 'Le candidat pourra sélectionner une seule réponse.'
+                                  : 'Le candidat pourra sélectionner plusieurs réponses.'}
                               </p>
                             </div>
-                            <span className="text-xs font-semibold text-cyan-100">{question.options.length} reponses sur 4</span>
+                            <span className="text-xs font-semibold text-cyan-100">{question.options.length} réponses sur 4</span>
                           </div>
 
                           {question.options.map((option) => (
@@ -724,7 +724,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                                   name={`correct-answer-${question.id}`}
                                   checked={correctOptionIds.includes(option.id)}
                                   onChange={(event) => selectCorrectOption(question, option.id, event.target.checked)}
-                                  aria-label={`Marquer la reponse ${option.order} comme correcte`}
+                                  aria-label={`Marquer la réponse ${option.order} comme correcte`}
                                   className="h-4 w-4 shrink-0 accent-cyan-400"
                                 />
                               ) : null}
@@ -732,7 +732,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                               <input
                                 value={option.label}
                                 onChange={(event) => updateOptionLabel(question, option.id, event.target.value)}
-                                aria-label={`Libelle de la reponse ${option.order}`}
+                                aria-label={`Libellé de la réponse ${option.order}`}
                                 className={FIELD}
                               />
                               <button
@@ -753,18 +753,18 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                               disabled={question.options.length >= 4}
                               className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-100 disabled:cursor-not-allowed disabled:opacity-30"
                             >
-                              Ajouter une reponse
+                              Ajouter une réponse
                             </button>
-                            {question.correctionMode === 'automatic' ? <p className="text-xs text-emerald-200">{correctOptionIds.length} bonne(s) reponse(s) selectionnee(s)</p> : null}
+                            {question.correctionMode === 'automatic' ? <p className="text-xs text-emerald-200">{correctOptionIds.length} bonne(s) réponse(s) sélectionnée(s)</p> : null}
                           </div>
                         </div>
                       ) : null}
 
                       {question.correctionMode === 'automatic' && !isChoice ? (
                         <>
-                          <label className="space-y-2 text-sm text-slate-200">Nouvelle reponse attendue<input value={question.expectedAnswerText} onChange={(event) => updateQuestion(question.id, { expectedAnswerText: event.target.value })} className={FIELD} placeholder={question.type === 'boolean' ? 'true ou false' : 'Valeur attendue'} /></label>
+                          <label className="space-y-2 text-sm text-slate-200">Nouvelle réponse attendue<input value={question.expectedAnswerText} onChange={(event) => updateQuestion(question.id, { expectedAnswerText: event.target.value })} className={FIELD} placeholder={question.type === 'boolean' ? 'true ou false' : 'Valeur attendue'} /></label>
                           {question.type === 'number' ? <label className="space-y-2 text-sm text-slate-200">Critere<Select value={question.numberOperator ?? 'equals'} onChange={(event) => updateQuestion(question.id, { numberOperator: event.target.value as 'equals' | 'minimum' | 'maximum' })}><option value="equals">Égal à</option><option value="minimum">Minimum</option><option value="maximum">Maximum</option></Select></label> : null}
-                          <p className="text-xs text-emerald-200 md:col-span-2">{question.hasExpectedAnswer && !question.expectedAnswerText ? 'Une correction existe cote serveur. Laissez vide pour la conserver.' : 'La correction saisie sera stockee cote serveur.'}</p>
+                          <p className="text-xs text-emerald-200 md:col-span-2">{question.hasExpectedAnswer && !question.expectedAnswerText ? 'Une correction existe côté serveur. Laissez vide pour la conserver.' : 'La correction saisie sera stockée côté serveur.'}</p>
                         </>
                       ) : null}
                     </div>
@@ -785,14 +785,14 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
             {creationMode === 'ai_import' ? (
               <SevenoPanel tone="orange">
                 <p className="text-sm text-orange-100">
-                  Le questionnaire importe doit etre relu puis valide avant enregistrement.
+                  Le questionnaire importé doit être relu puis validé avant enregistrement.
                 </p>
               </SevenoPanel>
             ) : null}
 
             <div className="flex flex-wrap gap-3">
               <button type="button" disabled={saving || (creationMode === 'ai_import' && !aiValidationConfirmed)} onClick={() => void save()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Enregistrer le brouillon</button>
-              <button type="button" onClick={() => setPreview(true)} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">Previsualiser</button>
+              <button type="button" onClick={() => setPreview(true)} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">Prévisualiser</button>
               <button
                 type="button"
                 disabled={saving || (creationMode === 'ai_import' && !aiValidationConfirmed) || questions.length !== COMPANY_QUESTIONNAIRE_QUESTION_COUNT}
