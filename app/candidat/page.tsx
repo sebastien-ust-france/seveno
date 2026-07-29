@@ -175,6 +175,13 @@ function getProfileAction(
 
 type AvailabilityPushSupport = Awaited<ReturnType<typeof requestCandidateAvailabilityPushToken>>;
 
+function logCandidateAvailabilityDebug(step: string, details?: Record<string, unknown>) {
+  console.info('[SevenO availability test]', {
+    step,
+    ...details,
+  });
+}
+
 function getAvailabilityTestFailureMessage(
   support: AvailabilityPushSupport | null,
   hasActiveDevice: boolean | null,
@@ -375,6 +382,9 @@ export default function CandidateDashboardPage() {
       return;
     }
 
+    logCandidateAvailabilityDebug('activation_click', {
+      action,
+    });
     setAvailabilityAction(action);
     setAvailabilityError(null);
     setAvailabilityNotice(null);
@@ -393,15 +403,30 @@ export default function CandidateDashboardPage() {
       const support = await requestCandidateAvailabilityPushToken();
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
       if (support.permission === 'granted' && support.token) {
-        await registerCandidateAvailabilityDevice(authUser, {
-          deviceId: support.deviceId,
-          token: support.token,
-          permission: support.permission,
-          timezone,
-          platform: navigator.platform,
-          userAgent: navigator.userAgent,
-          source: 'dashboard',
-        });
+        try {
+          await registerCandidateAvailabilityDevice(authUser, {
+            deviceId: support.deviceId,
+            token: support.token,
+            permission: support.permission,
+            timezone,
+            platform: navigator.platform,
+            userAgent: navigator.userAgent,
+            source: 'dashboard',
+          });
+          logCandidateAvailabilityDebug('register_device_success', {
+            action,
+            deviceId: support.deviceId,
+            permission: support.permission,
+          });
+        } catch (error) {
+          logCandidateAvailabilityDebug('register_device_failed', {
+            action,
+            deviceId: support.deviceId,
+            permission: support.permission,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
       }
 
       const result = await updateCandidateAvailabilityNotifications(authUser, {
@@ -428,6 +453,9 @@ export default function CandidateDashboardPage() {
       return;
     }
 
+    logCandidateAvailabilityDebug('activation_click', {
+      action: 'send_test_notification',
+    });
     setAvailabilityAction('send_test_notification');
     setAvailabilityError(null);
     setAvailabilityNotice(null);
@@ -451,15 +479,32 @@ export default function CandidateDashboardPage() {
         throw new Error('Impossible de créer l’abonnement Firebase.');
       }
 
-      const registrationResult = await registerCandidateAvailabilityDevice(authUser, {
-        deviceId: support.deviceId,
-        token: support.token,
-        permission: support.permission,
-        timezone,
-        platform: navigator.platform,
-        userAgent: navigator.userAgent,
-        source: 'dashboard',
-      });
+      let registrationResult: Awaited<ReturnType<typeof registerCandidateAvailabilityDevice>>;
+      try {
+        registrationResult = await registerCandidateAvailabilityDevice(authUser, {
+          deviceId: support.deviceId,
+          token: support.token,
+          permission: support.permission,
+          timezone,
+          platform: navigator.platform,
+          userAgent: navigator.userAgent,
+          source: 'dashboard',
+        });
+        logCandidateAvailabilityDebug('register_device_success', {
+          action: 'send_test_notification',
+          deviceId: support.deviceId,
+          permission: support.permission,
+          hasActiveDevice: registrationResult.hasActiveDevice,
+        });
+      } catch (error) {
+        logCandidateAvailabilityDebug('register_device_failed', {
+          action: 'send_test_notification',
+          deviceId: support.deviceId,
+          permission: support.permission,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
       hasActiveDevice = registrationResult.hasActiveDevice;
 
       if (!registrationResult.hasActiveDevice) {

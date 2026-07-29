@@ -56,6 +56,12 @@ async function ensureAvailabilityServiceWorker() {
     path: AVAILABILITY_SERVICE_WORKER_PATH,
   });
   const registration = await navigator.serviceWorker.register(AVAILABILITY_SERVICE_WORKER_PATH, { scope: '/' });
+  logAvailabilityDebug('service_worker_registered', {
+    scope: registration.scope,
+    active: Boolean(registration.active),
+    waiting: Boolean(registration.waiting),
+    installing: Boolean(registration.installing),
+  });
   await navigator.serviceWorker.ready;
   logAvailabilityDebug('service_worker_ready', {
     scope: registration.scope,
@@ -82,11 +88,15 @@ export async function requestCandidateAvailabilityPushToken() {
     };
   }
 
-  const supported = await isSupported().catch(() => false);
-  if (!supported || !('Notification' in window)) {
+  const hasNotificationApi = 'Notification' in window;
+  const hasServiceWorkerApi = 'serviceWorker' in navigator;
+  const hasPushManagerApi = 'PushManager' in window;
+  if (!hasNotificationApi || !hasServiceWorkerApi || !hasPushManagerApi) {
     logAvailabilityDebug('browser_not_supported', {
-      supported,
-      hasNotificationApi: 'Notification' in window,
+      supported: false,
+      hasNotificationApi,
+      hasServiceWorkerApi,
+      hasPushManagerApi,
     });
     return {
       permission: 'default' as NotificationPermission,
@@ -104,11 +114,32 @@ export async function requestCandidateAvailabilityPushToken() {
   const permission = Notification.permission === 'default'
     ? await Notification.requestPermission()
     : Notification.permission;
+  logAvailabilityDebug('permission_result', {
+    permission,
+  });
   logAvailabilityDebug('browser_permission_result', {
     permission,
   });
   const deviceId = getOrCreateAvailabilityDeviceId();
   const serviceWorkerRegistration = await ensureAvailabilityServiceWorker();
+  const supported = await isSupported().catch(() => false);
+
+  if (!supported) {
+    logAvailabilityDebug('browser_not_supported', {
+      supported,
+      hasNotificationApi,
+      hasServiceWorkerApi,
+      hasPushManagerApi,
+    });
+    return {
+      permission,
+      token: null,
+      deviceId,
+      serviceWorkerRegistration,
+      supported: false,
+      vapidKeyPresent: false,
+    };
+  }
 
   if (permission !== 'granted' || !serviceWorkerRegistration) {
     logAvailabilityDebug('push_support_blocked_before_token', {
@@ -163,6 +194,13 @@ export async function requestCandidateAvailabilityPushToken() {
     });
   }
 
+  if (token) {
+    logAvailabilityDebug('token_created', {
+      deviceId,
+      permission,
+      serviceWorkerActive: Boolean(serviceWorkerRegistration.active),
+    });
+  }
   logAvailabilityDebug('token_generation_result', {
     tokenGenerated: Boolean(token),
   });
