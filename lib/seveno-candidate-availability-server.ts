@@ -255,6 +255,8 @@ function normalizeDevice(data: unknown, uid: string, deviceId: string): Candidat
     return null;
   }
 
+  const normalizedUid = cleanText(uid);
+  const ownerUid = cleanText(data.uid);
   const token = cleanText(data.token);
   const permission = data.permission === 'default' || data.permission === 'granted' || data.permission === 'denied'
     ? data.permission
@@ -269,7 +271,7 @@ function normalizeDevice(data: unknown, uid: string, deviceId: string): Candidat
   const lastNotificationAt = data.lastNotificationAt == null ? null : toTimestamp(data.lastNotificationAt);
   const revokedAt = data.revokedAt == null ? null : toTimestamp(data.revokedAt);
 
-  if (!token || !permission || !createdAt || !updatedAt) {
+  if (!normalizedUid || ownerUid !== normalizedUid || !token || !permission || !createdAt || !updatedAt) {
     return null;
   }
 
@@ -300,19 +302,29 @@ async function loadCandidateProfile(uid: string) {
 }
 
 async function loadActiveDevices(uid: string) {
-  const snapshot = await getAvailabilityPushDeviceCollection(uid)
+  const normalizedUid = cleanText(uid);
+  if (!normalizedUid) {
+    return [];
+  }
+
+  const snapshot = await getAvailabilityPushDeviceCollection(normalizedUid)
     .where('enabled', '==', true)
     .get();
 
   return snapshot.docs
-    .map((document) => normalizeDevice(document.data(), uid, document.id))
+    .map((document) => normalizeDevice(document.data(), normalizedUid, document.id))
     .filter((item): item is CandidatePushSubscriptionDevice => Boolean(item));
 }
 
 async function loadDevices(uid: string) {
-  const snapshot = await getAvailabilityPushDeviceCollection(uid).get();
+  const normalizedUid = cleanText(uid);
+  if (!normalizedUid) {
+    return [];
+  }
+
+  const snapshot = await getAvailabilityPushDeviceCollection(normalizedUid).get();
   return snapshot.docs
-    .map((document) => normalizeDevice(document.data(), uid, document.id))
+    .map((document) => normalizeDevice(document.data(), normalizedUid, document.id))
     .filter((item): item is CandidatePushSubscriptionDevice => Boolean(item));
 }
 
@@ -882,7 +894,13 @@ export async function updateCandidateAvailabilityPreferences(input: {
   };
 }
 
-export async function processAvailabilityRemindersBatch(cursorValue?: string | null) {
+export async function processAvailabilityRemindersBatch(
+  cursorValue?: string | null,
+  dependencies?: {
+    sendAvailabilityNotificationToDevices?: typeof sendAvailabilityNotificationToDevices;
+  },
+) {
+  const sendNotificationBatch = dependencies?.sendAvailabilityNotificationToDevices ?? sendAvailabilityNotificationToDevices;
   const firestore = requireAdminDatabase();
   let query = firestore
     .collection(CANDIDATE_PROFILES_COLLECTION)
@@ -925,6 +943,7 @@ export async function processAvailabilityRemindersBatch(cursorValue?: string | n
     scanned: candidates.length,
     sent: 0,
     failed: 0,
+    skippedNoActiveDevice: 0,
     invalidDeviceIds: [] as Array<{ uid: string; deviceId: string }>,
     processed: 0,
   };
@@ -935,12 +954,17 @@ export async function processAvailabilityRemindersBatch(cursorValue?: string | n
       continue;
     }
 
-    const periodKey = buildAvailabilityReminderPeriodKey(Timestamp.now().toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone));
+    const activeDevices = await loadActiveDevices(candidate.uid);
+    if (activeDevices.length === 0) {
+      summary.skippedNoActiveDevice += 1;
+      continue;
+    }
+
+    const requestTime = Timestamp.now();
+    const periodKey = buildAvailabilityReminderPeriodKey(requestTime.toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone));
     const requestId = buildRequestId(candidate.uid, periodKey);
     const requestRef = getAvailabilityRequestRef(requestId);
     const requestSnapshot = await requestRef.get();
-    const activeDevices = await loadActiveDevices(candidate.uid);
-    const requestTime = Timestamp.now();
     const existingRequestStatus = requestSnapshot.exists ? cleanText(requestSnapshot.get('status')) : null;
     const existingNotificationSentAt = requestSnapshot.exists ? toTimestamp(requestSnapshot.get('notificationSentAt')) : null;
 
@@ -948,71 +972,21 @@ export async function processAvailabilityRemindersBatch(cursorValue?: string | n
       continue;
     }
 
-    if (!requestSnapshot.exists) {
-      await requestRef.create({
-        id: requestId,
-        candidateUid: candidate.uid,
-        publicCandidateId: candidate.publicCandidateId,
-        periodKey,
-        status: 'pending',
-        tokenHash: null,
-        expiresAt: Timestamp.fromMillis(requestTime.toMillis() + AVAILABILITY_REQUEST_EXPIRY_HOURS * 60 * 60 * 1000),
-        notificationSentAt: null,
-        answeredAt: null,
-        answer: null,
-        source: 'scheduler',
-        createdAt: requestTime,
-        updatedAt: requestTime,
-        schemaVersion: AVAILABILITY_CONFIRMATION_SCHEMA_VERSION,
-      } satisfies AvailabilityConfirmationRequest);
-    } else if (existingNotificationSentAt) {
+    if (existingNotificationSentAt) {
       await updateCandidateAvailabilityProfile(candidate.uid, {
         nextAvailabilityReminderAt: Timestamp.fromDate(buildNextAvailabilityReminderAt(requestTime.toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone))),
       });
-      continue;
-    }
-
-    if (activeDevices.length === 0) {
-      await updateCandidateAvailabilityProfile(candidate.uid, {
-        lastAvailabilityNotificationAt: requestTime,
-        nextAvailabilityReminderAt: Timestamp.fromDate(buildNextAvailabilityReminderAt(requestTime.toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone))),
-      });
-      summary.failed += 1;
       continue;
     }
 
     const token = buildRequestToken();
     const tokenHash = hashToken(token);
-    await requestRef.set({
-      id: requestId,
-      candidateUid: candidate.uid,
-      publicCandidateId: candidate.publicCandidateId,
-      periodKey,
-      status: 'pending',
-      tokenHash,
-      expiresAt: Timestamp.fromMillis(requestTime.toMillis() + AVAILABILITY_REQUEST_EXPIRY_HOURS * 60 * 60 * 1000),
-      notificationSentAt: requestTime,
-      answeredAt: null,
-      answer: null,
-      source: 'scheduler',
-      createdAt: requestSnapshot.exists && requestSnapshot.get('createdAt') instanceof Timestamp
-        ? requestSnapshot.get('createdAt')
-        : requestTime,
-      updatedAt: requestTime,
-      schemaVersion: AVAILABILITY_CONFIRMATION_SCHEMA_VERSION,
-    } satisfies AvailabilityConfirmationRequest, { merge: true });
 
     try {
-      const result = await sendAvailabilityNotificationToDevices(candidate, requestId, token, activeDevices);
+      const result = await sendNotificationBatch(candidate, requestId, token, activeDevices);
       summary.sent += result.sent;
       summary.failed += result.failed;
       summary.invalidDeviceIds.push(...result.invalidDeviceIds.map((deviceId) => ({ uid: candidate.uid, deviceId })));
-
-      await updateCandidateAvailabilityProfile(candidate.uid, {
-        lastAvailabilityNotificationAt: requestTime,
-        nextAvailabilityReminderAt: Timestamp.fromDate(buildNextAvailabilityReminderAt(requestTime.toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone))),
-        hasActiveAvailabilityPushSubscription: activeDevices.length > result.invalidDeviceIds.length,
-      });
 
       for (const deviceId of result.invalidDeviceIds) {
         await disableCandidateAvailabilityDevice(candidate.uid, {
@@ -1020,13 +994,39 @@ export async function processAvailabilityRemindersBatch(cursorValue?: string | n
           source: 'scheduler',
         });
       }
-    } catch (error) {
+
+      if (result.sent === 0) {
+        continue;
+      }
+
+      await requestRef.set({
+        id: requestId,
+        candidateUid: candidate.uid,
+        publicCandidateId: candidate.publicCandidateId,
+        periodKey,
+        status: 'pending',
+        tokenHash,
+        expiresAt: Timestamp.fromMillis(requestTime.toMillis() + AVAILABILITY_REQUEST_EXPIRY_HOURS * 60 * 60 * 1000),
+        notificationSentAt: requestTime,
+        answeredAt: null,
+        answer: null,
+        source: 'scheduler',
+        createdAt: requestSnapshot.exists && requestSnapshot.get('createdAt') instanceof Timestamp
+          ? requestSnapshot.get('createdAt')
+          : requestTime,
+        updatedAt: requestTime,
+        schemaVersion: AVAILABILITY_CONFIRMATION_SCHEMA_VERSION,
+      } satisfies AvailabilityConfirmationRequest, { merge: true });
+
       await updateCandidateAvailabilityProfile(candidate.uid, {
         lastAvailabilityNotificationAt: requestTime,
         nextAvailabilityReminderAt: Timestamp.fromDate(buildNextAvailabilityReminderAt(requestTime.toDate(), normalizeAvailabilityTimezone(candidate.availabilityTimezone))),
+        hasActiveAvailabilityPushSubscription: activeDevices.length > result.invalidDeviceIds.length,
       });
+
+      await writeAvailabilityEvent(candidate.uid, 'notification_sent', 'scheduler', requestId);
+    } catch (error) {
       summary.failed += 1;
-      await writeAvailabilityEvent(candidate.uid, 'notification_failed', 'scheduler', requestId);
       console.error('[availability scheduler] push failure', error);
     }
   }
