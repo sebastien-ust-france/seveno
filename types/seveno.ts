@@ -81,6 +81,7 @@ export interface SevenoAssessmentSummary {
 export type CompanyProfileStatus = 'draft' | 'active' | 'suspended';
 export type CompanyVerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type CompanySize = 'solo' | '1_9' | '10_49' | '50_249' | '250_plus';
+export type CompanyInvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
 export type CandidateExperienceLevel = 'beginner' | 'intermediate' | 'confirmed' | 'senior' | 'expert';
 export type CandidateAvailability =
   | 'immediate'
@@ -524,6 +525,40 @@ export interface CompanyProfileUpsertData {
   headquartersArea: string;
   recruitmentAreas: string[];
   contactRole: string;
+}
+
+export interface CompanyInvitation {
+  invitationId: string;
+  email: string;
+  emailNormalized: string;
+  tokenHash: string;
+  status: CompanyInvitationStatus;
+  createdAt: FirestoreDateValue;
+  updatedAt: FirestoreDateValue;
+  expiresAt: FirestoreDateValue;
+  createdByUid: string;
+  acceptedAt?: FirestoreDateValue | null;
+  acceptedByUid?: string | null;
+  revokedAt?: FirestoreDateValue | null;
+  revokedByUid?: string | null;
+}
+
+export interface PublicCompanyInvitationView {
+  invitationId: string;
+  emailNormalized: string;
+  emailMasked: string;
+  status: CompanyInvitationStatus;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface CompanyInvitationCreateResult {
+  invitationId: string;
+  email: string;
+  status: CompanyInvitationStatus;
+  expiresAt: string;
+  invitationUrl: string;
 }
 
 export interface JobSector {

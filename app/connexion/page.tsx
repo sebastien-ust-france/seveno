@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { FirebaseError } from 'firebase/app';
 import type { User } from 'firebase/auth';
@@ -18,8 +18,9 @@ import {
   signInWithGoogle,
   signOutUser,
 } from '@/lib/auth';
+import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import { COMPANY_INVITE_ONLY_MESSAGE, ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
-import type { SevenoUser } from '@/types/seveno';
+import type { PublicCompanyInvitationView, SevenoUser } from '@/types/seveno';
 
 type AuthMode = 'sign-in' | 'sign-up' | 'reset';
 type LoadingAction = 'google' | 'sign-in' | 'sign-up' | 'reset' | 'resend' | 'refresh' | 'sign-out' | null;
@@ -30,6 +31,8 @@ type PendingVerification = {
 };
 
 type GoogleSignInStage = 'popup' | 'token' | 'user_document' | 'redirect';
+
+export const dynamic = 'force-dynamic';
 
 function isFirebaseError(error: unknown): error is FirebaseError {
   return error instanceof FirebaseError;
@@ -199,6 +202,10 @@ function isEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function normalizeEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
 export default function ConnexionPage() {
   const router = useRouter();
   const [checkingSession, setCheckingSession] = useState(true);
@@ -211,13 +218,134 @@ export default function ConnexionPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingVerification, setPendingVerification] = useState<PendingVerification | null>(null);
+  const [currentInvitation, setCurrentInvitation] = useState<PublicCompanyInvitationView | null>(null);
+  const [invitationLoading, setInvitationLoading] = useState(true);
   const busy = loadingAction !== null;
+  const activeCompanyInvitation = currentInvitation?.status === 'pending';
+  const invitationEmailNormalized = currentInvitation?.emailNormalized ?? '';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const invitationAction = new URLSearchParams(window.location.search).get('companyInvitationAction');
+    if (invitationAction === 'sign-up' || invitationAction === 'sign-in') {
+      setMode(invitationAction);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadInvitation() {
+      try {
+        const response = await fetch('/api/seveno/company-invitations/current', {
+          cache: 'no-store',
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { invitation?: PublicCompanyInvitationView | null }
+          | null;
+
+        if (!active) return;
+        const invitation = payload?.invitation ?? null;
+        setCurrentInvitation(invitation);
+        if (invitation?.emailNormalized) {
+          setEmail((current) => (current.trim() ? current : invitation.emailNormalized));
+        }
+      } catch {
+        if (!active) return;
+        setCurrentInvitation(null);
+      } finally {
+        if (!active) return;
+        setInvitationLoading(false);
+      }
+    }
+
+    void loadInvitation();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function hasActiveCompanyInvitation() {
+    return activeCompanyInvitation;
+  }
+
+  function isInvitationEmailMatch(candidateEmail: string) {
+    if (!activeCompanyInvitation) {
+      return true;
+    }
+
+    return normalizeEmail(candidateEmail) === invitationEmailNormalized;
+  }
+
+  const acceptCurrentCompanyInvitation = useCallback(
+    async (authUser: User) => {
+      if (!activeCompanyInvitation) {
+        return null;
+      }
+
+      const response = await fetchSevenoMatchApi<{
+        accepted: boolean;
+        redirectPath: string;
+      }>(authUser, '/api/seveno/company-invitations/accept', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      return response.redirectPath;
+    },
+    [activeCompanyInvitation],
+  );
+
+  const handleAuthenticatedUser = useCallback(
+    async (authUser: User, sevenoUser: SevenoUser) => {
+      if (activeCompanyInvitation) {
+        const resolvedEmail = normalizeEmail(authUser.email ?? sevenoUser.email);
+        if (!resolvedEmail || resolvedEmail !== invitationEmailNormalized) {
+          await signOutUser().catch(() => undefined);
+          setPendingVerification(null);
+          setNotice(null);
+          setError('Cette invitation est réservée à une autre adresse email.');
+          return;
+        }
+
+        if (isPasswordAuthUser(authUser) && !authUser.emailVerified) {
+          setPendingVerification({ authUser, sevenoUser });
+          setEmail(authUser.email ?? sevenoUser.email);
+          setNotice('Votre adresse email doit être vérifiée pour poursuivre la création de votre compte entreprise.');
+          return;
+        }
+
+        const redirectPath = await acceptCurrentCompanyInvitation(authUser);
+        router.replace(redirectPath ?? '/entreprise/onboarding');
+        return;
+      }
+
+      if (isPasswordAuthUser(authUser) && !authUser.emailVerified) {
+        setPendingVerification({ authUser, sevenoUser });
+        setEmail(authUser.email ?? sevenoUser.email);
+        setNotice('Votre adresse email doit être vérifiée. Vous pouvez néanmoins continuer votre onboarding.');
+        return;
+      }
+
+      router.replace(resolveSevenoRedirect(sevenoUser));
+    },
+    [acceptCurrentCompanyInvitation, activeCompanyInvitation, invitationEmailNormalized, router],
+  );
 
   useEffect(() => {
     let active = true;
 
     async function checkSession() {
       try {
+        if (invitationLoading) {
+          return;
+        }
+
         const authUser = await getCurrentAuthUser();
         if (!active) return;
 
@@ -229,14 +357,9 @@ export default function ConnexionPage() {
         const sevenoUser = await ensureSevenoUser(authUser);
         if (!active) return;
 
-        if (isPasswordAuthUser(authUser) && !authUser.emailVerified) {
-          setEmail(authUser.email ?? sevenoUser.email);
-          setPendingVerification({ authUser, sevenoUser });
-          setCheckingSession(false);
-          return;
-        }
-
-        router.replace(resolveSevenoRedirect(sevenoUser));
+        await handleAuthenticatedUser(authUser, sevenoUser);
+        if (!active) return;
+        setCheckingSession(false);
       } catch (thrownError) {
         if (!active) return;
         console.error('Vérification de session SevenO échouée', {
@@ -253,7 +376,7 @@ export default function ConnexionPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [handleAuthenticatedUser, invitationLoading, currentInvitation?.invitationId]);
 
   function selectMode(nextMode: AuthMode) {
     if (busy) return;
@@ -262,17 +385,6 @@ export default function ConnexionPage() {
     setNotice(null);
     setPassword('');
     setPasswordConfirmation('');
-  }
-
-  function handleAuthenticatedUser(authUser: User, sevenoUser: SevenoUser) {
-    if (isPasswordAuthUser(authUser) && !authUser.emailVerified) {
-      setPendingVerification({ authUser, sevenoUser });
-      setEmail(authUser.email ?? sevenoUser.email);
-      setNotice('Votre adresse email doit être vérifiée. Vous pouvez néanmoins continuer votre onboarding.');
-      return;
-    }
-
-    router.replace(resolveSevenoRedirect(sevenoUser));
   }
 
   async function handleGoogleSignIn() {
@@ -294,14 +406,16 @@ export default function ConnexionPage() {
       stage = 'user_document';
       const sevenoUser = await ensureSevenoUser(authUser);
       stage = 'redirect';
-      const redirectPath = resolveSevenoRedirect(sevenoUser);
+      const redirectPath = hasActiveCompanyInvitation()
+        ? '/entreprise/onboarding'
+        : resolveSevenoRedirect(sevenoUser);
       console.info('Connexion Google SevenO reussie', {
         stage,
         uid: authUser.uid,
         role: sevenoUser.role,
         redirectPath,
       });
-      router.replace(redirectPath);
+      await handleAuthenticatedUser(authUser, sevenoUser);
     } catch (thrownError) {
       console.error('Connexion Google SevenO echouee', getGoogleSignInDiagnostics(thrownError, stage));
       setError(getGoogleSignInUserMessage(thrownError, stage));
@@ -331,7 +445,7 @@ export default function ConnexionPage() {
     try {
       const authUser = await signInWithEmailPassword(normalizedEmail, password);
       const sevenoUser = await ensureSevenoUser(authUser);
-      handleAuthenticatedUser(authUser, sevenoUser);
+      await handleAuthenticatedUser(authUser, sevenoUser);
     } catch (thrownError) {
       console.error('Connexion email SevenO échouée', {
         code: getFirebaseErrorCode(thrownError),
@@ -377,11 +491,16 @@ export default function ConnexionPage() {
         return;
       }
 
+      if (hasActiveCompanyInvitation() && !isInvitationEmailMatch(normalizedEmail)) {
+        setError('Cette invitation est réservée à une autre adresse email.');
+        return;
+      }
+
       createdAuthUser = await createEmailPasswordUser(normalizedEmail, password);
 
       let sevenoUser: SevenoUser;
       try {
-        sevenoUser = await ensureSevenoUser(createdAuthUser, 'candidate');
+        sevenoUser = await ensureSevenoUser(createdAuthUser, hasActiveCompanyInvitation() ? null : 'candidate');
       } catch (userDocumentError) {
         await deleteAuthUser(createdAuthUser).catch(() => undefined);
         createdAuthUser = null;
@@ -474,6 +593,12 @@ export default function ConnexionPage() {
         return;
       }
 
+      if (hasActiveCompanyInvitation()) {
+        const redirectPath = await acceptCurrentCompanyInvitation(authUser);
+        router.replace(redirectPath ?? '/entreprise/onboarding');
+        return;
+      }
+
       router.replace(resolveSevenoRedirect(sevenoUser));
     } catch (thrownError) {
       console.error('Actualisation de la vérification SevenO échouée', {
@@ -529,8 +654,9 @@ export default function ConnexionPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">Email non vérifié</p>
                 <h2 className="mt-3 text-xl font-semibold text-white">Vérifiez {pendingVerification.sevenoUser.email}</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
-                  Vous pouvez continuer votre onboarding. L’activation publique d’un profil candidat et les fonctionnalités
-                  entreprise restent limitées jusqu’à la vérification de cette adresse.
+                  {hasActiveCompanyInvitation()
+                    ? 'Votre adresse email doit être vérifiée pour poursuivre la création de votre compte entreprise.'
+                    : 'Vous pouvez continuer votre onboarding. L’activation publique d’un profil candidat et les fonctionnalités entreprise restent limitées jusqu’à la vérification de cette adresse.'}
                 </p>
               </div>
 
@@ -556,14 +682,16 @@ export default function ConnexionPage() {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => router.replace(resolveSevenoRedirect(pendingVerification.sevenoUser))}
-                disabled={busy}
-                className="w-full rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Continuer vers mon onboarding
-              </button>
+              {!hasActiveCompanyInvitation() ? (
+                <button
+                  type="button"
+                  onClick={() => router.replace(resolveSevenoRedirect(pendingVerification.sevenoUser))}
+                  disabled={busy}
+                  className="w-full rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Continuer vers mon onboarding
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void handleUseAnotherAccount()}
@@ -639,6 +767,12 @@ export default function ConnexionPage() {
                 </form>
               ) : (
                 <form className="space-y-4" onSubmit={(event) => void (mode === 'sign-up' ? handleEmailSignUp(event) : handleEmailSignIn(event))}>
+                  {hasActiveCompanyInvitation() ? (
+                    <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm leading-6 text-cyan-50">
+                      Une invitation entreprise est active pour {currentInvitation?.emailMasked ?? 'votre adresse'}.
+                    </div>
+                  ) : null}
+
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-200">Adresse email</span>
                     <input
@@ -701,11 +835,15 @@ export default function ConnexionPage() {
                     className="w-full rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loadingAction === 'sign-up'
-                      ? 'Création du compte...'
+                      ? hasActiveCompanyInvitation()
+                        ? 'Création du compte entreprise...'
+                        : 'Création du compte...'
                       : loadingAction === 'sign-in'
                         ? 'Connexion...'
                         : mode === 'sign-up'
-                          ? 'Créer mon compte'
+                          ? hasActiveCompanyInvitation()
+                            ? 'Créer mon compte entreprise'
+                            : 'Créer mon compte'
                           : 'Se connecter avec une adresse email'}
                   </button>
 

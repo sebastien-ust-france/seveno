@@ -6,6 +6,7 @@ import type {
   CandidatePrivateData,
   CandidateProfileStatus,
   CompanyProfileStatus,
+  CompanyInvitationStatus,
   CompanySize,
   CompanyVerificationStatus,
   MatchRequestStatus,
@@ -68,6 +69,32 @@ export interface AdminCompanySummary {
   website?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminCompanyInvitationSummary {
+  invitationId: string;
+  email: string;
+  status: CompanyInvitationStatus;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  createdByUid: string;
+  acceptedAt: string | null;
+  acceptedByUid: string | null;
+  revokedAt: string | null;
+  revokedByUid: string | null;
+}
+
+export interface AdminCompanyInvitationListPayload {
+  invitations: AdminCompanyInvitationSummary[];
+}
+
+export interface AdminCompanyInvitationCreateResult {
+  invitationId: string;
+  email: string;
+  status: CompanyInvitationStatus;
+  expiresAt: string;
+  invitationUrl: string;
 }
 
 export interface AdminTestSessionSummary {

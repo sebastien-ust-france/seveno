@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/api/', '/candidat/', '/entreprise/', '/connexion', '/onboarding', '/recommandation/'],
+        disallow: ['/admin/', '/api/', '/candidat/', '/entreprise/', '/connexion', '/onboarding', '/recommandation/', '/invitation-entreprise/'],
       },
     ],
     sitemap: 'https://seveno.eu/sitemap.xml',

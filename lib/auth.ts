@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   fetchSignInMethodsForEmail,
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   reload,
@@ -16,8 +17,20 @@ import {
   type User,
 } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
+import { getSevenoClientAuthEmulatorUrl, isSevenoFirebaseEmulatorModeEnabled } from '@/lib/firebase-emulators';
 
 let authInstance: Auth | null = null;
+
+type EmulatorConnectionState = {
+  authConnected?: boolean;
+};
+
+const globalForAuth = globalThis as typeof globalThis & {
+  __sevenoFirebaseClientEmulatorState?: EmulatorConnectionState;
+};
+
+const authEmulatorState = globalForAuth.__sevenoFirebaseClientEmulatorState ?? {};
+globalForAuth.__sevenoFirebaseClientEmulatorState = authEmulatorState;
 
 function getFirebaseAuth() {
   if (!firebaseApp) {
@@ -26,6 +39,11 @@ function getFirebaseAuth() {
 
   if (!authInstance) {
     authInstance = getAuth(firebaseApp);
+  }
+
+  if (isSevenoFirebaseEmulatorModeEnabled() && !authEmulatorState.authConnected) {
+    connectAuthEmulator(authInstance, getSevenoClientAuthEmulatorUrl(), { disableWarnings: true });
+    authEmulatorState.authConnected = true;
   }
 
   return authInstance;
