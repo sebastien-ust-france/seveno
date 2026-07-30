@@ -8,6 +8,7 @@ import {
   SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_QUESTION_TYPES,
   SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES,
   SEVENO_PROFESSIONAL_ASSESSMENT_SIGNAL_RELIABILITY_VALUES,
+  validateAssessmentScoringStructure,
 } from '@/lib/seveno-professional-assessment';
 import type {
   AssessmentBehaviorAxisCode,
@@ -1569,9 +1570,13 @@ function collectBankValidationIssues(rawDocument: unknown, document: SevenoProfe
 export function validateSevenoProfessionalAssessmentBankDocument(rawDocument: unknown): AssessmentValidationResult {
   const rawV2Issues = collectV2RawQuestionContractIssues(rawDocument);
   const normalized = normalizeBankDocument(rawDocument);
+  const runtimeVersion = buildSevenoProfessionalAssessmentDraftFromBankDocument(normalized);
   return resultFromIssues([
     ...rawV2Issues,
     ...collectBankValidationIssues(rawDocument, normalized),
+    ...(normalized.versionMetadata.schemaVersion === 2
+      ? validateAssessmentScoringStructure(runtimeVersion).issues
+      : []),
   ]);
 }
 

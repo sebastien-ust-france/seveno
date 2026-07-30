@@ -12,6 +12,7 @@ import {
   validateAssessmentOption,
   validateAssessmentVersion,
 } from '@/lib/seveno-professional-assessment';
+import { validateProfessionalAssessmentSubmissionAnswers } from '@/lib/seveno-tests';
 import {
   SEVENO_PROFESSIONAL_ASSESSMENT_FIXTURE_TAG,
   SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_ESSENTIAL_REQUEST,
@@ -305,6 +306,13 @@ function main() {
   const incompleteOutcome = calculateProfessionalAssessmentOutcome(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_INCOMPLETE_REQUEST);
   assert.equal(incompleteOutcome.report.precisionLevel, 'caution');
   assert.equal(incompleteOutcome.report.dimensionResults.some((result) => result.status !== 'measured'), true);
+
+  const incompleteSubmissionState = validateProfessionalAssessmentSubmissionAnswers(
+    SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_REQUEST.questions.map((question) => question.id),
+    SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_INCOMPLETE_REQUEST.answers,
+  );
+  assert.equal(incompleteSubmissionState.complete, false);
+  assert.equal(incompleteSubmissionState.missingQuestionIds.length > 0, true);
 
   const notMeasuredVersion = mutateForNotMeasured(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION);
   const notMeasuredOutcome = calculateProfessionalAssessmentOutcome({

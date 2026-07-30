@@ -827,6 +827,79 @@ export function validateAssessmentOption(
   return resultFromIssues(issues);
 }
 
+function collectQuestionScoredDimensionCodes(question: Pick<AssessmentQuestion, 'primaryDimensionCodes' | 'secondaryDimensionCodes'>) {
+  return uniqueStrings([
+    ...question.primaryDimensionCodes,
+    ...(Array.isArray(question.secondaryDimensionCodes) ? question.secondaryDimensionCodes : []),
+  ].filter(isKnownDimensionCode)) as AssessmentDimensionCode[];
+}
+
+export function validateAssessmentScoringStructure(
+  version: Pick<AssessmentVersionDescriptor, 'questions' | 'dimensions'>,
+): AssessmentValidationResult {
+  const issues: AssessmentValidationIssue[] = [];
+  const activeQuestions = version.questions.filter((question) => question.isActive !== false);
+  const activeDimensions = version.dimensions.filter((dimension) => dimension.isActive);
+
+  for (const [index, question] of activeQuestions.entries()) {
+    const questionPath = `questions.${question.id || `question-${index + 1}`}`;
+    const scoredDimensionCodes = collectQuestionScoredDimensionCodes(question);
+    if (scoredDimensionCodes.length === 0) {
+      continue;
+    }
+
+    const questionIsDiscriminant = scoredDimensionCodes.some((dimensionCode) => {
+      const scores = question.options.map((option) => option.dimensionScores[dimensionCode] ?? 0);
+      return new Set(scores).size > 1;
+    });
+
+    if (!questionIsDiscriminant) {
+      issues.push(createIssue(
+        'assessment_question_non_discriminant_dimension_scores',
+        `${questionPath}.options`,
+        'La question doit proposer au moins une variation de score sur ses dimensions mesurees.',
+      ));
+    }
+  }
+
+  for (const dimension of activeDimensions) {
+    const relevantQuestions = activeQuestions.filter((question) => (
+      question.primaryDimensionCodes.includes(dimension.code)
+      || question.secondaryDimensionCodes?.includes(dimension.code)
+    ));
+
+    if (relevantQuestions.length === 0) {
+      continue;
+    }
+
+    let minimumPoints = 0;
+    let maximumPoints = 0;
+
+    for (const question of relevantQuestions) {
+      const minContribution = question.options.reduce((min, option) => {
+        const contribution = option.dimensionScores[dimension.code] ?? 0;
+        return contribution < min ? contribution : min;
+      }, OPTION_SCORE_MAX);
+      const maxContribution = question.options.reduce((max, option) => {
+        const contribution = option.dimensionScores[dimension.code] ?? 0;
+        return contribution > max ? contribution : max;
+      }, 0);
+      minimumPoints += minContribution;
+      maximumPoints += maxContribution;
+    }
+
+    if (maximumPoints - minimumPoints <= 0) {
+      issues.push(createIssue(
+        'assessment_dimension_zero_span',
+        `dimensions.${dimension.code}`,
+        'Les scores de cette dimension ne permettent aucun etalement exploitable.',
+      ));
+    }
+  }
+
+  return resultFromIssues(issues);
+}
+
 export function validateAssessmentQuestion(
   question: AssessmentQuestion,
   version: AssessmentVersionDescriptor,
@@ -1286,7 +1359,11 @@ export function validateAssessmentVersion(
     issues.push(...questionValidation.issues);
   }
 
+  const schemaVersion = typeof version.schemaVersion === 'number' && version.schemaVersion >= 2 ? 2 : 1;
   issues.push(...validateAssessmentCoverage(version).issues);
+  if (schemaVersion === 2) {
+    issues.push(...validateAssessmentScoringStructure(version).issues);
+  }
 
   return resultFromIssues(issues);
 }

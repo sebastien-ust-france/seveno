@@ -10,6 +10,8 @@ import type {
   CompanySize,
   CompanyVerificationStatus,
   MatchRequestStatus,
+  ProfessionalAssessmentBehavioralProfile,
+  SevenoAssessmentScores,
   SevenoUser,
   TestSessionStatus,
 } from '@/types/seveno';
@@ -28,6 +30,29 @@ export interface AdminUserSummary {
   updatedAt: string;
 }
 
+export type AdminSevenoAssessmentStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'completed'
+  | 'expired'
+  | 'abandoned'
+  | 'unknown';
+
+export interface AdminSevenoAssessmentSummary {
+  status: AdminSevenoAssessmentStatus;
+  overallScore: number | null;
+  scoresByDimension: SevenoAssessmentScores;
+  completedAt: string | null;
+  sessionId: string | null;
+  resultId: string | null;
+  questionnaireVersion: string | null;
+  professionalAssessmentVersionId: string | null;
+  professionalAssessmentSchemaVersion: number | null;
+  candidateSummaryItems: string[];
+  candidateSummary: string | null;
+  behavioralProfile: ProfessionalAssessmentBehavioralProfile | null;
+}
+
 export interface AdminCandidateSummary {
   uid: string;
   publicCandidateId: string;
@@ -40,6 +65,7 @@ export interface AdminCandidateSummary {
   verifiedScore: number | null;
   testPassed: boolean;
   lastTestAt: string | null;
+  sevenoAssessment: AdminSevenoAssessmentSummary;
   profileStatus: CandidateProfileStatus;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +132,7 @@ export interface AdminTestSessionSummary {
   sectorId?: string;
   jobFamilyId?: string;
   jobRoleId?: string;
+  professionalAssessmentVersionId?: string | null;
   questionBankCode: string;
   status: TestSessionStatus;
   questionIds: string[];
@@ -133,8 +160,12 @@ export interface AdminTestResultSummary {
   sectorId?: string;
   jobFamilyId?: string;
   jobRoleId?: string;
+  professionalAssessmentVersionId?: string | null;
+  professionalAssessmentSchemaVersion?: number | null;
   questionBankCode: string;
   score: number;
+  overallScore?: number | null;
+  scoresByDimension?: SevenoAssessmentScores;
   correctAnswers: number;
   totalQuestions: number;
   passed: boolean;
@@ -144,6 +175,9 @@ export interface AdminTestResultSummary {
   submittedAt: string | null;
   verifiedAt: string;
   createdAt: string;
+  candidateSummaryItems?: string[];
+  candidateSummary?: string | null;
+  behavioralProfile?: ProfessionalAssessmentBehavioralProfile | null;
 }
 
 export interface AdminMatchRequestSummary {

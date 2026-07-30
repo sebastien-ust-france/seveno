@@ -21,6 +21,7 @@
     "test:public-performance-architecture": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-performance-architecture.mts",
     "test:seveno-contact": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-contact-smoke-test.mts",
     "test:assessment-decoupling": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/assessment-decoupling-smoke-test.mts",
+    "test:seveno-general:sequential": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-general-sequential-smoke-test.mts",
     "test:study-admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/study-admin-smoke-test.mts",
     "test:seveno-assessment-profile": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-assessment-profile-smoke-test.mts",
     "test:seveno-assessment-admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-assessment-admin-smoke-test.mts",

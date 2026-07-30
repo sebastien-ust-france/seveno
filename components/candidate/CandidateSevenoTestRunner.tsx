@@ -14,7 +14,7 @@ import {
 } from '@/lib/seveno-tests-client';
 import type { SevenoAssessmentScores, SevenoTestStartState } from '@/types/seveno';
 
-const SEVENO_TEST_QUESTION_TIME_SECONDS = 30;
+const SEVENO_TEST_QUESTION_TIME_SECONDS = 15;
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) {

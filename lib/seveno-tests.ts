@@ -51,7 +51,7 @@ const LEGACY_SEVENO_GENERAL_BANK_DURATION_SECONDS =
   LEGACY_SEVENO_GENERAL_BANK_TEMPLATE.durationSeconds ?? SEVENO_TEST_DEFAULT_DURATION_SECONDS;
 const LEGACY_SEVENO_GENERAL_BANK_THRESHOLD =
   LEGACY_SEVENO_GENERAL_BANK_TEMPLATE.threshold ?? SEVENO_TEST_DEFAULT_THRESHOLD;
-const SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS = 30;
+const SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS = 15;
 
 export class SevenoTestError extends Error {
   code: string;
@@ -292,6 +292,21 @@ async function loadActiveProfessionalAssessmentVersion(): Promise<SevenoAssessme
   return versions.find((version) => version.status === 'active') ?? null;
 }
 
+function throwProfessionalAssessmentVersionUnavailable(reason: string): never {
+  console.warn('[SevenO professional assessment]', {
+    environment: process.env.NODE_ENV ?? 'unknown',
+    requestedAssessmentType: 'seveno_general',
+    activeVersionFound: false,
+    reason,
+  });
+
+  throw new SevenoTestError(
+    'professional_assessment_version_unavailable',
+    503,
+    'Le questionnaire Seven’O est temporairement indisponible. Merci de réessayer ultérieurement.',
+  );
+}
+
 async function loadProfessionalAssessmentVersionByCodeAndVersion(
   code: string,
   version: string,
@@ -458,14 +473,16 @@ async function loadSevenoGeneralQuestionBank(
   questionIds?: string[] | null,
 ): Promise<QuestionBank> {
   const activeProfessionalVersion = await loadActiveProfessionalAssessmentVersion();
-  if (activeProfessionalVersion) {
-    const professionalBank = buildProfessionalAssessmentQuestionBank(activeProfessionalVersion, questionIds, attemptSeed);
-    if (professionalBank) {
-      return professionalBank;
-    }
+  if (!activeProfessionalVersion) {
+    throwProfessionalAssessmentVersionUnavailable('no_active_professional_version');
   }
 
-  return materializeQuestionBank(LEGACY_SEVENO_GENERAL_BANK_TEMPLATE);
+  const professionalBank = buildProfessionalAssessmentQuestionBank(activeProfessionalVersion, questionIds, attemptSeed);
+  if (!professionalBank) {
+    throwProfessionalAssessmentVersionUnavailable('active_professional_version_invalid');
+  }
+
+  return professionalBank;
 }
 
 function choosePreferredQuestionBank(banks: QuestionBank[]) {
@@ -601,6 +618,24 @@ function buildSubmitResult(result: TestResult): TestSessionSubmitResult {
     threshold: result.threshold,
     durationSeconds: result.durationSeconds,
     verifiedAt: verifiedAt.toDate().toISOString(),
+  };
+}
+
+export function validateProfessionalAssessmentSubmissionAnswers(
+  questionIds: string[],
+  answers: Record<string, string> | null | undefined,
+) {
+  const submittedAnswers = answers ?? {};
+  const answeredQuestionIds = questionIds.filter((questionId) => {
+    const answer = submittedAnswers[questionId];
+    return typeof answer === 'string' && answer.trim().length > 0;
+  });
+  const missingQuestionIds = questionIds.filter((questionId) => !answeredQuestionIds.includes(questionId));
+
+  return {
+    answeredQuestionIds,
+    missingQuestionIds,
+    complete: missingQuestionIds.length === 0,
   };
 }
 
@@ -940,6 +975,15 @@ async function submitSevenoProfessionalAssessment(
       throw new SevenoTestError('question_bank_missing', 404, 'La banque de questions est indisponible.');
     }
 
+    const submissionState = validateProfessionalAssessmentSubmissionAnswers(questionIds, answers);
+    if (!submissionState.complete) {
+      throw new SevenoTestError(
+        'professional_assessment_incomplete',
+        422,
+        'Toutes les questions attendues doivent recevoir une reponse avant la soumission du questionnaire professionnel.',
+      );
+    }
+
     const responses: ProfessionalAssessmentResponse[] = [];
     for (const [index, questionId] of questionIds.entries()) {
       const optionId = answers[questionId];
@@ -986,6 +1030,7 @@ async function submitSevenoProfessionalAssessment(
     const overallScore = scoreValues.length > 0
       ? Math.round(scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length)
       : 0;
+    const answersCount = responses.length;
     const completedAt = transactionNow;
     const resultData: TestResult = {
       uid,
@@ -1009,7 +1054,7 @@ async function submitSevenoProfessionalAssessment(
       passed: true,
       threshold: 0,
       durationSeconds,
-      answersCount: Object.keys(answers).length,
+      answersCount,
       questionIds,
       answers,
       submittedAt: completedAt,
@@ -1023,7 +1068,7 @@ async function submitSevenoProfessionalAssessment(
       score: overallScore,
       totalQuestions: questionIds.length,
       passed: true,
-      answersCount: Object.keys(answers).length,
+      answersCount,
       submittedAt: completedAt,
       updatedAt: completedAt,
     });
@@ -1465,11 +1510,14 @@ export async function startSevenoTestSession(uid: string): Promise<TestSessionSt
   const firestore = requireAdminDatabase();
   await assertCandidateCanUseAssessment(uid);
   const activeProfessionalVersion = await loadActiveProfessionalAssessmentVersion();
+  if (!activeProfessionalVersion) {
+    throwProfessionalAssessmentVersionUnavailable('no_active_professional_version');
+  }
   const attemptSeed = randomUUID();
-  const bank = activeProfessionalVersion
-    ? buildProfessionalAssessmentQuestionBank(activeProfessionalVersion, null, attemptSeed)
-    : null;
-  const resolvedBank = bank ?? materializeQuestionBank(LEGACY_SEVENO_GENERAL_BANK_TEMPLATE);
+  const resolvedBank = buildProfessionalAssessmentQuestionBank(activeProfessionalVersion, null, attemptSeed);
+  if (!resolvedBank) {
+    throwProfessionalAssessmentVersionUnavailable('active_professional_version_invalid');
+  }
   const sessionId = firestore.collection('test_sessions').doc().id;
   const sessionRef = firestore.collection('test_sessions').doc(sessionId);
   const profileRef = firestore.collection('candidate_profiles').doc(uid);

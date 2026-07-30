@@ -8,10 +8,20 @@ export const dynamic = 'force-dynamic';
 
 function toErrorResponse(error: unknown) {
   if (error instanceof SevenoApiAuthError || error instanceof SevenoTestError || error instanceof SevenoMatchRequestError) {
+    const extraPayload = error instanceof SevenoTestError && error.code === 'professional_assessment_version_unavailable'
+      ? {
+          environment: process.env.NODE_ENV ?? 'unknown',
+          requestedAssessmentType: 'seveno_general',
+          activeVersionFound: false,
+          reason: 'no_active_professional_assessment_version',
+        }
+      : {};
+
     return NextResponse.json(
       {
         error: error.code,
         message: error.message,
+        ...extraPayload,
       },
       {
         status: error.status,

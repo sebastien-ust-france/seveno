@@ -14,6 +14,8 @@ import type {
   CompanyVerificationStatus,
   MatchRequest,
   MatchRequestStatus,
+  ProfessionalAssessmentBehavioralProfile,
+  SevenoAssessmentScores,
   SevenoUser,
   TestResult,
   TestSession,
@@ -111,6 +113,29 @@ export interface AdminCountItem {
   value: number;
 }
 
+export type AdminSevenoAssessmentStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'completed'
+  | 'expired'
+  | 'abandoned'
+  | 'unknown';
+
+export interface AdminSevenoAssessmentSummary {
+  status: AdminSevenoAssessmentStatus;
+  overallScore: number | null;
+  scoresByDimension: SevenoAssessmentScores;
+  completedAt: string | null;
+  sessionId: string | null;
+  resultId: string | null;
+  questionnaireVersion: string | null;
+  professionalAssessmentVersionId: string | null;
+  professionalAssessmentSchemaVersion: number | null;
+  candidateSummaryItems: string[];
+  candidateSummary: string | null;
+  behavioralProfile: ProfessionalAssessmentBehavioralProfile | null;
+}
+
 export interface AdminCandidateSummary {
   uid: string;
   publicCandidateId: string;
@@ -123,6 +148,7 @@ export interface AdminCandidateSummary {
   verifiedScore: number | null;
   testPassed: boolean;
   lastTestAt: string | null;
+  sevenoAssessment: AdminSevenoAssessmentSummary;
   profileStatus: CandidateProfileStatus;
   createdAt: string;
   updatedAt: string;
@@ -175,6 +201,7 @@ export interface AdminTestSessionSummary {
   sectorId?: string;
   jobFamilyId?: string;
   jobRoleId?: string;
+  professionalAssessmentVersionId?: string | null;
   questionBankCode: string;
   status: TestSession['status'];
   questionIds: string[];
@@ -202,8 +229,12 @@ export interface AdminTestResultSummary {
   sectorId?: string;
   jobFamilyId?: string;
   jobRoleId?: string;
+  professionalAssessmentVersionId?: string | null;
+  professionalAssessmentSchemaVersion?: number | null;
   questionBankCode: string;
   score: number;
+  overallScore?: number | null;
+  scoresByDimension?: SevenoAssessmentScores;
   correctAnswers: number;
   totalQuestions: number;
   passed: boolean;
@@ -213,6 +244,9 @@ export interface AdminTestResultSummary {
   submittedAt: string | null;
   verifiedAt: string;
   createdAt: string;
+  candidateSummaryItems?: string[];
+  candidateSummary?: string | null;
+  behavioralProfile?: ProfessionalAssessmentBehavioralProfile | null;
 }
 
 export interface AdminMatchRequestSummary {
@@ -295,6 +329,16 @@ function isPlainObject(value: unknown): value is FirestoreRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isNonEmptyPlainObject(value: unknown): value is FirestoreRecord {
+  return isPlainObject(value) && Object.keys(value).length > 0;
+}
+
+function resolveMeaningfulOverallScore(overallScore: unknown, scoresByDimension: unknown) {
+  return isNonEmptyPlainObject(scoresByDimension) && typeof overallScore === 'number'
+    ? overallScore
+    : null;
+}
+
 function cleanText(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() || undefined : undefined;
 }
@@ -345,7 +389,174 @@ function toStringArray(value: unknown) {
   return value.map((item) => cleanText(item)).filter((item): item is string => Boolean(item));
 }
 
-function serializeCandidateSummary(data: CandidateProfile): AdminCandidateSummary {
+function buildSevenoAssessmentSummaryFromProfile(data: Pick<
+  CandidateProfile,
+  | 'sevenoAssessmentStatus'
+  | 'sevenoAssessmentOverallScore'
+  | 'sevenoAssessmentDimensions'
+  | 'sevenoAssessmentVersion'
+  | 'sevenoAssessmentCompletedAt'
+  | 'sevenoAssessmentSessionId'
+  | 'sevenoAssessmentResultId'
+>): AdminSevenoAssessmentSummary {
+  const status: AdminSevenoAssessmentStatus = data.sevenoAssessmentStatus === 'completed'
+    || data.sevenoAssessmentStatus === 'in_progress'
+    ? data.sevenoAssessmentStatus
+    : 'not_started';
+
+  return {
+    status,
+    overallScore: resolveMeaningfulOverallScore(data.sevenoAssessmentOverallScore, data.sevenoAssessmentDimensions),
+    scoresByDimension: data.sevenoAssessmentDimensions && typeof data.sevenoAssessmentDimensions === 'object'
+      ? data.sevenoAssessmentDimensions as SevenoAssessmentScores
+      : {},
+    completedAt: toIsoString(data.sevenoAssessmentCompletedAt),
+    sessionId: data.sevenoAssessmentSessionId ?? null,
+    resultId: data.sevenoAssessmentResultId ?? null,
+    questionnaireVersion: data.sevenoAssessmentVersion ?? null,
+    professionalAssessmentVersionId: null,
+    professionalAssessmentSchemaVersion: null,
+    candidateSummaryItems: [],
+    candidateSummary: null,
+    behavioralProfile: null,
+  };
+}
+
+function isCurrentSevenoAssessmentResult(data: Partial<TestResult>) {
+  const professionalAssessmentVersionId = cleanText(data.professionalAssessmentVersionId);
+  const questionBankCode = cleanText(data.questionBankCode);
+  return Boolean(
+    professionalAssessmentVersionId
+    || typeof data.professionalAssessmentSchemaVersion === 'number'
+    || (questionBankCode && questionBankCode.startsWith('seveno_professional_assessment_bank_')),
+  );
+}
+
+function buildSevenoAssessmentSummaryFromResult(data: Partial<TestResult>): AdminSevenoAssessmentSummary {
+  const behavioralProfile = data.behavioralProfile ?? null;
+  const scoresByDimension = data.scoresByDimension && typeof data.scoresByDimension === 'object'
+    ? data.scoresByDimension as SevenoAssessmentScores
+    : {};
+  return {
+    status: 'completed',
+    overallScore: resolveMeaningfulOverallScore(
+      typeof data.overallScore === 'number' ? data.overallScore : data.score ?? null,
+      scoresByDimension,
+    ),
+    scoresByDimension,
+    completedAt: toIsoString(data.verifiedAt ?? data.submittedAt ?? null),
+    sessionId: typeof data.sessionId === 'string' ? data.sessionId : null,
+    resultId: typeof data.sessionId === 'string' ? data.sessionId : null,
+    questionnaireVersion: cleanText(data.questionnaireVersion) ?? cleanText(data.questionBankVersion) ?? null,
+    professionalAssessmentVersionId: cleanText(data.professionalAssessmentVersionId) ?? null,
+    professionalAssessmentSchemaVersion: typeof data.professionalAssessmentSchemaVersion === 'number'
+      ? data.professionalAssessmentSchemaVersion
+      : null,
+    candidateSummaryItems: behavioralProfile?.candidateSummaryItems ? [...behavioralProfile.candidateSummaryItems] : [],
+    candidateSummary: behavioralProfile?.candidateSummary ?? null,
+    behavioralProfile,
+  };
+}
+
+function resolveNonEmptyScoresByDimension(
+  summaryScoresByDimension: unknown,
+  profileScoresByDimension: unknown,
+  resultScoresByDimension: unknown,
+) {
+  if (isNonEmptyPlainObject(summaryScoresByDimension)) {
+    return summaryScoresByDimension as SevenoAssessmentScores;
+  }
+
+  if (isNonEmptyPlainObject(profileScoresByDimension)) {
+    return profileScoresByDimension as SevenoAssessmentScores;
+  }
+
+  if (isNonEmptyPlainObject(resultScoresByDimension)) {
+    return resultScoresByDimension as SevenoAssessmentScores;
+  }
+
+  return {};
+}
+
+function resolveNonEmptyCandidateSummaryItems(
+  summaryItems: unknown,
+  resultItems: unknown,
+) {
+  if (Array.isArray(summaryItems) && summaryItems.length > 0) {
+    return [...summaryItems] as string[];
+  }
+
+  if (Array.isArray(resultItems) && resultItems.length > 0) {
+    return [...resultItems] as string[];
+  }
+
+  return [];
+}
+
+export function resolveAdminSevenoAssessmentSummary(options: {
+  profile?: Pick<
+    CandidateProfile,
+    | 'sevenoAssessmentStatus'
+    | 'sevenoAssessmentOverallScore'
+    | 'sevenoAssessmentDimensions'
+    | 'sevenoAssessmentVersion'
+    | 'sevenoAssessmentCompletedAt'
+    | 'sevenoAssessmentSessionId'
+    | 'sevenoAssessmentResultId'
+  > | null;
+  summary?: Partial<AdminSevenoAssessmentSummary> | null;
+  result?: Partial<TestResult> | null;
+} = {}): AdminSevenoAssessmentSummary {
+  const profileSummary = options.profile ? buildSevenoAssessmentSummaryFromProfile(options.profile) : null;
+  const resultSummary = options.result && isCurrentSevenoAssessmentResult(options.result)
+    ? buildSevenoAssessmentSummaryFromResult(options.result)
+    : null;
+  const summary = options.summary ?? null;
+  const summaryCandidateSummary = cleanText(summary?.candidateSummary);
+  const resultCandidateSummary = cleanText(resultSummary?.candidateSummary);
+  const summaryOverallScore = resolveMeaningfulOverallScore(summary?.overallScore, summary?.scoresByDimension);
+
+  const status: AdminSevenoAssessmentStatus =
+    summary?.status === 'completed'
+      ? 'completed'
+      : summary?.status === 'in_progress'
+        ? 'in_progress'
+        : summary?.status === 'expired'
+          ? 'expired'
+          : summary?.status === 'abandoned'
+            ? 'abandoned'
+            : profileSummary?.status === 'completed'
+              ? 'completed'
+              : profileSummary?.status === 'in_progress'
+                ? 'in_progress'
+                : resultSummary
+                  ? 'completed'
+                  : 'not_started';
+
+  return {
+    status,
+    overallScore: summaryOverallScore ?? profileSummary?.overallScore ?? resultSummary?.overallScore ?? null,
+    scoresByDimension: resolveNonEmptyScoresByDimension(
+      summary?.scoresByDimension,
+      profileSummary?.scoresByDimension,
+      resultSummary?.scoresByDimension,
+    ),
+    completedAt: summary?.completedAt ?? profileSummary?.completedAt ?? resultSummary?.completedAt ?? null,
+    sessionId: summary?.sessionId ?? profileSummary?.sessionId ?? resultSummary?.sessionId ?? null,
+    resultId: summary?.resultId ?? profileSummary?.resultId ?? resultSummary?.resultId ?? null,
+    questionnaireVersion: summary?.questionnaireVersion ?? profileSummary?.questionnaireVersion ?? resultSummary?.questionnaireVersion ?? null,
+    professionalAssessmentVersionId: summary?.professionalAssessmentVersionId ?? resultSummary?.professionalAssessmentVersionId ?? null,
+    professionalAssessmentSchemaVersion: summary?.professionalAssessmentSchemaVersion ?? resultSummary?.professionalAssessmentSchemaVersion ?? null,
+    candidateSummaryItems: resolveNonEmptyCandidateSummaryItems(summary?.candidateSummaryItems, resultSummary?.candidateSummaryItems),
+    candidateSummary: summaryCandidateSummary ?? resultCandidateSummary ?? null,
+    behavioralProfile: summary?.behavioralProfile ?? resultSummary?.behavioralProfile ?? null,
+  };
+}
+
+function serializeCandidateSummary(
+  data: CandidateProfile,
+  sevenoAssessment: AdminSevenoAssessmentSummary = resolveAdminSevenoAssessmentSummary({ profile: data }),
+): AdminCandidateSummary {
   return {
     uid: data.uid,
     publicCandidateId: data.publicCandidateId,
@@ -358,6 +569,7 @@ function serializeCandidateSummary(data: CandidateProfile): AdminCandidateSummar
     verifiedScore: data.verifiedScore ?? null,
     testPassed: data.testPassed,
     lastTestAt: toIsoString(data.lastTestAt),
+    sevenoAssessment,
     profileStatus: data.profileStatus,
     createdAt: toIsoString(data.createdAt) ?? '',
     updatedAt: toIsoString(data.updatedAt) ?? '',
@@ -408,6 +620,7 @@ function serializeTestSession(data: TestSession, id: string): AdminTestSessionSu
     ...(data.sectorId ? { sectorId: data.sectorId } : {}),
     ...(data.jobFamilyId ? { jobFamilyId: data.jobFamilyId } : {}),
     ...(data.jobRoleId ? { jobRoleId: data.jobRoleId } : {}),
+    ...(data.professionalAssessmentVersionId ? { professionalAssessmentVersionId: data.professionalAssessmentVersionId } : {}),
     questionBankCode: data.questionBankCode,
     status: data.status,
     questionIds: Array.isArray(data.questionIds) ? [...data.questionIds] : [],
@@ -427,6 +640,9 @@ function serializeTestSession(data: TestSession, id: string): AdminTestSessionSu
 }
 
 function serializeTestResult(data: TestResult, id: string): AdminTestResultSummary {
+  const scoresByDimension = isNonEmptyPlainObject(data.scoresByDimension)
+    ? data.scoresByDimension as SevenoAssessmentScores
+    : {};
   return {
     id,
     uid: data.uid,
@@ -437,8 +653,15 @@ function serializeTestResult(data: TestResult, id: string): AdminTestResultSumma
     ...(data.sectorId ? { sectorId: data.sectorId } : {}),
     ...(data.jobFamilyId ? { jobFamilyId: data.jobFamilyId } : {}),
     ...(data.jobRoleId ? { jobRoleId: data.jobRoleId } : {}),
+    ...(cleanText(data.professionalAssessmentVersionId) ? { professionalAssessmentVersionId: cleanText(data.professionalAssessmentVersionId) ?? null } : {}),
+    ...(typeof data.professionalAssessmentSchemaVersion === 'number' ? { professionalAssessmentSchemaVersion: data.professionalAssessmentSchemaVersion } : {}),
     questionBankCode: data.questionBankCode,
     score: data.score,
+    overallScore: resolveMeaningfulOverallScore(
+      typeof data.overallScore === 'number' ? data.overallScore : data.score,
+      scoresByDimension,
+    ),
+    scoresByDimension,
     correctAnswers: data.correctAnswers,
     totalQuestions: data.totalQuestions,
     passed: data.passed,
@@ -448,6 +671,13 @@ function serializeTestResult(data: TestResult, id: string): AdminTestResultSumma
     submittedAt: toIsoString(data.submittedAt ?? null),
     verifiedAt: toIsoString(data.verifiedAt) ?? '',
     createdAt: toIsoString(data.createdAt) ?? '',
+    ...(Array.isArray(data.behavioralProfile?.candidateSummaryItems)
+      ? { candidateSummaryItems: [...data.behavioralProfile!.candidateSummaryItems] }
+      : {}),
+    ...(typeof data.behavioralProfile?.candidateSummary === 'string'
+      ? { candidateSummary: data.behavioralProfile.candidateSummary }
+      : {}),
+    ...(data.behavioralProfile ? { behavioralProfile: data.behavioralProfile } : {}),
   };
 }
 
@@ -527,8 +757,77 @@ async function loadDocs(collectionName: string) {
   return snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() as FirestoreRecord }));
 }
 
+function readCurrentSevenoAssessmentSummary(docId: string, data: FirestoreRecord): AdminSevenoAssessmentSummary | null {
+  if (!isPlainObject(data)) {
+    return null;
+  }
+
+  const candidateUid = cleanText(data.candidateUid);
+  if (!candidateUid || candidateUid !== docId) {
+    return null;
+  }
+
+  if (
+    data.status !== 'completed'
+    || !cleanText(data.professionalAssessmentVersionId)
+    || !toIsoString(data.completedAt)
+  ) {
+    return null;
+  }
+
+  const summary = resolveAdminSevenoAssessmentSummary({
+    summary: {
+      status: 'completed',
+      overallScore: typeof data.overallScore === 'number' ? data.overallScore : null,
+      scoresByDimension: isPlainObject(data.scoresByDimension)
+        ? data.scoresByDimension as SevenoAssessmentScores
+        : {},
+      completedAt: toIsoString(data.completedAt),
+      sessionId: cleanText(data.sessionId) ?? null,
+      resultId: cleanText(data.resultId) ?? null,
+      questionnaireVersion: cleanText(data.questionnaireVersion) ?? null,
+      professionalAssessmentVersionId: cleanText(data.professionalAssessmentVersionId) ?? null,
+      professionalAssessmentSchemaVersion: typeof data.professionalAssessmentSchemaVersion === 'number'
+        ? data.professionalAssessmentSchemaVersion
+        : null,
+      candidateSummaryItems: toStringArray(data.candidateSummaryItems),
+      candidateSummary: cleanText(data.candidateSummary) ?? null,
+      behavioralProfile: isPlainObject(data.behavioralProfile)
+        ? data.behavioralProfile as unknown as ProfessionalAssessmentBehavioralProfile
+        : null,
+    },
+  });
+
+  if (!summary.professionalAssessmentVersionId) {
+    return null;
+  }
+
+  return summary;
+}
+
+async function loadSevenoAssessmentSummaryMap() {
+  const docs = await loadDocs('candidate_assessment_summaries');
+  const summaries = new Map<string, AdminSevenoAssessmentSummary>();
+
+  for (const { id, data } of docs) {
+    const summary = readCurrentSevenoAssessmentSummary(id, data);
+    if (summary) {
+      summaries.set(id, summary);
+    }
+  }
+
+  return summaries;
+}
+
+type LoadedCandidateEntry = {
+  id: string;
+  profile: StoredCandidateProfile;
+  sevenoAssessment: AdminSevenoAssessmentSummary;
+};
+
 async function loadCandidates() {
   const docs = await loadDocs(CANDIDATE_PROFILES_COLLECTION);
+  const sevenoAssessmentSummaries = await loadSevenoAssessmentSummaryMap();
   return docs
     .map(({ id, data }) => {
       if (
@@ -547,52 +846,68 @@ async function loadCandidates() {
         return null;
       }
 
+      const profile: StoredCandidateProfile = {
+        uid: String(data.uid),
+        publicCandidateId: String(data.publicCandidateId),
+        role: 'candidate' as const,
+        targetJobRoleIds: Array.isArray(data.targetJobRoleIds)
+          ? data.targetJobRoleIds.map(String).slice(0, 3)
+          : [String(data.jobRoleId)],
+        targetJobs: Array.isArray(data.targetJobs)
+          ? data.targetJobs as CandidateProfile['targetJobs']
+          : [{
+              sectorId: String(data.sectorId),
+              jobFamilyId: String(data.jobFamilyId),
+              jobRoleId: String(data.jobRoleId),
+              label: String(data.jobRoleId),
+            }],
+        sectorId: String(data.sectorId),
+        jobFamilyId: String(data.jobFamilyId),
+        jobRoleId: String(data.jobRoleId),
+        availability: data.availability as CandidateAvailability,
+        locationArea: String(data.locationArea),
+        experienceLevel: data.experienceLevel as CandidateExperienceLevel,
+        verifiedScore: typeof data.verifiedScore === 'number' ? data.verifiedScore : null,
+        testPassed: data.testPassed === true,
+        lastTestAt: data.lastTestAt === null ? null : toTimestamp(data.lastTestAt),
+        sevenoAssessmentStatus: data.sevenoAssessmentStatus === 'completed' || data.sevenoAssessmentStatus === 'in_progress'
+          ? data.sevenoAssessmentStatus
+          : 'not_started',
+        sevenoAssessmentOverallScore: typeof data.sevenoAssessmentOverallScore === 'number'
+          ? data.sevenoAssessmentOverallScore
+          : null,
+        sevenoAssessmentDimensions: data.sevenoAssessmentDimensions && typeof data.sevenoAssessmentDimensions === 'object'
+          ? data.sevenoAssessmentDimensions as CandidateProfile['sevenoAssessmentDimensions']
+          : {},
+        sevenoAssessmentVersion: typeof data.sevenoAssessmentVersion === 'string' ? data.sevenoAssessmentVersion : null,
+        sevenoAssessmentCompletedAt: data.sevenoAssessmentCompletedAt === null
+          ? null
+          : toTimestamp(data.sevenoAssessmentCompletedAt),
+        sevenoAssessmentSessionId: cleanText(data.sevenoAssessmentSessionId) ?? null,
+        sevenoAssessmentResultId: cleanText(data.sevenoAssessmentResultId) ?? null,
+        profileStatus: data.profileStatus as CandidateProfileStatus,
+        createdAt: toTimestamp(data.createdAt) ?? Timestamp.now(),
+        updatedAt: toTimestamp(data.updatedAt) ?? Timestamp.now(),
+      };
+
       return {
         id,
-        profile: {
-          uid: String(data.uid),
-          publicCandidateId: String(data.publicCandidateId),
-          role: 'candidate' as const,
-          targetJobRoleIds: Array.isArray(data.targetJobRoleIds)
-            ? data.targetJobRoleIds.map(String).slice(0, 3)
-            : [String(data.jobRoleId)],
-          targetJobs: Array.isArray(data.targetJobs)
-            ? data.targetJobs as CandidateProfile['targetJobs']
-            : [{
-                sectorId: String(data.sectorId),
-                jobFamilyId: String(data.jobFamilyId),
-                jobRoleId: String(data.jobRoleId),
-                label: String(data.jobRoleId),
-              }],
-          sectorId: String(data.sectorId),
-          jobFamilyId: String(data.jobFamilyId),
-          jobRoleId: String(data.jobRoleId),
-          availability: data.availability as CandidateAvailability,
-          locationArea: String(data.locationArea),
-          experienceLevel: data.experienceLevel as CandidateExperienceLevel,
-          verifiedScore: typeof data.verifiedScore === 'number' ? data.verifiedScore : null,
-          testPassed: data.testPassed === true,
-          lastTestAt: data.lastTestAt === null ? null : toTimestamp(data.lastTestAt),
-          sevenoAssessmentStatus: data.sevenoAssessmentStatus === 'completed' || data.sevenoAssessmentStatus === 'in_progress'
-            ? data.sevenoAssessmentStatus
-            : 'not_started',
-          sevenoAssessmentOverallScore: typeof data.sevenoAssessmentOverallScore === 'number'
-            ? data.sevenoAssessmentOverallScore
-            : null,
-          sevenoAssessmentDimensions: data.sevenoAssessmentDimensions && typeof data.sevenoAssessmentDimensions === 'object'
-            ? data.sevenoAssessmentDimensions as CandidateProfile['sevenoAssessmentDimensions']
-            : {},
-          sevenoAssessmentVersion: typeof data.sevenoAssessmentVersion === 'string' ? data.sevenoAssessmentVersion : null,
-          sevenoAssessmentCompletedAt: data.sevenoAssessmentCompletedAt === null
-            ? null
-            : toTimestamp(data.sevenoAssessmentCompletedAt),
-          profileStatus: data.profileStatus as CandidateProfileStatus,
-          createdAt: toTimestamp(data.createdAt) ?? Timestamp.now(),
-          updatedAt: toTimestamp(data.updatedAt) ?? Timestamp.now(),
-        } satisfies StoredCandidateProfile,
+        profile,
+        sevenoAssessment: resolveAdminSevenoAssessmentSummary({
+          profile: {
+            sevenoAssessmentStatus: profile.sevenoAssessmentStatus,
+            sevenoAssessmentOverallScore: profile.sevenoAssessmentOverallScore,
+            sevenoAssessmentDimensions: profile.sevenoAssessmentDimensions,
+            sevenoAssessmentVersion: profile.sevenoAssessmentVersion,
+            sevenoAssessmentCompletedAt: profile.sevenoAssessmentCompletedAt,
+            sevenoAssessmentSessionId: profile.sevenoAssessmentSessionId,
+            sevenoAssessmentResultId: profile.sevenoAssessmentResultId,
+          },
+          summary: sevenoAssessmentSummaries.get(String(data.uid)) ?? null,
+        }),
       };
     })
-    .filter((item): item is { id: string; profile: StoredCandidateProfile } => Boolean(item))
+    .filter((item): item is LoadedCandidateEntry => Boolean(item))
     .sort((left, right) => {
       const leftUpdated = left.profile.updatedAt instanceof Timestamp ? left.profile.updatedAt.toMillis() : 0;
       const rightUpdated = right.profile.updatedAt instanceof Timestamp ? right.profile.updatedAt.toMillis() : 0;
@@ -901,7 +1216,7 @@ export async function loadAdminOverview(): Promise<AdminOverviewPayload> {
       acceptedMatchRequests: matchRequests.filter((item) => item.request.status === 'accepted').length,
       pendingMatchRequests: matchRequests.filter((item) => item.request.status === 'pending_candidate').length,
     },
-    latestCandidates: candidates.slice(0, 8).map(({ profile }) => serializeCandidateSummary(profile)),
+    latestCandidates: candidates.slice(0, 8).map(({ profile, sevenoAssessment }) => serializeCandidateSummary(profile, sevenoAssessment)),
     latestCompanies: companies.slice(0, 8).map(({ profile }) => serializeCompanySummary(profile)),
     latestTests: tests.slice(0, 8).map(({ id, session }) => serializeTestSession(session, id)),
     latestMatchRequests: matchRequests.slice(0, 8).map(({ request }) => serializeMatchRequest(request)),
@@ -912,23 +1227,57 @@ export async function loadAdminOverview(): Promise<AdminOverviewPayload> {
 export async function loadAdminCandidates() {
   const candidates = await loadCandidates();
   return {
-    candidates: candidates.map(({ profile }) => serializeCandidateSummary(profile)),
+    candidates: candidates.map(({ profile, sevenoAssessment }) => serializeCandidateSummary(profile, sevenoAssessment)),
   };
 }
 
 export async function getAdminCandidateDetail(uid: string): Promise<AdminCandidateDetailPayload> {
-  const [candidateSnapshot, userSnapshot, testResults, matchRequests] = await Promise.all([
+  const [candidateSnapshot, userSnapshot, summarySnapshot, testResults, matchRequests] = await Promise.all([
     getCollectionDoc(CANDIDATE_PROFILES_COLLECTION, uid).get(),
     getCollectionDoc(USERS_COLLECTION, uid).get(),
-    loadTestResults(),
+    getCollectionDoc('candidate_assessment_summaries', uid).get(),
+    requireAdminDatabase().collection(TEST_RESULTS_COLLECTION).where('uid', '==', uid).get(),
     loadMatchRequests(),
   ]);
 
-  const candidate = candidateSnapshot.exists ? serializeCandidateSummary(candidateSnapshot.data() as CandidateProfile) : null;
+  const candidateProfile = candidateSnapshot.exists ? (candidateSnapshot.data() as CandidateProfile) : null;
   const user = userSnapshot.exists ? (userSnapshot.data() as SevenoUser) : null;
-  const latestTestResultEntry = testResults.find((item) => item.result.uid === uid) ?? null;
-  const latestTestResult = latestTestResultEntry
-    ? serializeTestResult(latestTestResultEntry.result, latestTestResultEntry.id)
+  const currentSevenoAssessmentResultEntry = testResults.docs
+    .map((doc) => ({ id: doc.id, data: doc.data() as TestResult }))
+    .filter((entry) => isCurrentSevenoAssessmentResult(entry.data))
+    .sort((left, right) => {
+      const leftVerified = toTimestamp(left.data.verifiedAt)?.toMillis() ?? toTimestamp(left.data.createdAt)?.toMillis() ?? 0;
+      const rightVerified = toTimestamp(right.data.verifiedAt)?.toMillis() ?? toTimestamp(right.data.createdAt)?.toMillis() ?? 0;
+      return rightVerified - leftVerified;
+    })[0] ?? null;
+  const currentSevenoAssessmentSummary = candidateSnapshot.exists
+    ? resolveAdminSevenoAssessmentSummary({
+      profile: {
+        sevenoAssessmentStatus: candidateProfile?.sevenoAssessmentStatus === 'completed'
+          || candidateProfile?.sevenoAssessmentStatus === 'in_progress'
+          ? candidateProfile.sevenoAssessmentStatus
+          : 'not_started',
+        sevenoAssessmentOverallScore: candidateProfile?.sevenoAssessmentOverallScore ?? null,
+        sevenoAssessmentDimensions: candidateProfile?.sevenoAssessmentDimensions ?? {},
+        sevenoAssessmentVersion: candidateProfile?.sevenoAssessmentVersion ?? null,
+        sevenoAssessmentCompletedAt: candidateProfile?.sevenoAssessmentCompletedAt ?? null,
+        sevenoAssessmentSessionId: candidateProfile?.sevenoAssessmentSessionId ?? null,
+        sevenoAssessmentResultId: candidateProfile?.sevenoAssessmentResultId ?? null,
+      },
+      summary: summarySnapshot.exists
+        ? readCurrentSevenoAssessmentSummary(
+            summarySnapshot.id,
+            summarySnapshot.data() as FirestoreRecord,
+          )
+        : null,
+      result: currentSevenoAssessmentResultEntry?.data ?? null,
+    })
+    : null;
+  const candidate = candidateProfile
+    ? serializeCandidateSummary(candidateProfile, currentSevenoAssessmentSummary ?? undefined)
+    : null;
+  const latestTestResult = currentSevenoAssessmentResultEntry
+    ? serializeTestResult(currentSevenoAssessmentResultEntry.data, currentSevenoAssessmentResultEntry.id)
     : null;
   const recentMatchRequests = matchRequests
     .filter((item) => item.request.candidateUid === uid)

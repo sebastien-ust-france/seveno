@@ -17,12 +17,19 @@ import {
   updateSevenoAssessmentDraft,
   validateSevenoAssessmentDraft,
 } from '@/lib/seveno-professional-assessment-admin-server';
+import { resolveAdminSevenoAssessmentSummary } from '@/lib/seveno-admin-service';
 import { SevenoAdminApiError, fetchSevenoAdminApi } from '@/lib/seveno-admin-api';
 import {
   SEVENO_PROFESSIONAL_ASSESSMENT_BANK_PROMPT_VERSION,
   buildSevenoProfessionalAssessmentBankPrompt,
+  validateSevenoProfessionalAssessmentBankDocument,
 } from '@/lib/seveno-professional-assessment-bank';
-import { AssessmentModelError, SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES } from '@/lib/seveno-professional-assessment';
+import {
+  AssessmentModelError,
+  SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES,
+  SEVENO_PROFESSIONAL_ASSESSMENT_DIMENSION_CODES,
+  validateAssessmentScoringStructure,
+} from '@/lib/seveno-professional-assessment';
 import { buildSevenoAssessmentReviewManifest } from '@/lib/seveno-professional-assessment-review';
 import {
   FirestoreProfessionalAssessmentRepository,
@@ -33,6 +40,7 @@ import {
 } from '@/lib/seveno-professional-assessment-admin-repository';
 import type { SevenoAssessmentCandidatePreviewResponse } from '@/types/seveno-assessment-admin';
 import type { SevenoAssessmentStoredVersion } from '@/types/seveno-assessment-admin';
+import type { ProfessionalAssessmentBehavioralProfile, SevenoAssessmentScores, TestResult } from '@/types/seveno';
 import { SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION } from '@/lib/seveno-professional-assessment-fixtures';
 import { isSevenoProfessionalAssessmentFirestoreRepositoryEnabledFlag } from '@/lib/seveno-professional-assessment-admin-repository';
 import { assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
@@ -98,6 +106,14 @@ function cloneValue<T>(value: T): T {
 
   return JSON.parse(JSON.stringify(value)) as T;
 }
+
+const V2_INTERPRETATION_RANGES = [
+  [0, 39],
+  [40, 59],
+  [60, 74],
+  [75, 89],
+  [90, 100],
+] as const;
 
 function buildRepresentativeVersion() {
   const base = cloneValue(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION);
@@ -358,6 +374,128 @@ async function main() {
   assert.ok(loadedState.validation);
   assert.ok(loadedState.prompt);
 
+  const summaryPriorityResult = resolveAdminSevenoAssessmentSummary({
+    profile: {
+      sevenoAssessmentStatus: 'in_progress',
+      sevenoAssessmentOverallScore: 41,
+      sevenoAssessmentDimensions: { collaboration: 41 } as SevenoAssessmentScores,
+      sevenoAssessmentVersion: 'profile-version',
+      sevenoAssessmentCompletedAt: new Date('2026-07-30T08:00:00.000Z'),
+      sevenoAssessmentSessionId: 'profile-session',
+      sevenoAssessmentResultId: 'profile-result',
+    },
+    summary: {
+      status: 'completed',
+      overallScore: 87,
+      scoresByDimension: { collaboration: 87 } as SevenoAssessmentScores,
+      completedAt: '2026-07-30T08:15:00.000Z',
+      sessionId: 'summary-session',
+      resultId: 'summary-result',
+      questionnaireVersion: 'summary-version',
+      professionalAssessmentVersionId: 'summary-bank',
+      professionalAssessmentSchemaVersion: 2,
+      candidateSummaryItems: ['Résumé synthétique', 'Point fort'],
+      candidateSummary: 'Résumé final',
+      behavioralProfile: {
+        axisResults: { collaboration: 87 },
+        candidateSummaryItems: ['Résumé synthétique', 'Point fort'],
+        companySummaryItems: [],
+        candidateSummary: 'Résumé final',
+        companySummary: null,
+        disclaimer: 'Disclaimer',
+      } as unknown as ProfessionalAssessmentBehavioralProfile,
+    },
+    result: {
+      uid: 'candidate-uid',
+      sessionId: 'result-session',
+      questionBankCode: 'seveno_professional_assessment_bank_1_1_0',
+      score: 12,
+      correctAnswers: 12,
+      totalQuestions: 20,
+      passed: false,
+      threshold: 15,
+      durationSeconds: 300,
+      overallScore: 12,
+      scoresByDimension: { collaboration: 12 } as SevenoAssessmentScores,
+      questionnaireVersion: 'result-version',
+      professionalAssessmentVersionId: 'result-bank',
+      professionalAssessmentSchemaVersion: 2,
+      verifiedAt: new Date('2026-07-30T09:00:00.000Z'),
+      submittedAt: new Date('2026-07-30T08:59:00.000Z'),
+      behavioralProfile: {
+        axisResults: { collaboration: 12 },
+        candidateSummaryItems: ['Résultat brut'],
+        companySummaryItems: [],
+        candidateSummary: 'Résultat brut',
+        companySummary: null,
+        disclaimer: 'Disclaimer',
+      } as unknown as ProfessionalAssessmentBehavioralProfile,
+    } as Partial<TestResult>,
+  });
+
+  assert.equal(summaryPriorityResult.status, 'completed');
+  assert.equal(summaryPriorityResult.overallScore, 87);
+  assert.deepEqual(summaryPriorityResult.scoresByDimension, { collaboration: 87 });
+  assert.equal(summaryPriorityResult.completedAt, '2026-07-30T08:15:00.000Z');
+  assert.equal(summaryPriorityResult.sessionId, 'summary-session');
+  assert.equal(summaryPriorityResult.resultId, 'summary-result');
+  assert.equal(summaryPriorityResult.questionnaireVersion, 'summary-version');
+  assert.equal(summaryPriorityResult.professionalAssessmentVersionId, 'summary-bank');
+  assert.equal(summaryPriorityResult.professionalAssessmentSchemaVersion, 2);
+  assert.deepEqual(summaryPriorityResult.candidateSummaryItems, ['Résumé synthétique', 'Point fort']);
+  assert.equal(summaryPriorityResult.candidateSummary, 'Résumé final');
+
+  const profilePriorityResult = resolveAdminSevenoAssessmentSummary({
+    profile: {
+      sevenoAssessmentStatus: 'completed',
+      sevenoAssessmentOverallScore: 63,
+      sevenoAssessmentDimensions: { collaboration: 63 } as SevenoAssessmentScores,
+      sevenoAssessmentVersion: 'profile-version',
+      sevenoAssessmentCompletedAt: new Date('2026-07-30T10:00:00.000Z'),
+      sevenoAssessmentSessionId: 'profile-session',
+      sevenoAssessmentResultId: 'profile-result',
+    },
+  });
+  assert.equal(profilePriorityResult.status, 'completed');
+  assert.equal(profilePriorityResult.overallScore, 63);
+  assert.equal(profilePriorityResult.questionnaireVersion, 'profile-version');
+  assert.equal(profilePriorityResult.professionalAssessmentVersionId, null);
+  assert.equal(profilePriorityResult.resultId, 'profile-result');
+
+  const resultPriorityResult = resolveAdminSevenoAssessmentSummary({
+    result: {
+      uid: 'candidate-uid',
+      sessionId: 'result-only-session',
+      questionBankCode: 'seveno_professional_assessment_bank_1_1_0',
+      score: 72,
+      correctAnswers: 18,
+      totalQuestions: 20,
+      passed: true,
+      threshold: 15,
+      durationSeconds: 300,
+      overallScore: 72,
+      scoresByDimension: { collaboration: 72 } as SevenoAssessmentScores,
+      questionnaireVersion: 'result-only-version',
+      professionalAssessmentVersionId: 'result-only-bank',
+      professionalAssessmentSchemaVersion: 2,
+      verifiedAt: new Date('2026-07-30T11:00:00.000Z'),
+      submittedAt: new Date('2026-07-30T10:59:00.000Z'),
+      behavioralProfile: {
+        axisResults: { collaboration: 72 },
+        candidateSummaryItems: ['Résultat brut'],
+        companySummaryItems: [],
+        candidateSummary: 'Résultat brut',
+        companySummary: null,
+        disclaimer: 'Disclaimer',
+      } as unknown as ProfessionalAssessmentBehavioralProfile,
+    } as Partial<TestResult>,
+  });
+  assert.equal(resultPriorityResult.status, 'completed');
+  assert.equal(resultPriorityResult.overallScore, 72);
+  assert.equal(resultPriorityResult.questionnaireVersion, 'result-only-version');
+  assert.equal(resultPriorityResult.professionalAssessmentVersionId, 'result-only-bank');
+  assert.equal(resultPriorityResult.candidateSummary, 'Résultat brut');
+
   const blankRepository = createRepository();
   const blankDraft = await createSevenoAssessmentBlankDraft(adminSession, blankRepository);
   assert.equal(blankDraft.selectedVersion?.status, 'draft');
@@ -600,6 +738,194 @@ async function main() {
   assert.ok(imported.selectedVersion?.questions.every((question) => question.isActive));
   assert.ok(imported.validation);
 
+  const v2BankDocument = buildSevenoAssessmentBankTestDocument(seedVersion!, 2);
+  const importedV2 = await importSevenoAssessmentVersion(adminSession, JSON.stringify(v2BankDocument), createRepository());
+  assert.equal(importedV2.selectedVersion?.schemaVersion, 2);
+  assert.ok(importedV2.selectedVersion?.questions[0]?.questionType);
+  assert.ok(importedV2.selectedVersion?.questions[0]?.signalReliability);
+  assert.deepEqual(importedV2.selectedVersion?.questions[0]?.behaviorModel, v2BankDocument.essentialQuestionPool[0]?.behaviorModel);
+  assert.deepEqual(importedV2.selectedVersion?.questions[0]?.options[0]?.behaviorSignals, v2BankDocument.essentialQuestionPool[0]?.options[0]?.behaviorSignals);
+
+  const firstV2Question = v2BankDocument.essentialQuestionPool[0];
+  assert.ok(firstV2Question);
+  assert.equal(firstV2Question.signalReliability, firstV2Question.behaviorModel?.signalReliability);
+  const firstV2BehaviorSignalKeys = [firstV2Question.behaviorModel!.primaryAxisCode, ...firstV2Question.behaviorModel!.secondaryAxisCodes].sort();
+  for (const option of firstV2Question.options) {
+    assert.deepEqual(Object.keys(option.behaviorSignals ?? {}).sort(), firstV2BehaviorSignalKeys);
+  }
+  assert.deepEqual(Object.keys(v2BankDocument).sort(), [
+    'dimensionConfigurations',
+    'essentialQuestionPool',
+    'extendedQuestionPool',
+    'interpretationBlocks',
+    'interviewQuestions',
+    'versionMetadata',
+  ]);
+  assert.equal(v2BankDocument.interpretationBlocks.length, 7);
+  for (const group of v2BankDocument.interpretationBlocks) {
+    assert.equal(group.blocks.length, 5);
+    assert.deepEqual(
+      group.blocks.map((block) => [block.minScore, block.maxScore]),
+      V2_INTERPRETATION_RANGES,
+    );
+  }
+
+  const mismatchedSignalReliabilityDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  mismatchedSignalReliabilityDocument.essentialQuestionPool[0]!.signalReliability = 'low';
+  mismatchedSignalReliabilityDocument.essentialQuestionPool[0]!.behaviorModel!.signalReliability = 'high';
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(mismatchedSignalReliabilityDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_question_signal_reliability_mismatch'),
+  );
+
+  const extraRootKeyDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument & { unexpectedRoot?: boolean };
+  extraRootKeyDocument.unexpectedRoot = true;
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(extraRootKeyDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_v2_root_keys_mismatch'),
+  );
+
+  const missingBehaviorAxisDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  const missingBehaviorAxisCode = firstV2Question.behaviorModel!.secondaryAxisCodes[0] ?? firstV2Question.behaviorModel!.primaryAxisCode;
+  delete missingBehaviorAxisDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals![missingBehaviorAxisCode];
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(missingBehaviorAxisDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_option_missing_behavior_axis'),
+  );
+
+  const extraBehaviorAxisDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  const extraBehaviorAxis = SEVENO_PROFESSIONAL_ASSESSMENT_BEHAVIOR_AXIS_CODES.find(
+    (axisCode) => !firstV2BehaviorSignalKeys.includes(axisCode),
+  );
+  assert.ok(extraBehaviorAxis);
+  extraBehaviorAxisDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals![extraBehaviorAxis!] = 1 as never;
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(extraBehaviorAxisDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_option_disallowed_behavior_axis'),
+  );
+
+  const invalidBlockCountDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  invalidBlockCountDocument.interpretationBlocks[0]!.blocks = invalidBlockCountDocument.interpretationBlocks[0]!.blocks.slice(0, 4);
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(invalidBlockCountDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_interpretation_invalid_block_count'),
+  );
+
+  const invalidRangeDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  invalidRangeDocument.interpretationBlocks[0]!.blocks[0]!.minScore = 1;
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(invalidRangeDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_interpretation_invalid_range'),
+  );
+
+  const strictV2ValidationDocument = buildSevenoAssessmentBankTestDocument(seedVersion!, 2);
+  const validStrictV2Validation = validateSevenoProfessionalAssessmentBankDocument(strictV2ValidationDocument);
+  assert.equal(validStrictV2Validation.valid, true);
+
+  const invalidSecondaryInfluenceDocument = JSON.parse(JSON.stringify(strictV2ValidationDocument)) as typeof strictV2ValidationDocument;
+  invalidSecondaryInfluenceDocument.essentialQuestionPool[0]!.secondaryDimensionCode = 'influence' as never;
+  const invalidSecondaryInfluenceValidation = validateSevenoProfessionalAssessmentBankDocument(invalidSecondaryInfluenceDocument);
+  assert.equal(invalidSecondaryInfluenceValidation.valid, false);
+  assert.ok(invalidSecondaryInfluenceValidation.issues.some((issue) => issue.code === 'bank_question_invalid_secondary_dimension_code'));
+
+  const invalidSecondaryFollowershipDocument = JSON.parse(JSON.stringify(strictV2ValidationDocument)) as typeof strictV2ValidationDocument;
+  invalidSecondaryFollowershipDocument.essentialQuestionPool[0]!.secondaryDimensionCode = 'followership' as never;
+  const invalidSecondaryFollowershipValidation = validateSevenoProfessionalAssessmentBankDocument(invalidSecondaryFollowershipDocument);
+  assert.equal(invalidSecondaryFollowershipValidation.valid, false);
+  assert.ok(invalidSecondaryFollowershipValidation.issues.some((issue) => issue.code === 'bank_question_invalid_secondary_dimension_code'));
+
+  const invalidDimensionScoresValueCreationDocument = JSON.parse(JSON.stringify(strictV2ValidationDocument)) as typeof strictV2ValidationDocument;
+  invalidDimensionScoresValueCreationDocument.essentialQuestionPool[0]!.options[0]!.dimensionScores.value_creation = 2 as never;
+  const invalidDimensionScoresValueCreationValidation = validateSevenoProfessionalAssessmentBankDocument(invalidDimensionScoresValueCreationDocument);
+  assert.equal(invalidDimensionScoresValueCreationValidation.valid, false);
+  assert.ok(invalidDimensionScoresValueCreationValidation.issues.some((issue) => issue.code === 'bank_option_unknown_dimension'));
+
+  const invalidDimensionScoresRiskOrientationDocument = JSON.parse(JSON.stringify(strictV2ValidationDocument)) as typeof strictV2ValidationDocument;
+  invalidDimensionScoresRiskOrientationDocument.essentialQuestionPool[0]!.options[0]!.dimensionScores.risk_orientation = 1 as never;
+  const invalidDimensionScoresRiskOrientationValidation = validateSevenoProfessionalAssessmentBankDocument(invalidDimensionScoresRiskOrientationDocument);
+  assert.equal(invalidDimensionScoresRiskOrientationValidation.valid, false);
+  assert.ok(invalidDimensionScoresRiskOrientationValidation.issues.some((issue) => issue.code === 'bank_option_unknown_dimension'));
+
+  const nonDiscriminantV2Document = JSON.parse(JSON.stringify(strictV2ValidationDocument)) as typeof strictV2ValidationDocument;
+  const nonDiscriminantQuestion = nonDiscriminantV2Document.essentialQuestionPool[0];
+  assert.ok(nonDiscriminantQuestion);
+  const sharedDimensionScores = { ...nonDiscriminantQuestion.options[0]!.dimensionScores };
+  nonDiscriminantQuestion.options = nonDiscriminantQuestion.options.map((option) => ({
+    ...option,
+    dimensionScores: { ...sharedDimensionScores },
+  }));
+  const nonDiscriminantValidation = validateSevenoProfessionalAssessmentBankDocument(nonDiscriminantV2Document);
+  assert.equal(nonDiscriminantValidation.valid, false);
+  assert.ok(
+    nonDiscriminantValidation.issues.some((issue) => issue.code === 'assessment_question_non_discriminant_dimension_scores'),
+  );
+
+  const zeroSpanRuntimeVersion = cloneValue(SEVENO_PROFESSIONAL_ASSESSMENT_TEST_ONLY_VERSION);
+  const zeroSpanDimensionCode = zeroSpanRuntimeVersion.dimensions[0]?.code;
+  assert.ok(zeroSpanDimensionCode);
+  for (const question of zeroSpanRuntimeVersion.questions) {
+    if (!question.primaryDimensionCodes.includes(zeroSpanDimensionCode) && !question.secondaryDimensionCodes?.includes(zeroSpanDimensionCode)) {
+      continue;
+    }
+
+    question.options = question.options.map((option) => ({
+      ...option,
+      dimensionScores: {
+        ...option.dimensionScores,
+        [zeroSpanDimensionCode]: 2,
+      },
+    }));
+  }
+  const zeroSpanValidation = validateAssessmentScoringStructure(zeroSpanRuntimeVersion);
+  assert.equal(zeroSpanValidation.valid, false);
+  assert.ok(
+    zeroSpanValidation.issues.some((issue) => issue.code === 'assessment_dimension_zero_span'),
+  );
+
+  const v1ValidationDocument = buildSevenoAssessmentBankTestDocument(seedVersion!);
+  const v1Validation = validateSevenoProfessionalAssessmentBankDocument(v1ValidationDocument);
+  assert.equal(v1Validation.valid, true);
+
+  if (repositoryTarget.emulatorHostPresent) {
+    const firestoreRepository = getSevenoProfessionalAssessmentRepository();
+    assert.ok(firestoreRepository instanceof FirestoreProfessionalAssessmentRepository);
+    const importedV2Firestore = await importSevenoAssessmentVersion(adminSession, JSON.stringify(v2BankDocument), firestoreRepository);
+    const reloadedV2Firestore = await firestoreRepository.readVersion(importedV2Firestore.selectedVersion!.id);
+    assert.ok(reloadedV2Firestore);
+    assert.equal(reloadedV2Firestore?.schemaVersion, 2);
+    assert.deepEqual(reloadedV2Firestore?.questions[0]?.behaviorModel, v2BankDocument.essentialQuestionPool[0]?.behaviorModel);
+    assert.deepEqual(reloadedV2Firestore?.questions[0]?.options[0]?.behaviorSignals, v2BankDocument.essentialQuestionPool[0]?.options[0]?.behaviorSignals);
+    await firestoreRepository.deleteVersion(importedV2Firestore.selectedVersion!.id, importedV2Firestore.selectedVersion!.revisionNumber);
+  }
+
+  const unknownBehaviorAxisDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  unknownBehaviorAxisDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals = {
+    ...(unknownBehaviorAxisDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals ?? {}),
+    made_up_axis: 1 as never,
+  };
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(unknownBehaviorAxisDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_option_unknown_behavior_axis' || issue.code === 'bank_option_disallowed_behavior_axis'),
+  );
+
+  const invalidBehaviorSignalDocument = JSON.parse(JSON.stringify(v2BankDocument)) as typeof v2BankDocument;
+  invalidBehaviorSignalDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals = {
+    ...(invalidBehaviorSignalDocument.essentialQuestionPool[0]!.options[0]!.behaviorSignals ?? {}),
+    [invalidBehaviorSignalDocument.essentialQuestionPool[0]!.behaviorModel!.primaryAxisCode]: 3 as never,
+  };
+  await assert.rejects(
+    () => importSevenoAssessmentVersion(adminSession, JSON.stringify(invalidBehaviorSignalDocument), createRepository()),
+    (error: unknown) => error instanceof AssessmentModelError
+      && (error as AssessmentModelError & { issues: Array<{ code: string }> }).issues.some((issue) => issue.code === 'bank_option_invalid_behavior_signal'),
+  );
+
   const importedPreviewVersion = imported.selectedVersion;
   assert.ok(importedPreviewVersion);
   const candidatePreviewSeed = 'smoke-test-candidate-preview-seed';
@@ -748,7 +1074,7 @@ async function main() {
   assert.doesNotMatch(editorSource, /Rapport candidat/);
 
   const candidatePreviewSource = readSource('components/admin/seveno-assessment-preview/ProfessionalAssessmentCandidatePreview.tsx');
-  assert.match(candidatePreviewSource, /Questionnaire candidat Seven.?O/);
+  assert.match(candidatePreviewSource, /Questionnaire candidat Seven/);
   assert.match(candidatePreviewSource, /Examiner les 60 questions/);
   assert.match(candidatePreviewSource, /Simuler un tirage candidat/);
   assert.match(candidatePreviewSource, /Générer un autre tirage/);
@@ -799,6 +1125,112 @@ async function main() {
   const adminSectionNavSource = readSource('components/admin/AdminSectionNav.tsx');
   assert.match(adminSectionNavSource, /\/admin\/evaluation-seveno/);
   assert.match(adminSectionNavSource, /Analyse professionnelle/);
+
+  const adminOverviewSource = readSource('app/admin/page.tsx');
+  assert.match(adminOverviewSource, /Actualiser les donnees/);
+  assert.match(adminOverviewSource, /candidate\.sevenoAssessment/);
+  assert.doesNotMatch(adminOverviewSource, /candidate\.testPassed\s*\?/);
+  assert.doesNotMatch(adminOverviewSource, /candidate\.verifiedScore/);
+  assert.doesNotMatch(adminOverviewSource, /overallScore\s*\?\?\s*0/);
+  assert.match(adminOverviewSource, /Non calcul/);
+
+  const adminCandidatesSource = readSource('app/admin/candidats/page.tsx');
+  assert.match(adminCandidatesSource, /Actualiser les donnees/);
+  assert.match(adminCandidatesSource, /candidate\.sevenoAssessment/);
+  assert.match(adminCandidatesSource, /Questionnaire Seven/);
+  assert.doesNotMatch(adminCandidatesSource, /candidate\.testPassed\s*\?/);
+  assert.doesNotMatch(adminCandidatesSource, /candidate\.verifiedScore/);
+  assert.doesNotMatch(adminCandidatesSource, /overallScore\s*\?\?\s*0/);
+  assert.match(adminCandidatesSource, /Non calcul/);
+
+  const adminCandidateDetailSource = readSource('app/admin/candidats/[uid]/page.tsx');
+  assert.match(adminCandidateDetailSource, /Actualiser les donnees/);
+  assert.match(adminCandidateDetailSource, /Questionnaire Seven/);
+  assert.match(adminCandidateDetailSource, /candidate\.sevenoAssessment/);
+  assert.match(adminCandidateDetailSource, /candidateSummaryItems/);
+  assert.match(adminCandidateDetailSource, /behavioralProfile/);
+  assert.match(adminCandidateDetailSource, /professionalAssessmentVersionId/);
+  assert.match(adminCandidateDetailSource, /professionalAssessmentSchemaVersion/);
+  assert.match(adminCandidateDetailSource, /completedAt/);
+  assert.match(adminCandidateDetailSource, /overallScore/);
+  assert.match(adminCandidateDetailSource, /scoresByDimension/);
+  assert.doesNotMatch(adminCandidateDetailSource, /candidate\.testPassed\s*\?/);
+  assert.doesNotMatch(adminCandidateDetailSource, /candidate\.verifiedScore/);
+  assert.doesNotMatch(adminCandidateDetailSource, /overallScore\s*\?\?\s*0/);
+  assert.match(adminCandidateDetailSource, /Non calcul/);
+
+  const mergedSummary = resolveAdminSevenoAssessmentSummary({
+    profile: {
+      sevenoAssessmentStatus: 'completed',
+      sevenoAssessmentOverallScore: null,
+      sevenoAssessmentDimensions: {},
+      sevenoAssessmentVersion: null,
+      sevenoAssessmentCompletedAt: null,
+      sevenoAssessmentSessionId: null,
+      sevenoAssessmentResultId: null,
+    },
+    summary: {
+      status: 'completed',
+      overallScore: null,
+      scoresByDimension: {},
+      completedAt: null,
+      sessionId: null,
+      resultId: null,
+      questionnaireVersion: null,
+      professionalAssessmentVersionId: null,
+      professionalAssessmentSchemaVersion: null,
+      candidateSummaryItems: [],
+      candidateSummary: null,
+      behavioralProfile: null,
+    },
+    result: {
+      uid: 'test-user',
+      publicCandidateId: 'SEV-CAND-TEST',
+      sessionId: 'session-test',
+      candidateProfileId: 'test-user',
+      sectorId: 'sector-test',
+      jobFamilyId: 'family-test',
+      jobRoleId: 'role-test',
+      questionBankCode: 'seveno_professional_assessment_bank_1_1_0_test',
+      questionBankVersion: '1.1.0',
+      assessmentType: 'seveno_general',
+      score: 71,
+      overallScore: 71,
+      scoresByDimension: {
+        collaboration: 75,
+        problem_solving: 67,
+      },
+      questionnaireVersion: '1.1.0',
+      professionalAssessmentVersionId: 'seveno-professional-assessment-bank-2a4319d5ee49',
+      professionalAssessmentSchemaVersion: 2,
+      candidateSummaryItems: ['Résumé depuis le résultat'],
+      candidateSummary: 'Résumé depuis le résultat',
+      behavioralProfile: {
+        axisResults: [],
+        candidateSummaryItems: ['Résumé depuis le résultat'],
+        companySummaryItems: [],
+        candidateSummary: 'Résumé depuis le résultat',
+        companySummary: null,
+        disclaimer: null,
+      } as ProfessionalAssessmentBehavioralProfile,
+      correctAnswers: 0,
+      totalQuestions: 40,
+      passed: true,
+      threshold: 0,
+      durationSeconds: 1200,
+      answersCount: 40,
+      submittedAt: new Date('2026-07-30T08:00:00.000Z'),
+      createdAt: new Date('2026-07-30T08:00:00.000Z'),
+      verifiedAt: new Date('2026-07-30T08:00:00.000Z'),
+    } as TestResult,
+  });
+  assert.equal(mergedSummary.overallScore, 71);
+  assert.deepEqual(mergedSummary.scoresByDimension, {
+    collaboration: 75,
+    problem_solving: 67,
+  });
+  assert.deepEqual(mergedSummary.candidateSummaryItems, ['Résumé depuis le résultat']);
+  assert.equal(mergedSummary.candidateSummary, 'Résumé depuis le résultat');
 
   const repoSource = readSource('lib/seveno-professional-assessment-admin-repository.ts');
   assert.match(repoSource, /revision_conflict/);
