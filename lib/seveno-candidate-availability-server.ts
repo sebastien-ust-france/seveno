@@ -15,6 +15,7 @@ import {
   normalizeAvailabilityTimezone,
   toAvailabilityDate,
 } from '@/lib/seveno-candidate-availability';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 import type {
   AvailabilityConfirmationEvent,
   AvailabilityConfirmationRequest,
@@ -147,8 +148,9 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
             ? { sectorId, jobFamilyId, jobRoleId, label }
             : null;
         })
-        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
     : [];
+  const desiredContractTypeCodes = normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes);
   const sectorId = cleanText(data.sectorId);
   const jobFamilyId = cleanText(data.jobFamilyId);
   const jobRoleId = cleanText(data.jobRoleId);
@@ -214,6 +216,7 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
     role,
     targetJobRoleIds,
     targetJobs,
+    desiredContractTypeCodes,
     sectorId,
     jobFamilyId,
     jobRoleId,

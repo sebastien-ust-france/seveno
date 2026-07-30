@@ -7,6 +7,7 @@ import {
   buildRecommendationInvitationEmailPreview,
   queueRecommendationInvitationEmail,
 } from '@/lib/seveno-recommendation-email';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 import { SEVENO_TERMS_VERSION } from '@/lib/seveno-terms-version';
 import {
   MAX_ACTIVE_RECOMMENDATION_INVITATIONS,
@@ -492,6 +493,7 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
         })
         .filter((item): item is CandidateProfile['targetJobs'][number] => Boolean(item))
     : [];
+  const desiredContractTypeCodes = normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes);
   const sectorId = cleanText(data.sectorId);
   const jobFamilyId = cleanText(data.jobFamilyId);
   const jobRoleId = cleanText(data.jobRoleId);
@@ -548,6 +550,7 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
     role: 'candidate',
     targetJobRoleIds: Array.isArray(data.targetJobRoleIds) ? data.targetJobRoleIds.map((value) => cleanText(value)).filter(Boolean) : [jobRoleId],
     targetJobs,
+    desiredContractTypeCodes,
     professionalSelfDescription,
     professionalReputationDescription,
     sectorId,
@@ -589,6 +592,7 @@ function cleanPublicCandidateProfile(profile: CandidateProfile | null): VisibleC
   return {
     publicCandidateId: profile.publicCandidateId,
     targetJobs: profile.targetJobs,
+    desiredContractTypeCodes: profile.desiredContractTypeCodes,
     professionalSelfDescription: profile.professionalSelfDescription ?? null,
     professionalReputationDescription: profile.professionalReputationDescription ?? null,
     sectorId: profile.sectorId,

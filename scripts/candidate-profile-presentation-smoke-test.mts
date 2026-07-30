@@ -6,6 +6,7 @@ import {
 
 const BASE_INPUT = {
   targetJobRoleIds: ['btp-construction-travaux-publics-gros-oeuvre-coffreur-bancheur'],
+  desiredContractTypeCodes: ['CDI'],
   availability: 'immediate',
   locationArea: 'Gironde',
   experienceLevel: 'intermediate',
@@ -27,10 +28,17 @@ function assertTooLongRejected(error: unknown) {
 }
 
 const emptyResult = normalizeCandidateProfileUpsertInput(buildInput());
+assert.deepEqual(emptyResult.desiredContractTypeCodes, ['CDI']);
+assert.equal(Object.prototype.hasOwnProperty.call(emptyResult, 'desiredContractTypeCodes'), true);
 assert.equal(emptyResult.professionalSelfDescription, null);
 assert.equal(emptyResult.professionalReputationDescription, null);
 assert.equal(Object.prototype.hasOwnProperty.call(emptyResult, 'professionalSelfDescription'), true);
 assert.equal(Object.prototype.hasOwnProperty.call(emptyResult, 'professionalReputationDescription'), true);
+
+const contractResult = normalizeCandidateProfileUpsertInput(buildInput({
+  desiredContractTypeCodes: ['cdi', ' freelance ', 'CDD'],
+}));
+assert.deepEqual(contractResult.desiredContractTypeCodes, ['CDI', 'FREELANCE', 'CDD']);
 
 const selfOnlyResult = normalizeCandidateProfileUpsertInput(buildInput({
   professionalSelfDescription: "J'ai encadre des equipes\nen situation de chantier.",
@@ -93,6 +101,20 @@ assert.throws(
     professionalSelfDescription: 'Vous pouvez me joindre au 06 12 34 56 78.',
   })),
   (error: unknown) => error instanceof SevenoCandidateProfileError && error.code === 'invalid_candidate_profile',
+);
+
+assert.throws(
+  () => normalizeCandidateProfileUpsertInput(buildInput({
+    desiredContractTypeCodes: [],
+  })),
+  (error: unknown) => error instanceof SevenoCandidateProfileError && error.code === 'invalid_desired_contract_type_codes',
+);
+
+assert.throws(
+  () => normalizeCandidateProfileUpsertInput(buildInput({
+    desiredContractTypeCodes: ['CDI', 'CDI'],
+  })),
+  (error: unknown) => error instanceof SevenoCandidateProfileError && error.code === 'invalid_desired_contract_type_codes',
 );
 
 const keys = Object.keys(bothFilledResult);

@@ -20,6 +20,7 @@ import {
 } from '@/lib/seveno-job-applications';
 import { buildQuestionnaireScoreSummary } from '@/lib/seveno-company-questionnaire-thresholds';
 import { getVisibleCandidateProfileByPublicId } from '@/lib/seveno-company-candidates';
+import { formatDesiredContractTypeLabels } from '@/lib/seveno-desired-contract-types';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
 import type { CandidateRecommendationPublicBundle, PublicCandidateRecommendationSummary } from '@/types/seveno';
 import type { SerializedCandidateJobApplication } from '@/types/seveno-job-applications';
@@ -401,6 +402,12 @@ export default function CompanyCandidateDetailPage() {
                 <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Localisation</p>
                   <p className="mt-2 text-sm font-medium text-white">{candidateProfile.locationArea}</p>
+                </article>
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Contrats recherchés</p>
+                  <p className="mt-2 text-sm font-medium text-white">
+                    {formatDesiredContractTypeLabels(candidateProfile.desiredContractTypeCodes)}
+                  </p>
                 </article>
               </div>
 

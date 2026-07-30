@@ -2,6 +2,7 @@ import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 import type {
   AdminLog,
   CandidateAvailability,
@@ -12,6 +13,7 @@ import type {
   CompanyProfile,
   CompanyProfileStatus,
   CompanyVerificationStatus,
+  DesiredContractTypeCode,
   MatchRequest,
   MatchRequestStatus,
   ProfessionalAssessmentBehavioralProfile,
@@ -142,6 +144,7 @@ export interface AdminCandidateSummary {
   sectorId: string;
   jobFamilyId: string;
   jobRoleId: string;
+  desiredContractTypeCodes: DesiredContractTypeCode[];
   availability: CandidateAvailability;
   experienceLevel: CandidateExperienceLevel;
   locationArea: string;
@@ -563,6 +566,7 @@ function serializeCandidateSummary(
     sectorId: data.sectorId,
     jobFamilyId: data.jobFamilyId,
     jobRoleId: data.jobRoleId,
+    desiredContractTypeCodes: normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes),
     availability: data.availability,
     experienceLevel: data.experienceLevel,
     locationArea: data.locationArea,
@@ -861,6 +865,7 @@ async function loadCandidates() {
               jobRoleId: String(data.jobRoleId),
               label: String(data.jobRoleId),
             }],
+        desiredContractTypeCodes: normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes),
         sectorId: String(data.sectorId),
         jobFamilyId: String(data.jobFamilyId),
         jobRoleId: String(data.jobRoleId),

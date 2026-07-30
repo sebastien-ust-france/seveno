@@ -61,6 +61,15 @@ export type SevenoAssessmentStatus = 'not_started' | 'in_progress' | 'completed'
 export type SevenoAssessmentFilter = 'all' | 'completed';
 export type SevenoAssessmentDimension = 'collaboration' | 'adaptability' | 'autonomy' | 'problem_solving';
 export type SevenoAssessmentScores = Partial<Record<SevenoAssessmentDimension, number>>;
+export type DesiredContractTypeCode =
+  | 'CDI'
+  | 'CDD'
+  | 'INTERIM'
+  | 'FREELANCE'
+  | 'ALTERNANCE'
+  | 'STAGE'
+  | 'SAISONNIER'
+  | 'AUTRE';
 
 export interface SevenoAssessmentSummary {
   status: 'completed';
@@ -168,6 +177,7 @@ export interface CandidateProfile {
   role: 'candidate';
   targetJobRoleIds: string[];
   targetJobs: CandidateTargetJob[];
+  desiredContractTypeCodes: DesiredContractTypeCode[];
   professionalSelfDescription?: string | null;
   professionalReputationDescription?: string | null;
   /** @deprecated Temporary mirror of the first target job during migration. */
@@ -219,6 +229,7 @@ export interface CandidateProfile {
 export interface VisibleCandidateProfile {
   publicCandidateId: string;
   targetJobs: CandidateTargetJob[];
+  desiredContractTypeCodes: DesiredContractTypeCode[];
   professionalSelfDescription?: string | null;
   professionalReputationDescription?: string | null;
   sectorId: string;
@@ -387,6 +398,7 @@ export interface CandidateSearchPage {
 
 export interface CandidateProfileUpsertData {
   targetJobRoleIds: string[];
+  desiredContractTypeCodes: DesiredContractTypeCode[];
   availability: CandidateAvailability;
   availabilityAvailableFromAt?: string | null;
   locationArea: string;

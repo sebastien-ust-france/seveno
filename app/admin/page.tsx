@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
+import { formatDesiredContractTypeLabels } from '@/lib/seveno-desired-contract-types';
 import { fetchSevenoAdminApi } from '@/lib/seveno-admin-api';
 import type { AdminOverviewPayload } from '@/types/seveno-admin';
 
@@ -29,6 +30,57 @@ type OverviewCardProps = {
   tone: 'cyan' | 'violet' | 'orange' | 'neutral';
 };
 
+function formatSevenoAssessmentStatus(
+  status: AdminOverviewPayload['latestCandidates'][number]['sevenoAssessment']['status'],
+) {
+  switch (status) {
+    case 'completed':
+      return 'Terminé';
+    case 'in_progress':
+      return 'En cours';
+    case 'expired':
+      return 'Expiré';
+    case 'abandoned':
+      return 'Abandonné';
+    case 'unknown':
+      return 'Statut inconnu';
+    default:
+      return 'Non commencé';
+  }
+}
+
+function formatSevenoAssessmentScoreLabel(
+  assessment: AdminOverviewPayload['latestCandidates'][number]['sevenoAssessment'],
+) {
+  if (assessment.status === 'completed') {
+    return typeof assessment.overallScore === 'number'
+      ? `${Math.round(assessment.overallScore)}%`
+      : 'Non calculé';
+  }
+
+  return formatSevenoAssessmentStatus(assessment.status);
+}
+
+function formatSevenoAssessmentMeta(
+  assessment: AdminOverviewPayload['latestCandidates'][number]['sevenoAssessment'],
+) {
+  const parts: string[] = [];
+
+  if (assessment.questionnaireVersion) {
+    parts.push(`Version ${assessment.questionnaireVersion}`);
+  }
+
+  if (assessment.professionalAssessmentVersionId) {
+    parts.push(assessment.professionalAssessmentVersionId);
+  }
+
+  if (assessment.completedAt) {
+    parts.push(`Terminé le ${formatDateTime(assessment.completedAt)}`);
+  }
+
+  return parts.join(' · ');
+}
+
 function OverviewCard({ label, value, note, tone }: OverviewCardProps) {
   return (
     <SevenoPanel tone={tone} className="p-5">
@@ -42,19 +94,25 @@ function OverviewCard({ label, value, note, tone }: OverviewCardProps) {
 export default function AdminOverviewPage() {
   const [data, setData] = useState<AdminOverviewPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadAdminOverview = useCallback(async () => {
+    const payload = await fetchSevenoAdminApi<AdminOverviewPayload>('/api/admin/overview');
+    setData(payload);
+    return payload;
+  }, []);
 
   useEffect(() => {
     let active = true;
 
-    async function loadAdminOverview() {
+    async function bootstrap() {
       try {
-        const payload = await fetchSevenoAdminApi<AdminOverviewPayload>('/api/admin/overview');
+        await loadAdminOverview();
         if (!active) {
           return;
         }
 
-        setData(payload);
         setLoading(false);
       } catch (thrownError) {
         if (!active) {
@@ -66,12 +124,29 @@ export default function AdminOverviewPage() {
       }
     }
 
-    void loadAdminOverview();
+    void bootstrap();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAdminOverview]);
+
+  async function handleRefresh() {
+    if (loading || refreshing) {
+      return;
+    }
+
+    setRefreshing(true);
+    setError(null);
+
+    try {
+      await loadAdminOverview();
+    } catch (thrownError) {
+      setError(thrownError instanceof Error ? thrownError.message : "Le tableau de bord admin n a pas pu etre actualise.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const counts = data?.counts;
   const latestCandidates = data?.latestCandidates ?? [];
@@ -85,6 +160,16 @@ export default function AdminOverviewPage() {
       eyebrow="Administration Seven’O"
       title="Tableau de bord de supervision"
       description="Vue d ensemble du socle MVP: comptes, profils anonymes, entreprises, tests, mises en relation et journal d actions."
+      actions={
+        <button
+          type="button"
+          onClick={() => void handleRefresh()}
+          disabled={loading || refreshing}
+          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {refreshing ? 'Actualisation...' : 'Actualiser les donnees'}
+        </button>
+      }
       footer={<p className="text-xs uppercase tracking-[0.24em] text-slate-500">Acces reserve aux comptes admin</p>}
       containerClassName="max-w-7xl"
     >
@@ -179,11 +264,25 @@ export default function AdminOverviewPage() {
                             </p>
                           </div>
                           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                            {candidate.testPassed ? `${candidate.verifiedScore ?? 0}%` : 'Test non valide'}
+                            {formatSevenoAssessmentScoreLabel(candidate.sevenoAssessment)}
                           </span>
                         </div>
                         <p className="mt-3 text-sm leading-6 text-slate-300">
                           {candidate.jobRoleId} - {candidate.locationArea}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-300">
+                          Contrats recherchés : {formatDesiredContractTypeLabels(candidate.desiredContractTypeCodes)}
+                        </p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                          Questionnaire Seven’O
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-slate-300">
+                          {candidate.sevenoAssessment.status === 'completed'
+                            ? `Terminé le ${formatDateTime(candidate.sevenoAssessment.completedAt)}`
+                            : formatSevenoAssessmentStatus(candidate.sevenoAssessment.status)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatSevenoAssessmentMeta(candidate.sevenoAssessment) || 'Aucune synthèse finale disponible.'}
                         </p>
                         <p className="mt-2 text-xs text-slate-500">Mis a jour {formatDateTime(candidate.updatedAt)}</p>
                       </article>

@@ -18,6 +18,7 @@ import type {
   CandidateProfileUpsertData,
   CandidateTargetJob,
 } from '@/types/seveno';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
   'immediate',
@@ -33,6 +34,7 @@ const EXPERIENCE_VALUES: CandidateExperienceLevel[] = [
   'senior',
   'expert',
 ];
+const MAX_DESIRED_CONTRACT_TYPES = 8;
 const PROFILE_STATUS_VALUES: CandidateProfileStatus[] = ['draft', 'active', 'paused'];
 const PUBLIC_CANDIDATE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_TARGET_JOBS = 3;
@@ -183,6 +185,22 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
     );
   }
 
+  const rawDesiredContractTypeCodes = Array.isArray(value.desiredContractTypeCodes)
+    ? value.desiredContractTypeCodes.map((item) => cleanText(item)).filter(Boolean)
+    : [];
+  const desiredContractTypeCodes = normalizeDesiredContractTypeCodes(rawDesiredContractTypeCodes);
+  if (
+    desiredContractTypeCodes.length < 1
+    || desiredContractTypeCodes.length > MAX_DESIRED_CONTRACT_TYPES
+    || desiredContractTypeCodes.length !== rawDesiredContractTypeCodes.length
+  ) {
+    throw new SevenoCandidateProfileError(
+      'invalid_desired_contract_type_codes',
+      400,
+      'Selectionnez au moins un type de contrat recherche parmi les valeurs autorisees.',
+    );
+  }
+
   for (const targetJobRoleId of targetJobRoleIds) {
     const exists = JOB_SECTORS.some((sector) => sector.families.some(
       (family) => family.roles.some((role) => role.code === targetJobRoleId),
@@ -219,6 +237,7 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
 
   return {
     targetJobRoleIds,
+    desiredContractTypeCodes,
     availability,
     availabilityAvailableFromAt: cleanText(value.availabilityAvailableFromAt) || null,
     locationArea: requireText(value.locationArea, 'zone geographique', 120),
@@ -443,6 +462,7 @@ export async function createOrUpdateCandidateProfileServer(
     const editableProfileFields = {
       targetJobRoleIds: input.targetJobRoleIds,
       targetJobs,
+      desiredContractTypeCodes: input.desiredContractTypeCodes,
       sectorId: primaryJob.sectorId,
       jobFamilyId: primaryJob.jobFamilyId,
       jobRoleId: primaryJob.jobRoleId,

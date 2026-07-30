@@ -12,6 +12,11 @@ import {
   resolveSevenoRedirect,
 } from '@/lib/seveno-users';
 import { completeCandidateOnboarding } from '@/lib/seveno-candidate-onboarding';
+import {
+  DESIRED_CONTRACT_TYPE_OPTIONS,
+  formatDesiredContractTypeLabels,
+  normalizeDesiredContractTypeCodes,
+} from '@/lib/seveno-desired-contract-types';
 import { CandidatePrivacyNotice } from '@/components/candidate/CandidatePrivacyNotice';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
@@ -21,6 +26,7 @@ import { Select } from '@/components/ui/Select';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
+  DesiredContractTypeCode,
   CandidateProfileStatus,
   CandidateProfileUpsertData,
   CandidateTargetJob,
@@ -53,7 +59,7 @@ const INITIAL_FAMILY = INITIAL_SECTOR?.families[0] ?? null;
 const INITIAL_ROLE = INITIAL_FAMILY?.roles[0] ?? null;
 
 type FieldErrorState = Partial<Record<
-  'sectorId' | 'jobFamilyId' | 'jobRoleId' | 'locationArea' | 'profileStatus' | 'anonymousVisibilityConsent',
+  'sectorId' | 'jobFamilyId' | 'jobRoleId' | 'desiredContractTypeCodes' | 'locationArea' | 'profileStatus' | 'anonymousVisibilityConsent',
   string
 >>;
 
@@ -112,6 +118,7 @@ export default function CandidateOnboardingPage() {
   const [jobFamilyId, setJobFamilyId] = useState(INITIAL_FAMILY?.code ?? '');
   const [jobRoleId, setJobRoleId] = useState(INITIAL_ROLE?.code ?? '');
   const [targetJobs, setTargetJobs] = useState<CandidateTargetJob[]>([]);
+  const [desiredContractTypeCodes, setDesiredContractTypeCodes] = useState<DesiredContractTypeCode[]>([]);
   const [locationArea, setLocationArea] = useState('');
   const [experienceLevel, setExperienceLevel] = useState<CandidateExperienceLevel>('intermediate');
   const [availability, setAvailability] = useState<CandidateAvailability>('listening');
@@ -189,6 +196,7 @@ export default function CandidateOnboardingPage() {
           if (restoredTargetJobs.length > 0) {
             setTargetJobs(restoredTargetJobs.slice(0, 3));
           }
+          setDesiredContractTypeCodes(normalizeDesiredContractTypeCodes(existingProfile.desiredContractTypeCodes));
 
           if (existingSector && existingFamily && existingRole) {
             setSectorId(existingSector.code);
@@ -299,6 +307,20 @@ export default function CandidateOnboardingPage() {
     setTargetJobs((current) => current.filter((job) => job.jobRoleId !== roleId));
   }
 
+  function toggleDesiredContractTypeCode(code: DesiredContractTypeCode) {
+    setDesiredContractTypeCodes((current) => {
+      const next = current.includes(code)
+        ? current.filter((item) => item !== code)
+        : [...current, code];
+
+      if (next.length > 0) {
+        setFieldErrors((errors) => ({ ...errors, desiredContractTypeCodes: undefined }));
+      }
+
+      return next;
+    });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || submissionLockRef.current) return;
@@ -311,6 +333,9 @@ export default function CandidateOnboardingPage() {
     if (!jobFamilyId) nextFieldErrors.jobFamilyId = 'Sélectionnez une famille métier.';
     if (targetJobs.length < 1 || targetJobs.length > 3) {
       nextFieldErrors.jobRoleId = 'Sélectionnez entre un et trois métiers recherchés.';
+    }
+    if (desiredContractTypeCodes.length < 1) {
+      nextFieldErrors.desiredContractTypeCodes = 'Sélectionnez au moins un type de contrat recherché.';
     }
     if (!locationArea.trim()) nextFieldErrors.locationArea = 'Indiquez une zone de recherche.';
     if (!profileStatus) nextFieldErrors.profileStatus = 'Sélectionnez un statut de profil.';
@@ -354,6 +379,7 @@ export default function CandidateOnboardingPage() {
 
       const payload: CandidateProfileUpsertData = {
         targetJobRoleIds: targetJobs.map((job) => job.jobRoleId),
+        desiredContractTypeCodes,
         availability,
         locationArea,
         experienceLevel,
@@ -522,6 +548,35 @@ export default function CandidateOnboardingPage() {
                     </div>
                   ))}
                 </div>
+
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-white">Quels types de contrat recherchez-vous ?</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Plusieurs réponses sont possibles. Choisissez au moins un type de contrat.
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {DESIRED_CONTRACT_TYPE_OPTIONS.map((option) => {
+                      const checked = desiredContractTypeCodes.includes(option.code);
+                      return (
+                        <label
+                          key={option.code}
+                          className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200 transition hover:border-cyan-300/30 hover:bg-slate-950/55"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleDesiredContractTypeCode(option.code)}
+                            className="mt-1 accent-cyan-400"
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {fieldErrors.desiredContractTypeCodes ? (
+                    <p className="mt-3 text-xs text-rose-300">{fieldErrors.desiredContractTypeCodes}</p>
+                  ) : null}
+                </div>
               </SevenoPanel>
 
               <div className="md:pt-[20px]">
@@ -668,6 +723,9 @@ export default function CandidateOnboardingPage() {
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       <p className="md:col-span-2">
                         Métiers : {targetJobs.length > 0 ? targetJobs.map((job) => job.label).join(', ') : 'Non renseignés'}
+                      </p>
+                      <p className="md:col-span-2">
+                        Contrats recherchés : {formatDesiredContractTypeLabels(desiredContractTypeCodes)}
                       </p>
                       <p>Zone : {locationArea || 'Non renseignée'}</p>
                       <p>Expérience : {experienceLabel(experienceLevel)}</p>

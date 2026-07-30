@@ -96,6 +96,8 @@ const mojibakePattern = new RegExp(
 const candidateDashboardSource = readSource('app/candidat/page.tsx');
 assert.match(candidateDashboardSource, /Questionnaire général Seven’O/);
 assert.match(candidateDashboardSource, /Disponibilité quotidienne/);
+assert.match(candidateDashboardSource, /Contrats recherchés/);
+assert.match(candidateDashboardSource, /formatDesiredContractTypeLabels/);
 assert.doesNotMatch(candidateDashboardSource, mojibakePattern);
 assert.match(candidateDashboardSource, /\/candidat\/test/);
 assert.doesNotMatch(
@@ -184,7 +186,30 @@ assert.equal(
 
 const candidateOnboardingSource = readSource('app/candidat/onboarding/page.tsx');
 assert.match(candidateOnboardingSource, /completeCandidateOnboarding/);
+assert.match(candidateOnboardingSource, /Quels types de contrat recherchez-vous \?/);
+assert.match(candidateOnboardingSource, /desiredContractTypeCodes/);
+assert.match(candidateOnboardingSource, /DESIRED_CONTRACT_TYPE_OPTIONS/);
 assert.doesNotMatch(candidateOnboardingSource, /markUserOnboardingCompleted/);
+
+const adminOverviewSource = readSource('app/admin/page.tsx');
+assert.match(adminOverviewSource, /Contrats recherchés/);
+assert.match(adminOverviewSource, /formatDesiredContractTypeLabels/);
+
+const adminCandidatesSource = readSource('app/admin/candidats/page.tsx');
+assert.match(adminCandidatesSource, /Contrats recherchés/);
+assert.match(adminCandidatesSource, /formatDesiredContractTypeLabels/);
+
+const adminCandidateDetailSource = readSource('app/admin/candidats/[uid]/page.tsx');
+assert.match(adminCandidateDetailSource, /Contrats recherchés/);
+assert.match(adminCandidateDetailSource, /formatDesiredContractTypeLabels/);
+
+const companyCandidateSource = readSource('app/entreprise/candidats/[publicCandidateId]/page.tsx');
+assert.match(companyCandidateSource, /Contrats recherchés/);
+assert.match(companyCandidateSource, /formatDesiredContractTypeLabels/);
+
+const anonymousCandidateCardSource = readSource('components/entreprise/AnonymousCandidateCard.tsx');
+assert.match(anonymousCandidateCardSource, /Contrats recherchés/);
+assert.match(anonymousCandidateCardSource, /formatDesiredContractTypeLabels/);
 
 const candidateOnboardingCompleteRouteSource = readSource('app/api/seveno/candidates/onboarding/complete/route.ts');
 assert.match(candidateOnboardingCompleteRouteSource, /onboardingCompleted: true/);

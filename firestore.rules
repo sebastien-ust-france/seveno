@@ -411,6 +411,7 @@ service cloud.firestore {
         'jobRoleId',
         'jobFamilyId',
         'sectorId',
+        'desiredContractTypeCodes',
         'availability',
         'availabilityAvailableFromAt',
         'availabilityConfirmedAt',
@@ -474,6 +475,24 @@ service cloud.firestore {
       && data.targetJobRoleIds.size() <= 3
       && data.targetJobs is list
       && data.targetJobs.size() == data.targetJobRoleIds.size()
+      && (
+        !data.keys().hasAny(['desiredContractTypeCodes'])
+        || (
+          data.desiredContractTypeCodes is list
+          && data.desiredContractTypeCodes.size() >= 1
+          && data.desiredContractTypeCodes.size() <= 8
+          && data.desiredContractTypeCodes.hasOnly([
+            'CDI',
+            'CDD',
+            'INTERIM',
+            'FREELANCE',
+            'ALTERNANCE',
+            'STAGE',
+            'SAISONNIER',
+            'AUTRE'
+          ])
+        )
+      )
       && isNonEmptyString(data.sectorId, 160)
       && isNonEmptyString(data.jobFamilyId, 200)
       && isNonEmptyString(data.jobRoleId, 200)

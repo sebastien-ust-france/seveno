@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
+import { formatDesiredContractTypeLabels } from '@/lib/seveno-desired-contract-types';
 import { getCandidateProfile } from '@/lib/seveno-candidates';
 import { isCandidateIdentityComplete } from '@/lib/seveno-candidate-identity';
 import { ensureSevenoUser, hasSevenoTermsAcceptance, resolveSevenoRedirect } from '@/lib/seveno-users';
@@ -576,6 +577,20 @@ export default function CandidateDashboardPage() {
         },
         {
           tone: 'neutral',
+          label: 'Contrats recherchés',
+          value: formatDesiredContractTypeLabels(profile.desiredContractTypeCodes),
+          note: 'Choisissez les types de contrat que vous recherchez depuis votre profil.',
+          action: (
+            <Link
+              href="/candidat/onboarding"
+              className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Modifier mes contrats
+            </Link>
+          ),
+        },
+        {
+          tone: 'neutral',
           label: 'Présentation professionnelle',
           value: profile?.professionalSelfDescription?.trim() ? 'Renseignée' : 'À compléter',
           note: profile?.professionalSelfDescription?.trim()
@@ -896,7 +911,7 @@ export default function CandidateDashboardPage() {
             </div>
           </SevenoPanel>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {summaryCards.map((card) => (
               <CandidateStatusCard
                 key={card.label}

@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 import type {
   CandidateIdentityRequiredField,
   CandidateProfile,
@@ -30,7 +31,15 @@ export async function getCandidateProfile(uid: string): Promise<CandidateProfile
   }
 
   const snapshot = await getDoc(candidateProfileRef(uid));
-  return snapshot.exists() ? (snapshot.data() as CandidateProfile) : null;
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const data = snapshot.data() as CandidateProfile & { desiredContractTypeCodes?: unknown };
+  return {
+    ...data,
+    desiredContractTypeCodes: normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes),
+  };
 }
 
 export async function hasCandidateProfile(uid: string): Promise<boolean> {

@@ -9,6 +9,7 @@ import type {
   CompanyInvitationStatus,
   CompanySize,
   CompanyVerificationStatus,
+  DesiredContractTypeCode,
   MatchRequestStatus,
   ProfessionalAssessmentBehavioralProfile,
   SevenoAssessmentScores,
@@ -59,6 +60,7 @@ export interface AdminCandidateSummary {
   sectorId: string;
   jobFamilyId: string;
   jobRoleId: string;
+  desiredContractTypeCodes: DesiredContractTypeCode[];
   availability: CandidateAvailability;
   experienceLevel: CandidateExperienceLevel;
   locationArea: string;

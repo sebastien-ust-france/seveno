@@ -7,9 +7,11 @@ import {
   isCandidateCurrentlyImmediatelyAvailable,
   toAvailabilityDate,
 } from '@/lib/seveno-candidate-availability';
+import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
+  CandidateProfile,
   CandidateSearchFilters,
   CandidateTargetJob,
 } from '@/types/seveno';
@@ -53,6 +55,7 @@ export interface SerializedVisibleCandidateProfile {
   availabilityValidUntil: string | null;
   locationArea: string;
   experienceLevel: CandidateExperienceLevel;
+  desiredContractTypeCodes: CandidateProfile['desiredContractTypeCodes'];
   professionalSelfDescription: string | null;
   professionalReputationDescription: string | null;
   recommendationVisibleCount: number;
@@ -111,6 +114,7 @@ function toAnonymousProjection(
   const locationArea = cleanText(data.locationArea);
   const availability = data.availability as CandidateAvailability;
   const experienceLevel = data.experienceLevel as CandidateExperienceLevel;
+  const desiredContractTypeCodes = normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes);
   const availabilityAvailableFromAt = toTimestamp(data.availabilityAvailableFromAt);
   const availabilityConfirmedAt = toTimestamp(data.availabilityConfirmedAt);
   const availabilityValidUntil = toTimestamp(data.availabilityValidUntil);
@@ -150,6 +154,7 @@ function toAnonymousProjection(
     availabilityValidUntil: availabilityValidUntil?.toDate().toISOString() ?? null,
     locationArea,
     experienceLevel,
+    desiredContractTypeCodes,
     professionalSelfDescription: professionalSelfDescription || null,
     professionalReputationDescription: professionalReputationDescription || null,
     recommendationVisibleCount,

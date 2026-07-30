@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
 import { getCandidateAvailabilityView } from '@/lib/seveno-candidate-availability';
+import { formatDesiredContractTypeLabels } from '@/lib/seveno-desired-contract-types';
 import type { CandidateAvailability, CandidateExperienceLevel, VisibleCandidateProfile } from '@/types/seveno';
 
 const EXPERIENCE_LABELS: Record<CandidateExperienceLevel, string> = {
@@ -62,9 +63,9 @@ export default function AnonymousCandidateCard({
 }) {
   const variant = profileVariant(profile.publicCandidateId);
   const availabilityView = getCandidateAvailabilityView(profile);
-  const sectorLabel = findSectorLabel(profile.sectorId) ?? 'Secteur non classe';
-  const familyLabel = findFamilyLabel(profile.jobFamilyId) ?? 'Famille non classee';
-  const roleLabel = findRoleLabel(profile.jobRoleId) ?? 'Metier non classe';
+  const sectorLabel = findSectorLabel(profile.sectorId) ?? 'Secteur non classé';
+  const familyLabel = findFamilyLabel(profile.jobFamilyId) ?? 'Famille non classée';
+  const roleLabel = findRoleLabel(profile.jobRoleId) ?? 'Métier non classé';
   const availabilityLabel = availabilityView.label ?? (AVAILABILITY_LABELS[profile.availability] ?? 'Disponibilité non renseignée');
   const experienceLabel = EXPERIENCE_LABELS[profile.experienceLevel] ?? 'Expérience non renseignée';
   const detailHref = `/entreprise/candidats/${profile.publicCandidateId}?returnTo=${encodeURIComponent(returnHref)}`;
@@ -119,6 +120,13 @@ export default function AnonymousCandidateCard({
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Disponibilité</p>
             <p className="mt-2 text-sm text-white">{availabilityLabel}</p>
             <p className="mt-1 text-xs leading-5 text-slate-400">{availabilityView.detail}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Contrats recherchés</p>
+            <p className="mt-2 text-sm text-white">{formatDesiredContractTypeLabels(profile.desiredContractTypeCodes)}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Cette préférence pourra servir aux futurs filtres et au matching.
+            </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Analyse professionnelle</p>
