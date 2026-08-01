@@ -184,7 +184,7 @@ export async function updateCandidatePrivateIdentity(
     country: input.country,
   });
   if (!validation.data) {
-    throw new Error('Les informations d identite privee sont invalides.');
+    throw new Error('Les informations d’identité privée sont invalides.');
   }
 
   const ref = userRef(uid);

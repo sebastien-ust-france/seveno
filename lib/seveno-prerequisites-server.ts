@@ -15,6 +15,7 @@ import {
   PREREQUISITE_STATUSES,
   SEVENO_OFFER_PREREQUISITE_LIMITS,
 } from '@/lib/seveno-prerequisite-constants';
+import { classifyOfferPrerequisites, resolvePrerequisiteFamily, validatePrerequisiteFamily } from '@/lib/seveno-prerequisite-families';
 import type {
   CompanyPrerequisiteDefinition,
   OfferPrerequisiteSelectionInput,
@@ -315,7 +316,10 @@ function toPickerProjection(
     source: item.source ?? 'seveno',
     ...(item.ownerCompanyId ? { ownerCompanyId: item.ownerCompanyId } : {}),
     ...(item.originOfferId ? { originOfferId: item.originOfferId } : {}),
+    ...(item.suggestedToSeveno ? { suggestedToSeveno: true } : {}),
     category: item.category,
+    ...(item.prerequisiteFamily ? { prerequisiteFamily: item.prerequisiteFamily } : {}),
+    ...(item.offerRequirementCategory ? { offerRequirementCategory: item.offerRequirementCategory } : {}),
     companyLabel: item.companyLabel,
     ...(item.companyDescription ? { companyDescription: item.companyDescription } : {}),
     candidateQuestion: item.candidateQuestion,
@@ -490,6 +494,9 @@ function normalizeOptions(value: unknown, answerType: PrerequisiteAnswerType): P
   if (optionsRequired && options.length < 2) {
     throw new SevenoPrerequisiteError('invalid_options', 400, 'Au moins deux options sont requises.');
   }
+  if (optionsRequired && options.length > 8) {
+    throw new SevenoPrerequisiteError('invalid_options', 400, 'Huit options au maximum sont autorisees.');
+  }
   const values = options.map((option) => option.value);
   if (new Set(values).size !== values.length) {
     throw new SevenoPrerequisiteError('invalid_options', 400, 'Les valeurs d options doivent etre uniques.');
@@ -510,6 +517,48 @@ function normalizeCriterionValue(value: unknown, answerType: PrerequisiteAnswerT
   if ((answerType === 'single_choice' || answerType === 'level') && typeof value === 'string' && value.trim()) return value.trim();
   if (answerType === 'multiple_choice' && Array.isArray(value)) return uniqueStrings(value, 100);
   throw new SevenoPrerequisiteError('invalid_criterion', 400, 'Une valeur de critere est incompatible avec le type de reponse.');
+}
+
+export function validatePrerequisiteCriterion(
+  answerType: PrerequisiteAnswerType,
+  comparisonOperator: PrerequisiteComparisonOperator,
+  value: unknown,
+  options: PrerequisiteAnswerOption[],
+): PrerequisiteCriterionValue {
+  if (!PREREQUISITE_OPERATOR_COMPATIBILITY[answerType].includes(comparisonOperator)) {
+    throw new SevenoPrerequisiteError(
+      'invalid_operator',
+      400,
+      `comparisonOperator=${comparisonOperator} est interdit pour answerType=${answerType}.`,
+    );
+  }
+  if (comparisonOperator === 'one_of') {
+    if (!Array.isArray(value)) {
+      throw new SevenoPrerequisiteError('invalid_criterion', 400, `expectedCriterion doit être un tableau pour one_of ; reçu ${JSON.stringify(value)}.`);
+    }
+    const normalized = value.map((item) => typeof item === 'string' ? item.trim() : item);
+    if (normalized.length < 2) {
+      throw new SevenoPrerequisiteError('invalid_criterion', 400, `one_of exige au moins deux valeurs distinctes ; reçu ${JSON.stringify(value)}.`);
+    }
+    if (normalized.some((item) => typeof item !== 'string' || !item)) {
+      throw new SevenoPrerequisiteError('invalid_criterion', 400, `expectedCriterion contient une valeur non textuelle pour one_of ; reçu ${JSON.stringify(value)}.`);
+    }
+    if (new Set(normalized).size !== normalized.length) {
+      throw new SevenoPrerequisiteError('invalid_criterion', 400, `one_of interdit les doublons ; reçu ${JSON.stringify(value)}.`);
+    }
+    const allowed = new Set(options.map((option) => option.value));
+    const unknown = normalized.find((item) => !allowed.has(item as string));
+    if (unknown) {
+      throw new SevenoPrerequisiteError('invalid_criterion', 400, `expectedCriterion contient la valeur inconnue ${JSON.stringify(unknown)}.`);
+    }
+    return normalized as string[];
+  }
+  if (answerType === 'single_choice' && comparisonOperator === 'equals' && Array.isArray(value)) {
+    throw new SevenoPrerequisiteError('invalid_criterion', 400, `equals exige une valeur scalaire pour single_choice ; reçu ${JSON.stringify(value)}.`);
+  }
+  const criterion = normalizeCriterionValue(value, answerType);
+  assertCriterionUsesOptions(criterion, answerType, options);
+  return criterion;
 }
 
 function criterionKey(value: PrerequisiteCriterionValue) {
@@ -558,7 +607,11 @@ export function validatePrerequisiteInput(raw: unknown, forcedCode?: string): Pr
   if (!ANSWER_TYPE_VALUES.includes(answerType)) throw new SevenoPrerequisiteError('invalid_answer_type', 400, 'Le type de reponse est invalide.');
   if (!CRITERION_MODE_VALUES.includes(criterionMode)) throw new SevenoPrerequisiteError('invalid_criterion_mode', 400, 'Le mode de critere est invalide.');
   if (!OPERATOR_VALUES.includes(comparisonOperator) || !PREREQUISITE_OPERATOR_COMPATIBILITY[answerType].includes(comparisonOperator)) {
-    throw new SevenoPrerequisiteError('invalid_operator', 400, 'L operateur est incompatible avec le type de reponse.');
+    throw new SevenoPrerequisiteError(
+      'invalid_operator',
+      400,
+      `comparisonOperator=${String(comparisonOperator)} est interdit pour answerType=${String(answerType)}.`,
+    );
   }
   if (!RESPONSE_SCOPE_VALUES.includes(responseScope)) throw new SevenoPrerequisiteError('invalid_response_scope', 400, 'La portee de reponse est invalide.');
   if (!EVIDENCE_POLICY_VALUES.includes(evidencePolicy)) throw new SevenoPrerequisiteError('invalid_evidence_policy', 400, 'La politique de preuve est invalide.');
@@ -570,10 +623,31 @@ export function validatePrerequisiteInput(raw: unknown, forcedCode?: string): Pr
   const candidateHelp = cleanText(raw.candidateHelp, 1000, false);
   const ownerCompanyId = cleanText(raw.ownerCompanyId, 160, false);
   const originOfferId = cleanText(raw.originOfferId, 100, false);
+  const suggestedToSeveno = raw.suggestedToSeveno === true;
+  if (raw.prerequisiteFamily !== undefined) {
+    try {
+      validatePrerequisiteFamily({ prerequisiteFamily: raw.prerequisiteFamily, offerRequirementCategory: raw.offerRequirementCategory });
+    } catch (error) {
+      throw new SevenoPrerequisiteError('invalid_prerequisite_family', 400, error instanceof Error ? error.message : 'La famille du prérequis est invalide.');
+    }
+  }
+  const resolvedFamily = resolvePrerequisiteFamily({
+    prerequisiteFamily: raw.prerequisiteFamily as never,
+    offerRequirementCategory: raw.offerRequirementCategory as never,
+    category,
+    companyLabel,
+    candidateQuestion,
+    prerequisiteCode: code,
+  });
+  try {
+    validatePrerequisiteFamily(resolvedFamily);
+  } catch (error) {
+    throw new SevenoPrerequisiteError('invalid_prerequisite_family', 400, error instanceof Error ? error.message : 'La famille du prérequis est invalide.');
+  }
   assertProfessionalContent([companyLabel, companyDescription, candidateQuestion, candidateHelp]);
   const options = normalizeOptions(raw.options, answerType);
   const allowedCriterionValues = Array.isArray(raw.allowedCriterionValues)
-    ? raw.allowedCriterionValues.map((value) => normalizeCriterionValue(value, answerType))
+    ? raw.allowedCriterionValues.map((value) => validatePrerequisiteCriterion(answerType, comparisonOperator, value, options))
     : [];
   if (new Set(allowedCriterionValues.map(criterionKey)).size !== allowedCriterionValues.length) {
     throw new SevenoPrerequisiteError('invalid_criterion', 400, 'Les valeurs de critere autorisees contiennent des doublons.');
@@ -581,7 +655,7 @@ export function validatePrerequisiteInput(raw: unknown, forcedCode?: string): Pr
   allowedCriterionValues.forEach((value) => assertCriterionUsesOptions(value, answerType, options));
   const defaultCriterion = raw.defaultCriterion === undefined
     ? undefined
-    : normalizeCriterionValue(raw.defaultCriterion, answerType);
+    : validatePrerequisiteCriterion(answerType, comparisonOperator, raw.defaultCriterion, options);
   if (defaultCriterion !== undefined) assertCriterionUsesOptions(defaultCriterion, answerType, options);
   if (criterionMode === 'fixed' && defaultCriterion === undefined) {
     throw new SevenoPrerequisiteError('criterion_required', 400, 'Un critere fixe doit definir sa valeur attendue.');
@@ -614,7 +688,9 @@ export function validatePrerequisiteInput(raw: unknown, forcedCode?: string): Pr
     ...(ownerCompanyId ? { ownerCompanyId } : {}),
     ...(originOfferId ? { originOfferId } : {}),
     ...(libraryScopeValue ? { libraryScope: libraryScopeValue as PrerequisiteLibraryScope } : {}),
+    ...(suggestedToSeveno ? { suggestedToSeveno: true } : {}),
     category,
+    ...resolvedFamily,
     companyLabel,
     ...(companyDescription ? { companyDescription } : {}),
     candidateQuestion,
@@ -695,9 +771,9 @@ function normalizeCompanyPrerequisiteLabel(value: string) {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function buildCompanyPrerequisiteCode(companyUid: string, offerId: string, label: string, saveToLibrary: boolean) {
+function buildCompanyPrerequisiteCode(companyUid: string, offerId: string, label: string) {
   const slug = normalizeSearchText(label).replace(/\s+/g, '-').slice(0, 40) || 'prerequis';
-  const scope = saveToLibrary ? 'library' : `offer-${offerId.slice(0, 8)}`;
+  const scope = `offer-${offerId.slice(0, 8)}`;
   const unique = randomUUID().replace(/-/g, '').slice(0, 12);
   const companyFragment = createHash('sha1').update(companyUid).digest('hex').slice(0, 6);
   return `company-${scope}-${slug}-${companyFragment}-${unique}`.slice(0, 100);
@@ -737,6 +813,7 @@ export async function createPrerequisite(
     ...(metadata.ownerCompanyId ? { ownerCompanyId: metadata.ownerCompanyId } : {}),
     ...(metadata.originOfferId ? { originOfferId: metadata.originOfferId } : {}),
     ...(metadata.libraryScope ? { libraryScope: metadata.libraryScope } : {}),
+    ...(input.suggestedToSeveno ? { suggestedToSeveno: true } : {}),
   };
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -756,7 +833,8 @@ export async function createCompanyPrerequisite(
   if (raw.offerId !== offer.id) {
     throw new SevenoPrerequisiteError('offer_mismatch', 400, 'L offre selectionnee est invalide.');
   }
-  const label = normalizeCompanyPrerequisiteLabel(raw.label);
+  const label = normalizeCompanyPrerequisiteLabel(raw.companyLabel);
+  const candidateQuestion = normalizeCompanyPrerequisiteLabel(raw.candidateQuestion);
   const candidateHelp = typeof raw.candidateHelp === 'string' ? raw.candidateHelp.trim().replace(/\s+/g, ' ') : '';
   const normalizedLabel = normalizeSearchText(label);
   if (normalizedLabel.length < 2) {
@@ -771,6 +849,9 @@ export async function createCompanyPrerequisite(
   if (!offer.jobRoleId) {
     throw new SevenoPrerequisiteError('job_role_required', 400, 'Selectionnez un metier precis avant de creer un prerequis.');
   }
+  if (!candidateQuestion || candidateQuestion.length > 500) {
+    throw new SevenoPrerequisiteError('invalid_candidate_question', 400, 'La question présentée au candidat est invalide.');
+  }
   if (offer.companyUid !== actorUid) {
     throw new SevenoPrerequisiteError('forbidden_prerequisite', 403, 'Ce prerequis ne vous appartient pas.');
   }
@@ -784,7 +865,7 @@ export async function createCompanyPrerequisite(
     throw new SevenoPrerequisiteError('duplicate_prerequisite', 409, 'Ce prerequis est deja disponible pour cette offre.');
   }
 
-  const code = buildCompanyPrerequisiteCode(actorUid, offer.id, label, raw.saveToLibrary);
+  const code = buildCompanyPrerequisiteCode(actorUid, offer.id, label);
   const applicability: PrerequisiteApplicability = {
     global: false,
     sectorIds: [offer.sectorId],
@@ -796,25 +877,29 @@ export async function createCompanyPrerequisite(
   };
   const definitionInput: PrerequisiteDefinitionInput = {
     code,
+    prerequisiteFamily: raw.prerequisiteFamily,
+    ...(raw.offerRequirementCategory ? { offerRequirementCategory: raw.offerRequirementCategory } : {}),
     category: 'other_professional',
     companyLabel: label,
-    candidateQuestion: `Le candidat satisfait-il ce prerequis : ${label} ?`,
+    candidateQuestion,
     ...(candidateHelp ? { candidateHelp } : {}),
-    answerType: 'boolean',
-    options: [],
+    answerType: raw.answerType,
+    options: raw.options,
     criterionMode: 'fixed',
-    defaultCriterion: true,
+    defaultCriterion: raw.expectedCriterion,
     allowedCriterionValues: [],
-    comparisonOperator: 'equals',
+    comparisonOperator: raw.comparisonOperator,
     responseScope: 'profile_reusable',
     evidencePolicy: 'none',
     applicability,
     status: 'active',
+    ...(raw.saveToLibrary ? { suggestedToSeveno: true } : {}),
   };
   const created = await createPrerequisite(actorUid, definitionInput, {
     source: 'company',
     ownerCompanyId: actorUid,
-    ...(raw.saveToLibrary ? { libraryScope: 'library' as const } : { originOfferId: offer.id, libraryScope: 'offer' as const }),
+    originOfferId: offer.id,
+    libraryScope: 'offer',
   });
   return toPickerProjection(created, { currentKeys: new Set(buildJobApplicabilityKeys(offer.jobRoleId)) });
 }
@@ -990,8 +1075,12 @@ export async function listApplicablePrerequisites(
 }
 
 function validateExpectedCriterion(definition: SerializedPrerequisiteDefinition, value: unknown) {
-  const criterion = normalizeCriterionValue(value, definition.answerType);
-  assertCriterionUsesOptions(criterion, definition.answerType, definition.options);
+  const criterion = validatePrerequisiteCriterion(
+    definition.answerType,
+    definition.comparisonOperator,
+    value,
+    definition.options,
+  );
   if (
     definition.criterionMode === 'fixed'
     && criterionKey(criterion) !== criterionKey(definition.defaultCriterion as PrerequisiteCriterionValue)
@@ -1014,6 +1103,15 @@ export function createOfferPrerequisiteSnapshot(
   if (selection.importance !== 'required' && selection.importance !== 'preferred') {
     throw new SevenoPrerequisiteError('invalid_importance', 400, 'L importance est invalide.');
   }
+  const family = resolvePrerequisiteFamily({
+    prerequisiteFamily: definition.prerequisiteFamily,
+    offerRequirementCategory: definition.offerRequirementCategory,
+    category: definition.category,
+    companyLabel: definition.companyLabel,
+    candidateQuestion: definition.candidateQuestion,
+    prerequisiteCode: definition.code,
+  });
+  validatePrerequisiteFamily(family);
   return {
     prerequisiteId: definition.id,
     prerequisiteCode: definition.code,
@@ -1021,7 +1119,9 @@ export function createOfferPrerequisiteSnapshot(
     source: definition.source ?? 'seveno',
     ...(definition.ownerCompanyId ? { ownerCompanyId: definition.ownerCompanyId } : {}),
     ...(definition.originOfferId ? { originOfferId: definition.originOfferId } : {}),
+    ...(definition.suggestedToSeveno ? { suggestedToSeveno: true } : {}),
     category: definition.category,
+    ...family,
     companyLabel: definition.companyLabel,
     candidateQuestion: definition.candidateQuestion,
     ...(definition.candidateHelp ? { candidateHelp: definition.candidateHelp } : {}),
@@ -1047,14 +1147,21 @@ export function assertUniqueOfferPrerequisiteSelections(selections: OfferPrerequ
   }
 }
 
-function countOfferPrerequisites(snapshots: Array<{ importance: OfferPrerequisiteSnapshot['importance'] }>) {
-  const required = snapshots.filter((item) => item.importance === 'required').length;
-  const preferred = snapshots.length - required;
-  return {
-    required,
-    preferred,
-    total: snapshots.length,
-  };
+export function assertOfferPrerequisiteLimits(selections: OfferPrerequisiteSelectionInput[]) {
+  const groups = classifyOfferPrerequisites(selections as OfferPrerequisiteSnapshot[]);
+  const invalid = [
+    ['job_skill', 'required', groups.requiredJobSkills.length, SEVENO_OFFER_PREREQUISITE_LIMITS.job_skill.required],
+    ['job_skill', 'preferred', groups.preferredJobSkills.length, SEVENO_OFFER_PREREQUISITE_LIMITS.job_skill.preferred],
+    ['offer_requirement', 'required', groups.requiredOfferRequirements.length, SEVENO_OFFER_PREREQUISITE_LIMITS.offer_requirement.required],
+    ['offer_requirement', 'preferred', groups.preferredOfferRequirements.length, SEVENO_OFFER_PREREQUISITE_LIMITS.offer_requirement.preferred],
+  ].find(([, , count, limit]) => Number(count) > Number(limit));
+  if (invalid) {
+    throw new SevenoPrerequisiteError(
+      'too_many_prerequisites',
+      400,
+      `Limite dépassée pour prerequisiteFamily=${invalid[0]}, importance=${invalid[1]} : ${invalid[2]} ${Number(invalid[2]) > 1 ? 'reçus' : 'reçu'}, ${invalid[3]} ${Number(invalid[3]) > 1 ? 'autorisés' : 'autorisé'}.`,
+    );
+  }
 }
 
 function arePrerequisiteSelectionsUnchanged(
@@ -1078,27 +1185,11 @@ export async function buildOfferPrerequisiteSnapshots(
   existingSnapshots: OfferPrerequisiteSnapshot[] = [],
   options: { offerId?: string } = {},
 ) {
-  if (selections.length > 100) {
-    throw new SevenoPrerequisiteError('too_many_prerequisites', 400, 'Une offre est limitee a 100 prerequis.');
-  }
   assertUniqueOfferPrerequisiteSelections(selections);
   if (selections.length === 0) return [];
 
   if (arePrerequisiteSelectionsUnchanged(selections, existingSnapshots)) {
     return existingSnapshots;
-  }
-
-  const counts = countOfferPrerequisites(selections);
-  if (
-    counts.required > SEVENO_OFFER_PREREQUISITE_LIMITS.required
-    || counts.preferred > SEVENO_OFFER_PREREQUISITE_LIMITS.preferred
-    || counts.total > SEVENO_OFFER_PREREQUISITE_LIMITS.total
-  ) {
-    throw new SevenoPrerequisiteError(
-      'too_many_prerequisites',
-      400,
-      `Une offre est limitee a ${SEVENO_OFFER_PREREQUISITE_LIMITS.required} prerequis obligatoires, ${SEVENO_OFFER_PREREQUISITE_LIMITS.preferred} en valeur ajoutee et ${SEVENO_OFFER_PREREQUISITE_LIMITS.total} au total.`,
-    );
   }
 
   const existingById = new Map(existingSnapshots.map((snapshot) => [snapshot.prerequisiteId, snapshot]));
@@ -1117,7 +1208,7 @@ export async function buildOfferPrerequisiteSnapshots(
       .map((document) => [document.id, serializeDocument(document.id, document.data() as FirestoreRecord)]),
   );
 
-  return selections.map((selection) => {
+  const snapshots = selections.map((selection) => {
     const existing = existingById.get(selection.prerequisiteId);
     if (
       existing
@@ -1153,6 +1244,8 @@ export async function buildOfferPrerequisiteSnapshots(
     }
     return createOfferPrerequisiteSnapshot(definition, selection);
   });
+  assertOfferPrerequisiteLimits(snapshots);
+  return snapshots;
 }
 
 export async function importPrerequisites(actorUid: string, raw: unknown): Promise<PrerequisiteImportReport> {

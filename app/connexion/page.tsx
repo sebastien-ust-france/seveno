@@ -139,13 +139,13 @@ function getGoogleSignInUserMessage(error: unknown, stage: GoogleSignInStage) {
     case 'auth/popup-blocked':
       return 'Chrome a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour Seven’O.';
     case 'auth/unauthorized-domain':
-      return 'Ce domaine n est pas autorisé pour la connexion Google.';
+      return 'Ce domaine n’est pas autorisé pour la connexion Google.';
     case 'auth/network-request-failed':
       return 'La connexion à Google a échoué. Vérifiez votre connexion Internet.';
     case 'auth/invalid-api-key':
       return 'La configuration Firebase locale est invalide.';
     case 'auth/operation-not-allowed':
-      return 'La connexion Google n est pas activée dans Firebase.';
+      return 'La connexion Google n’est pas activée dans Firebase.';
     default:
       break;
   }

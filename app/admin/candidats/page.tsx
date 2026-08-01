@@ -158,7 +158,7 @@ export default function AdminCandidatesPage() {
     <SevenoSurface
       eyebrow="Administration Seven’O"
       title="Candidats"
-      description="Les profils ici sont anonymises. Aucune identite privee ne doit etre visible dans cette liste."
+      description="Les profils ici sont anonymisés. Aucune identité privée ne doit être visible dans cette liste."
       actions={
         <button
           type="button"

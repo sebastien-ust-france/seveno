@@ -58,7 +58,7 @@ function AnswerField({ snapshot, state, disabled, onChange }: {
       {snapshot.answerType === 'number' ? <input type="number" disabled={disabled} value={typeof state.answerValue === 'number' ? state.answerValue : ''} onChange={(event) => setValue(event.target.value === '' ? null : Number(event.target.value))} className={FIELD} /> : null}
       {snapshot.answerType === 'date' ? <input type="date" disabled={disabled} value={typeof state.answerValue === 'string' ? state.answerValue : ''} onChange={(event) => setValue(event.target.value || null)} className={FIELD} /> : null}
     </div>
-    {state.answerValue !== null ? <label className="mt-3 flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" disabled={disabled} checked={state.confirmed} onChange={(event) => onChange({ ...state, confirmed: event.target.checked })} className="accent-cyan-400" />Je confirme que cette reponse est exacte.</label> : null}
+    {state.answerValue !== null ? <label className="mt-3 flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" disabled={disabled} checked={state.confirmed} onChange={(event) => onChange({ ...state, confirmed: event.target.checked })} className="accent-cyan-400" />Je confirme que cette réponse est exacte.</label> : null}
     <p className="mt-3 text-xs text-slate-500">Critere {answerLabel(snapshot)} defini par l offre.</p>
   </div>;
 }
@@ -121,7 +121,7 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
     try {
       const payload = await beginApplicationClient(authUser, offerId);
       await loadApplication(payload.application.id);
-      setMessage('Candidature enregistree en brouillon. Repondez aux prerequis a votre rythme.');
+      setMessage('Candidature enregistrée en brouillon. Répondez aux prérequis à votre rythme.');
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'La candidature n a pas pu etre commencee.');
     } finally {
@@ -145,7 +145,7 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
       await loadApplication(application.id);
       setMessage('Réponses enregistrées et compatibilité recalculée.');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Les reponses n ont pas pu etre enregistrees.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Les réponses n’ont pas pu être enregistrées.');
     } finally {
       setSaving(false);
     }
@@ -158,7 +158,7 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
     try {
       await submitApplicationClient(authUser, application.id);
       await loadApplication(application.id);
-      setMessage('Votre candidature a ete envoyee. Votre identite privee reste masquee.');
+      setMessage('Votre candidature a été envoyée. Votre identité privée reste masquée.');
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'La candidature n a pas pu etre envoyee.');
     } finally {
@@ -167,14 +167,14 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
   }
 
   async function withdraw() {
-    if (!authUser || !application || !window.confirm('Retirer cette candidature sans supprimer ses donnees ?')) return;
+    if (!authUser || !application || !window.confirm('Retirer cette candidature sans supprimer ses données ?')) return;
     setSaving(true);
     try {
       await withdrawApplicationClient(authUser, application.id);
       await loadApplication(application.id);
       setMessage('Votre candidature a ete retiree.');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le retrait a echoue.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le retrait a échoué.');
     } finally {
       setSaving(false);
     }
@@ -182,7 +182,7 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
 
   const locked = application?.status === 'submitted' || application?.status === 'withdrawn';
   const preferred = application?.preferredResult;
-  return <SevenoSurface eyebrow="Espace candidat" title={offer?.title ?? 'Detail de l offre'} description="Consultez les conditions publiees et repondez aux prerequis professionnels." actions={<Link href="/candidat/offres" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Retour aux offres</Link>} containerClassName="max-w-[86.4rem]">
+  return <SevenoSurface eyebrow="Espace candidat" title={offer?.title ?? 'Détail de l’offre'} description="Consultez les conditions publiées et répondez aux prérequis professionnels." actions={<Link href="/candidat/offres" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Retour aux offres</Link>} containerClassName="max-w-[86.4rem]">
     <div className="space-y-6">
       <Breadcrumbs
         items={[
@@ -197,12 +197,12 @@ export default function CandidateOfferDetail({ offerId }: { offerId: string }) {
       {offer ? <>
         <SevenoPanel tone="cyan"><p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">{offer.companyName}</p><h2 className="mt-2 text-2xl font-semibold text-white">{offer.title}</h2><p className="mt-3 text-slate-300">{offer.jobRoleLabel}</p><div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-400"><span>{offer.location || offer.workMode}</span><span>{offer.contractType}</span><span>{offer.workingTime}</span><span>{offer.workMode}</span></div></SevenoPanel>
         <div className="grid gap-5 lg:grid-cols-3"><SevenoPanel tone="neutral"><h3 className="font-semibold text-white">Description</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">{offer.description}</p></SevenoPanel><SevenoPanel tone="neutral"><h3 className="font-semibold text-white">Missions</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">{offer.missions}</p></SevenoPanel><SevenoPanel tone="neutral"><h3 className="font-semibold text-white">Profil recherche</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-300">{offer.profileSummary}</p></SevenoPanel></div>
-        {!application ? <SevenoPanel tone="violet"><h2 className="text-xl font-semibold text-white">Candidater a cette offre</h2><p className="mt-3 text-sm leading-7 text-slate-300">Vos reponses restent modifiables tant que la candidature n est pas soumise. Aucune information n est envoyee a l entreprise avant la soumission.</p><button type="button" disabled={saving} onClick={() => void begin()} className="mt-5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Commencer ma candidature</button></SevenoPanel> : <>
+        {!application ? <SevenoPanel tone="violet"><h2 className="text-xl font-semibold text-white">Candidater à cette offre</h2><p className="mt-3 text-sm leading-7 text-slate-300">Vos réponses restent modifiables tant que la candidature n’est pas soumise. Aucune information n’est envoyée à l’entreprise avant la soumission.</p><button type="button" disabled={saving} onClick={() => void begin()} className="mt-5 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Commencer ma candidature</button></SevenoPanel> : <>
           <SevenoPanel tone="neutral"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-white">Réponses aux prérequis</h2><p className="mt-2 text-sm text-slate-400">Statut : {application.status}</p></div><div className="text-right text-sm"><p className="text-orange-100">Obligatoires : {application.requiredResult.satisfied}/{application.requiredResult.total}</p><p className="mt-1 text-violet-100">Valeurs ajoutées : {preferred?.satisfied ?? 0}/{preferred?.total ?? 0} ({preferred?.compatibilityRate ?? 0}%)</p></div></div></SevenoPanel>
           <section><h2 className="text-xl font-semibold text-orange-100">Prérequis obligatoires</h2><p className="mt-2 text-sm text-slate-300">Les prérequis obligatoires sont indispensables pour déposer votre candidature.</p><div className="mt-4 space-y-4">{offer.requiredPrerequisites.map((snapshot) => <AnswerField key={snapshot.prerequisiteCode} snapshot={snapshot} disabled={locked} state={answers[snapshot.prerequisiteCode] ?? { answerValue: null, confirmed: false, source: 'application' }} onChange={(state) => setAnswers((current) => ({ ...current, [snapshot.prerequisiteCode]: state }))} />)}</div></section>
           <section><h2 className="text-xl font-semibold text-violet-100">Prérequis optionnels - valeur ajoutée</h2><p className="mt-2 text-sm text-slate-300">Les éléments optionnels valorisent votre candidature mais ne sont pas éliminatoires.</p><div className="mt-4 space-y-4">{offer.preferredPrerequisites.map((snapshot) => <AnswerField key={snapshot.prerequisiteCode} snapshot={snapshot} disabled={locked} state={answers[snapshot.prerequisiteCode] ?? { answerValue: null, confirmed: false, source: 'application' }} onChange={(state) => setAnswers((current) => ({ ...current, [snapshot.prerequisiteCode]: state }))} />)}</div></section>
-          {application.status === 'ineligible' ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Cette offre comporte un prerequis obligatoire que vous ne remplissez pas actuellement. Vous pouvez corriger vos reponses avant soumission.</p></SevenoPanel> : null}
-          <div className="flex flex-wrap gap-3">{!locked ? <button type="button" disabled={saving} onClick={() => void saveAnswers()} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-50">{saving ? 'Enregistrement...' : 'Enregistrer mes reponses'}</button> : null}{application.status === 'eligible' ? <button type="button" disabled={saving} onClick={() => void submit()} className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Envoyer ma candidature</button> : null}{application.status === 'submitted' ? <button type="button" disabled={saving} onClick={() => void withdraw()} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 disabled:opacity-50">Retirer ma candidature</button> : null}</div>
+          {application.status === 'ineligible' ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Cette offre comporte un prérequis obligatoire que vous ne remplissez pas actuellement. Vous pouvez corriger vos réponses avant soumission.</p></SevenoPanel> : null}
+          <div className="flex flex-wrap gap-3">{!locked ? <button type="button" disabled={saving} onClick={() => void saveAnswers()} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-50">{saving ? 'Enregistrement…' : 'Enregistrer mes réponses'}</button> : null}{application.status === 'eligible' ? <button type="button" disabled={saving} onClick={() => void submit()} className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Envoyer ma candidature</button> : null}{application.status === 'submitted' ? <button type="button" disabled={saving} onClick={() => void withdraw()} className="rounded-full border border-rose-300/20 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 disabled:opacity-50">Retirer ma candidature</button> : null}</div>
         </>}
       </> : null}
     </div>

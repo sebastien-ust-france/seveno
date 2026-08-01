@@ -26,6 +26,32 @@ function formatDateTime(value: string | null | undefined) {
   }).format(date);
 }
 
+function hasProfessionalAssessmentScores(result: AdminTestResultSummary) {
+  return Boolean(result.professionalAssessmentVersionId && result.scoresByDimension && Object.keys(result.scoresByDimension).length > 0);
+}
+
+function formatTestResultScore(result: AdminTestResultSummary) {
+  if (result.professionalAssessmentVersionId) {
+    if (!hasProfessionalAssessmentScores(result)) {
+      return 'Non calculé';
+    }
+
+    return typeof result.overallScore === 'number'
+      ? `${Math.round(result.overallScore)}%`
+      : `${Math.round(result.score)}%`;
+  }
+
+  return `${result.score}%`;
+}
+
+function formatTestResultStatus(result: AdminTestResultSummary) {
+  if (result.professionalAssessmentVersionId) {
+    return hasProfessionalAssessmentScores(result) ? 'Terminé' : 'Non calculé';
+  }
+
+  return result.passed ? 'Réussi' : 'Échoué';
+}
+
 export default function AdminTestsPage() {
   const [sessions, setSessions] = useState<AdminTestSessionSummary[]>([]);
   const [results, setResults] = useState<AdminTestResultSummary[]>([]);
@@ -121,15 +147,15 @@ export default function AdminTestsPage() {
                         <div>
                           <p className="text-sm font-medium text-white">{result.publicCandidateId}</p>
                           <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-400">
-                            {result.passed ? 'Reussi' : 'Echoue'}
+                            {formatTestResultStatus(result)}
                           </p>
                         </div>
                         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                          {result.score}%
+                          {formatTestResultScore(result)}
                         </span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-slate-300">
-                        {result.questionBankCode} - {result.totalQuestions} question(s) - {result.correctAnswers} juste(s)
+                        {result.questionBankCode} – {result.totalQuestions} {result.totalQuestions > 1 ? 'questions' : 'question'} – {result.correctAnswers} {result.correctAnswers > 1 ? 'justes' : 'juste'}
                       </p>
                       <p className="mt-2 text-xs text-slate-500">Verifie {formatDateTime(result.verifiedAt)}</p>
                     </article>

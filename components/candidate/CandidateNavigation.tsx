@@ -13,17 +13,17 @@ const NAV_ITEMS: CandidateNavigationItem[] = [
   {
     href: '/candidat',
     label: 'Tableau de bord',
-    hint: 'Vue generale',
+    hint: 'Vue générale',
   },
   {
     href: '/candidat/onboarding',
     label: 'Mon profil',
-    hint: 'Profil metier',
+    hint: 'Profil métier',
   },
   {
     href: '/candidat/identite',
-    label: 'Mon identite',
-    hint: 'Coordonnees privees',
+    label: 'Mon identité',
+    hint: 'Coordonnées privées',
   },
   {
     href: '/candidat/recommandations',

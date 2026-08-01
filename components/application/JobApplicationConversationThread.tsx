@@ -92,7 +92,7 @@ export function JobApplicationConversationThread({
         }
       } catch (thrownError) {
         if (active) {
-          setError(thrownError instanceof Error ? thrownError.message : 'La conversation n a pas pu etre chargee.');
+          setError(thrownError instanceof Error ? thrownError.message : 'La conversation n’a pas pu être chargée.');
         }
       } finally {
         if (active) {
@@ -113,7 +113,9 @@ export function JobApplicationConversationThread({
       return 'Conversation fermée';
     }
 
-    return conversationMessages.length > 0 ? `${conversationMessages.length} message(s)` : 'Aucun message';
+    return conversationMessages.length > 0
+      ? `${conversationMessages.length} ${conversationMessages.length > 1 ? 'messages' : 'message'}`
+      : 'Aucun message';
   }, [conversationMessages.length, isOpen]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
@@ -131,7 +133,7 @@ export function JobApplicationConversationThread({
       onApplicationChange?.(payload.application);
       setDraft('');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le message n a pas pu etre envoye.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le message n’a pas pu être envoyé.');
     } finally {
       setSending(false);
     }
@@ -221,7 +223,7 @@ export function JobApplicationConversationThread({
               {sending ? 'Envoi...' : 'Envoyer'}
             </button>
             <p className="text-sm text-slate-400">
-              Les coordonnées restent masquées tant que la mise en relation n a pas été acceptée.
+              Les coordonnées restent masquées tant que la mise en relation n’a pas été acceptée.
             </p>
           </div>
         </form>

@@ -12,6 +12,7 @@ import {
   PREREQUISITE_CATEGORIES,
   SEVENO_OFFER_PREREQUISITE_LIMITS,
 } from '@/lib/seveno-prerequisite-constants';
+import { resolvePrerequisiteFamily } from '@/lib/seveno-prerequisite-families';
 import {
   createCompanyPrerequisiteClient,
   changeCompanyJobOfferStatus,
@@ -41,6 +42,8 @@ import type {
   PrerequisiteImportance,
   PrerequisiteCategory,
   CompanyPrerequisiteCreationInput,
+  PrerequisiteFamily,
+  OfferRequirementCategory,
 } from '@/types/seveno-prerequisites';
 
 const FIELD = 'w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50';
@@ -61,7 +64,7 @@ const EMPTY_INPUT: JobOfferInput = {
   requiredPrerequisites: [],
   preferredPrerequisites: [],
 };
-const STEPS = ['Poste', 'Conditions', 'Prerequis', 'Questionnaire entreprise', 'Presentation', 'Verification'];
+const STEPS = ['Poste', 'Conditions', 'Prérequis', 'Questionnaire entreprise', 'Présentation', 'Vérification'];
 const QUESTIONNAIRE_STATUS_LABELS: Record<CompanyQuestionnaireStatus, string> = {
   draft: 'Brouillon',
   active: 'Actif',
@@ -75,7 +78,7 @@ function criterionKey(value: PrerequisiteCriterionValue) {
 function criterionLabel(definition: CompanyPrerequisiteDefinition | undefined, value: PrerequisiteCriterionValue) {
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (Array.isArray(value)) {
-    return value.map((item) => definition?.options.find((option) => option.value === item)?.candidateLabel ?? item).join(', ');
+    return value.map((item) => definition?.options.find((option) => option.value === item)?.candidateLabel ?? item).join(' ou ');
   }
   if (typeof value === 'string') {
     return definition?.options.find((option) => option.value === value)?.candidateLabel ?? value;
@@ -83,34 +86,44 @@ function criterionLabel(definition: CompanyPrerequisiteDefinition | undefined, v
   return String(value);
 }
 
+function prerequisiteAnswerTypeLabel(definition: CompanyPrerequisiteDefinition | undefined) {
+  if (!definition) return 'Type conservé dans le snapshot';
+  if (definition.answerType === 'boolean') return 'Oui / non';
+  if (definition.answerType === 'single_choice') return 'Choix unique';
+  if (definition.answerType === 'multiple_choice') return 'Choix multiple';
+  if (definition.answerType === 'number') return 'Nombre';
+  if (definition.answerType === 'level') return 'Niveau ordonné';
+  return 'Date';
+}
+
 function initialCriterion(definition: CompanyPrerequisiteDefinition) {
   if (definition.criterionMode === 'fixed' && definition.defaultCriterion !== undefined) return definition.defaultCriterion;
   const first = definition.allowedCriterionValues[0];
-  if (first === undefined) throw new Error('Ce prerequis ne possede aucune valeur configurable.');
+  if (first === undefined) throw new Error('Ce prérequis ne possède aucune valeur configurable.');
   return first;
 }
 
 function questionnaireLabel(questionnaire: CompanyQuestionnaireListItem) {
   const title = questionnaire.title || 'Questionnaire sans titre';
-  return `${title} - ${QUESTIONNAIRE_STATUS_LABELS[questionnaire.status]} - ${questionnaire.questionCount} question(s)`;
+  return `${title} – ${QUESTIONNAIRE_STATUS_LABELS[questionnaire.status]} – ${questionnaire.questionCount} ${questionnaire.questionCount > 1 ? 'questions' : 'question'}`;
 }
 
 function workModeLabel(value: JobOfferWorkMode | '' | null | undefined) {
   if (value === 'onsite') return 'Sur site';
   if (value === 'hybrid') return 'Hybride';
-  if (value === 'remote') return 'A distance';
-  return 'Non renseignee';
+  if (value === 'remote') return 'À distance';
+  return 'Non renseignée';
 }
 
 function contractTypeLabel(value: JobOfferContractType | '' | null | undefined) {
   if (value === 'permanent') return 'CDI';
   if (value === 'fixed_term') return 'CDD';
-  if (value === 'temporary') return 'Interim';
+  if (value === 'temporary') return 'Intérim';
   if (value === 'freelance') return 'Freelance';
   if (value === 'apprenticeship') return 'Alternance';
   if (value === 'internship') return 'Stage';
   if (value === 'other') return 'Autre';
-  return 'Non renseigne';
+  return 'Non renseigné';
 }
 
 function workingTimeLabel(value: JobOfferWorkingTime | '' | null | undefined) {
@@ -119,7 +132,7 @@ function workingTimeLabel(value: JobOfferWorkingTime | '' | null | undefined) {
   if (value === 'shift') return 'Horaires postes';
   if (value === 'flexible') return 'Flexible';
   if (value === 'other') return 'Autre';
-  return 'Non renseigne';
+  return 'Non renseigné';
 }
 
 function normalizeSearchText(value: string) {
@@ -188,6 +201,8 @@ type SelectionPanelProps = {
   title: string;
   description: string;
   importance: PrerequisiteImportance;
+  family: 'job_skill' | 'offer_requirement';
+  badge: string;
   canMoveToOther: boolean;
   selections: JobOfferPrerequisiteSelectionInput[];
   definitions: CompanyPrerequisiteDefinition[];
@@ -201,6 +216,8 @@ function SelectionPanel({
   title,
   description,
   importance,
+  family,
+  badge,
   canMoveToOther,
   selections,
   definitions,
@@ -213,25 +230,29 @@ function SelectionPanel({
     ? [...savedOffer.requiredPrerequisites, ...savedOffer.preferredPrerequisites]
     : [];
   return (
+    <div data-prerequisite-family={family} className="h-full">
     <SevenoPanel tone={importance === 'required' ? 'orange' : 'violet'} className="h-full">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white">{title}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
+          <span className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-1 text-xs text-cyan-100">{badge}</span>
         </div>
-        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{selections.length}</span>
+        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{selections.length}/{importance === 'required' ? 5 : 3}</span>
       </div>
       <div className="mt-5 space-y-3">
-        {selections.length === 0 ? <p className="text-sm text-slate-500">Aucune selection.</p> : selections.map((selection) => {
+        {selections.length === 0 ? <p className="text-sm text-slate-500">Aucune sélection.</p> : selections.map((selection) => {
           const definition = definitions.find((item) => prerequisiteIdentity(item) === selection.prerequisiteId);
           const saved = savedSnapshots.find((item) => item.prerequisiteId === selection.prerequisiteId);
           const label = definition?.companyLabel ?? saved?.companyLabel ?? selection.prerequisiteId;
           return (
             <div key={selection.prerequisiteId} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <p className="font-medium text-white">{label}</p>
+              {definition ? <p className="mt-2 text-sm text-slate-300">Question : {definition.candidateQuestion}</p> : null}
+              <p className="mt-2 text-xs text-slate-400">Type : {prerequisiteAnswerTypeLabel(definition)}</p>
               {definition?.criterionMode === 'configurable' ? (
                 <label className="mt-3 block space-y-2 text-xs text-slate-300">
-                  Critere attendu
+                  Critère attendu
                   <Select
                     value={criterionKey(selection.expectedCriterion)}
                     onChange={(event) => onCriterion(selection.prerequisiteId, importance, JSON.parse(event.target.value) as PrerequisiteCriterionValue)}
@@ -242,7 +263,9 @@ function SelectionPanel({
                   </Select>
                 </label>
               ) : (
-                <p className="mt-2 text-xs text-slate-400">Critere Seven&apos;O : {criterionLabel(definition, selection.expectedCriterion)}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {definition?.comparisonOperator === 'one_of' ? 'Réponses acceptées' : 'Critère Seven’O'} : {criterionLabel(definition, selection.expectedCriterion)}
+                </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -252,16 +275,17 @@ function SelectionPanel({
                   title={canMoveToOther ? undefined : 'La liste de destination a atteint sa limite.'}
                   className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
                 >
-                  Deplacer vers {importance === 'required' ? 'valeur ajoutee' : 'obligatoire'}
+                  Déplacer vers {importance === 'required' ? 'valeur ajoutée' : 'obligatoire'}
                 </button>
                 <button type="button" onClick={() => onRemove(selection.prerequisiteId)} className="rounded-full border border-rose-300/15 px-3 py-1.5 text-xs text-rose-200">Retirer</button>
               </div>
-              {!definition && saved ? <p className="mt-2 text-xs text-amber-200">Definition archivee : snapshot conserve sans modification.</p> : null}
+              {!definition && saved ? <p className="mt-2 text-xs text-amber-200">Définition archivée : snapshot conservé sans modification.</p> : null}
             </div>
           );
         })}
       </div>
     </SevenoPanel>
+    </div>
   );
 }
 
@@ -286,8 +310,15 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
   const [newPrerequisiteOpen, setNewPrerequisiteOpen] = useState(false);
   const [newPrerequisiteSaving, setNewPrerequisiteSaving] = useState(false);
   const [newPrerequisiteName, setNewPrerequisiteName] = useState('');
-  const [newPrerequisiteRequirement, setNewPrerequisiteRequirement] = useState('');
+  const [newPrerequisiteQuestion, setNewPrerequisiteQuestion] = useState('');
+  const [newPrerequisiteHelp, setNewPrerequisiteHelp] = useState('');
+  const [newPrerequisiteAnswerType, setNewPrerequisiteAnswerType] = useState<CompanyPrerequisiteCreationInput['answerType']>('boolean');
+  const [newPrerequisiteOptions, setNewPrerequisiteOptions] = useState('');
+  const [newPrerequisiteAcceptedValues, setNewPrerequisiteAcceptedValues] = useState('');
+  const [newPrerequisiteBooleanExpected, setNewPrerequisiteBooleanExpected] = useState(true);
   const [newPrerequisiteImportance, setNewPrerequisiteImportance] = useState<PrerequisiteImportance>('required');
+  const [newPrerequisiteFamily, setNewPrerequisiteFamily] = useState<PrerequisiteFamily>('job_skill');
+  const [newOfferRequirementCategory, setNewOfferRequirementCategory] = useState<OfferRequirementCategory>('other');
   const [newPrerequisiteSaveToLibrary, setNewPrerequisiteSaveToLibrary] = useState(false);
 
   const selectedSector = JOB_SECTORS.find((item) => item.code === input.sectorId);
@@ -317,24 +348,35 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
   const questionnaireSummary = selectedQuestionnaire
     ? questionnaireLabel(selectedQuestionnaire)
     : input.questionnaireId || savedOffer?.questionnaireId
-    ? `${savedOffer?.questionnaireTitleSnapshot || 'Questionnaire sans titre'} - version ${savedOffer?.questionnaireVersion ?? 'n/a'} - ${savedOffer?.questionnaireQuestionCountSnapshot ?? 0} question(s)`
-    : 'Aucun questionnaire associe';
-  const verificationTitle = input.title || savedOffer?.title || 'Non renseigne';
-  const verificationLocation = input.location || savedOffer?.location || 'Non renseignee';
+    ? `${savedOffer?.questionnaireTitleSnapshot || 'Questionnaire sans titre'} – version ${savedOffer?.questionnaireVersion ?? 'n/a'} – ${savedOffer?.questionnaireQuestionCountSnapshot ?? 0} ${(savedOffer?.questionnaireQuestionCountSnapshot ?? 0) > 1 ? 'questions' : 'question'}`
+    : 'Aucun questionnaire associé';
+  const verificationTitle = input.title || savedOffer?.title || 'Non renseigné';
+  const verificationLocation = input.location || savedOffer?.location || 'Non renseignée';
   const verificationWorkMode = input.workMode || savedOffer?.workMode || '';
   const verificationContractType = input.contractType || savedOffer?.contractType || '';
   const verificationWorkingTime = input.workingTime || savedOffer?.workingTime || '';
-  const verificationDescription = input.description || savedOffer?.description || 'Non renseignee';
-  const verificationMissions = input.missions || savedOffer?.missions || 'Non renseignees';
-  const verificationProfileSummary = input.profileSummary || savedOffer?.profileSummary || 'Non renseigne';
-  const requiredCount = input.requiredPrerequisites.length;
-  const preferredCount = input.preferredPrerequisites.length;
-  const totalCount = requiredCount + preferredCount;
-  const canAddRequired = requiredCount < SEVENO_OFFER_PREREQUISITE_LIMITS.required && totalCount < SEVENO_OFFER_PREREQUISITE_LIMITS.total;
-  const canAddPreferred = preferredCount < SEVENO_OFFER_PREREQUISITE_LIMITS.preferred && totalCount < SEVENO_OFFER_PREREQUISITE_LIMITS.total;
-  const hasLimitWarning = requiredCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.required
-    || preferredCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.preferred
-    || totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total;
+  const verificationDescription = input.description || savedOffer?.description || 'Non renseignée';
+  const verificationMissions = input.missions || savedOffer?.missions || 'Non renseignées';
+  const verificationProfileSummary = input.profileSummary || savedOffer?.profileSummary || 'Non renseigné';
+  const canAddRequired = true;
+  const canAddPreferred = true;
+  const selectionFamily = (selection: JobOfferPrerequisiteSelectionInput) => {
+    const definition = definitionCache.find((item) => prerequisiteIdentity(item) === selection.prerequisiteId);
+    const snapshot = [...(savedOffer?.requiredPrerequisites ?? []), ...(savedOffer?.preferredPrerequisites ?? [])]
+      .find((item) => item.prerequisiteId === selection.prerequisiteId);
+    return resolvePrerequisiteFamily(snapshot ?? {
+      prerequisiteFamily: definition?.prerequisiteFamily,
+      offerRequirementCategory: definition?.offerRequirementCategory,
+      category: definition?.category,
+      companyLabel: definition?.companyLabel,
+      candidateQuestion: definition?.candidateQuestion,
+      prerequisiteCode: definition?.code,
+    }).prerequisiteFamily;
+  };
+  const requiredJobSkills = input.requiredPrerequisites.filter((item) => selectionFamily(item) === 'job_skill');
+  const preferredJobSkills = input.preferredPrerequisites.filter((item) => selectionFamily(item) === 'job_skill');
+  const requiredOfferRequirements = input.requiredPrerequisites.filter((item) => selectionFamily(item) === 'offer_requirement');
+  const preferredOfferRequirements = input.preferredPrerequisites.filter((item) => selectionFamily(item) === 'offer_requirement');
 
   useEffect(() => {
     if (!authUser) {
@@ -350,7 +392,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         const payload = await listCompanyQuestionnairesClient(user);
         if (active) setQuestionnaires(payload.questionnaires);
       } catch (thrownError) {
-        if (active) setError(thrownError instanceof Error ? thrownError.message : 'Les questionnaires n ont pas pu etre charges.');
+        if (active) setError(thrownError instanceof Error ? thrownError.message : 'Les questionnaires n’ont pas pu être chargés.');
       } finally {
         if (active) setQuestionnairesLoading(false);
       }
@@ -373,7 +415,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         setCurrentOfferId(payload.offer.id);
         setInput(serializedJobOfferToInput(payload.offer));
       } catch (thrownError) {
-        if (active) setError(thrownError instanceof Error ? thrownError.message : 'L offre n a pas pu etre chargee.');
+        if (active) setError(thrownError instanceof Error ? thrownError.message : 'L’offre n’a pas pu être chargée.');
       } finally {
         if (active) setLoading(false);
       }
@@ -407,7 +449,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           setVisibleDefinitions(normalizedPrerequisites);
         } catch (thrownError) {
           if (active) {
-            setPrerequisiteError(thrownError instanceof Error ? thrownError.message : 'Les prerequis n ont pas pu etre charges.');
+            setPrerequisiteError(thrownError instanceof Error ? thrownError.message : 'Les prérequis n’ont pas pu être chargés.');
             setVisibleDefinitions([]);
           }
         } finally {
@@ -469,7 +511,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         return normalizePrerequisiteLabel(label) === normalizedLabel;
       });
       if (duplicate) {
-        setError('Ce prerequis est deja ajoute a cette offre.');
+        setError('Ce prérequis est déjà ajouté à cette offre.');
         return;
       }
 
@@ -493,18 +535,17 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           nextPreferred.push(selection);
         }
 
-        const nextRequiredCount = nextRequired.length;
-        const nextPreferredCount = nextPreferred.length;
-        const nextTotalCount = nextRequiredCount + nextPreferredCount;
-        const isMove = Boolean(existing);
-        if (nextRequiredCount > SEVENO_OFFER_PREREQUISITE_LIMITS.required) {
-          throw new Error('Vous avez atteint la limite de 5 prerequis obligatoires. Retirez un critere ou transformez-en un en valeur ajoutee.');
+        const family = resolvePrerequisiteFamily(definition).prerequisiteFamily;
+        const familyOf = (item: JobOfferPrerequisiteSelectionInput) => item.prerequisiteId === definitionId
+          ? family
+          : selectionFamily(item);
+        const nextRequiredCount = nextRequired.filter((item) => familyOf(item) === family).length;
+        const nextPreferredCount = nextPreferred.filter((item) => familyOf(item) === family).length;
+        if (nextRequiredCount > SEVENO_OFFER_PREREQUISITE_LIMITS[family].required) {
+          throw new Error(`Vous avez atteint la limite de 5 ${family === 'job_skill' ? 'compétences métier indispensables' : 'conditions obligatoires'}.`);
         }
-        if (nextPreferredCount > SEVENO_OFFER_PREREQUISITE_LIMITS.preferred) {
-          throw new Error('Vous avez atteint la limite de 3 prerequis en valeur ajoutee.');
-        }
-        if (!isMove && nextTotalCount > SEVENO_OFFER_PREREQUISITE_LIMITS.total) {
-          throw new Error('Une offre peut contenir au maximum 8 prerequis.');
+        if (nextPreferredCount > SEVENO_OFFER_PREREQUISITE_LIMITS[family].preferred) {
+          throw new Error(`Vous avez atteint la limite de 3 ${family === 'job_skill' ? 'compétences métier complémentaires' : 'conditions souhaitées'}.`);
         }
         return {
           ...current,
@@ -513,7 +554,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         };
       });
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Ce prerequis ne peut pas etre selectionne.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Ce prérequis ne peut pas être sélectionné.');
     }
   }
 
@@ -523,10 +564,6 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
   }
 
   async function openNewPrerequisiteForm() {
-    if (totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total) {
-      setError('Vous avez atteint la limite de 8 prerequis pour cette offre.');
-      return;
-    }
     setError(null);
     if (!currentOfferId) {
       const saved = await saveDraft();
@@ -535,8 +572,39 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       }
     }
     setNewPrerequisiteName(search.trim());
-    setNewPrerequisiteRequirement('');
+    setNewPrerequisiteQuestion('');
+    setNewPrerequisiteHelp('');
+    setNewPrerequisiteAnswerType('boolean');
+    setNewPrerequisiteOptions('');
+    setNewPrerequisiteAcceptedValues('');
+    setNewPrerequisiteBooleanExpected(true);
     setNewPrerequisiteImportance(canAddRequired ? 'required' : 'preferred');
+    setNewPrerequisiteSaveToLibrary(false);
+    setNewPrerequisiteOpen(true);
+  }
+
+  function editPrerequisiteSuggestion(definition: CompanyPrerequisiteDefinition) {
+    const supportedType = definition.answerType === 'boolean'
+      || definition.answerType === 'single_choice'
+      || definition.answerType === 'multiple_choice'
+      || definition.answerType === 'number'
+      ? definition.answerType
+      : 'boolean';
+    const criterion = definition.defaultCriterion ?? definition.allowedCriterionValues[0];
+    const optionLabelByValue = new Map(definition.options.map((option) => [option.value, option.candidateLabel]));
+    setNewPrerequisiteName(definition.companyLabel);
+    setNewPrerequisiteQuestion(definition.candidateQuestion);
+    setNewPrerequisiteHelp(definition.candidateHelp ?? '');
+    setNewPrerequisiteAnswerType(supportedType);
+    setNewPrerequisiteOptions(definition.options.map((option) => option.candidateLabel).join('\n'));
+    setNewPrerequisiteAcceptedValues(Array.isArray(criterion)
+      ? criterion.map((value) => optionLabelByValue.get(String(value)) ?? String(value)).join('\n')
+      : typeof criterion === 'string'
+        ? optionLabelByValue.get(criterion) ?? criterion
+        : typeof criterion === 'number'
+          ? String(criterion)
+          : '');
+    setNewPrerequisiteBooleanExpected(typeof criterion === 'boolean' ? criterion : true);
     setNewPrerequisiteSaveToLibrary(false);
     setNewPrerequisiteOpen(true);
   }
@@ -545,38 +613,74 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
     setNewPrerequisiteOpen(false);
     setNewPrerequisiteSaving(false);
     setNewPrerequisiteName('');
-    setNewPrerequisiteRequirement('');
+    setNewPrerequisiteQuestion('');
+    setNewPrerequisiteHelp('');
+    setNewPrerequisiteAnswerType('boolean');
+    setNewPrerequisiteOptions('');
+    setNewPrerequisiteAcceptedValues('');
+    setNewPrerequisiteBooleanExpected(true);
     setNewPrerequisiteImportance('required');
+    setNewPrerequisiteFamily('job_skill');
+    setNewOfferRequirementCategory('other');
     setNewPrerequisiteSaveToLibrary(false);
   }
 
   async function saveNewPrerequisite() {
     if (!authUser) return;
     if (!currentOfferId || !input.jobRoleId) {
-      setError('Enregistrez d abord le brouillon avant d ajouter un prerequis.');
-      return;
-    }
-    if (totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total) {
-      setError('Vous avez atteint la limite de 8 prerequis pour cette offre.');
+      setError('Enregistrez d’abord le brouillon avant d’ajouter un prérequis.');
       return;
     }
     const label = newPrerequisiteName.trim().replace(/\s+/g, ' ');
-    const requirement = newPrerequisiteRequirement.trim().replace(/\s+/g, ' ');
+    const candidateQuestion = newPrerequisiteQuestion.trim().replace(/\s+/g, ' ');
+    const candidateHelp = newPrerequisiteHelp.trim().replace(/\s+/g, ' ');
     const normalizedLabel = normalizePrerequisiteLabel(label);
     if (!normalizedLabel) {
-      setError('Saisissez le nom du prerequis.');
+      setError('Saisissez le nom du prérequis.');
       return;
     }
     if (normalizedLabel.length < 2) {
-      setError('Le nom du prerequis doit contenir au moins 2 caracteres utiles.');
+      setError('Le nom du prérequis doit contenir au moins 2 caractères utiles.');
       return;
     }
     if (label.length > 120) {
-      setError('Le nom du prerequis est trop long.');
+      setError('Le nom du prérequis est trop long.');
       return;
     }
     if (!/[\p{L}\p{N}]/u.test(label)) {
-      setError('Le nom du prerequis ne peut pas etre compose uniquement de ponctuation.');
+      setError('Le nom du prérequis ne peut pas être composé uniquement de ponctuation.');
+      return;
+    }
+    if (!candidateQuestion) {
+      setError('Saisissez la question présentée au candidat.');
+      return;
+    }
+    const optionLabels = newPrerequisiteOptions.split('\n').map((item) => item.trim()).filter(Boolean);
+    const acceptedLabels = newPrerequisiteAcceptedValues.split('\n').map((item) => item.trim()).filter(Boolean);
+    const choiceType = newPrerequisiteAnswerType === 'single_choice' || newPrerequisiteAnswerType === 'multiple_choice';
+    if (choiceType && (optionLabels.length < 2 || optionLabels.length > 8)) {
+      setError('Un choix personnalisé doit proposer entre 2 et 8 options.');
+      return;
+    }
+    const options = optionLabels.map((candidateLabel, index) => ({
+      value: `option-${index + 1}`,
+      candidateLabel,
+    }));
+    const acceptedOptionValues = acceptedLabels.map((acceptedLabel) => {
+      const index = optionLabels.findIndex((labelValue) => normalizePrerequisiteLabel(labelValue) === normalizePrerequisiteLabel(acceptedLabel));
+      return index >= 0 ? `option-${index + 1}` : '';
+    });
+    if (choiceType && (acceptedOptionValues.some((value) => !value) || acceptedOptionValues.length === 0)) {
+      setError('Chaque réponse acceptée doit correspondre exactement à une option proposée.');
+      return;
+    }
+    if (new Set(acceptedOptionValues).size !== acceptedOptionValues.length) {
+      setError('Les réponses acceptées ne doivent pas contenir de doublon.');
+      return;
+    }
+    const numericMinimum = Number(newPrerequisiteAcceptedValues.trim().replace(',', '.'));
+    if (newPrerequisiteAnswerType === 'number' && !Number.isFinite(numericMinimum)) {
+      setError('Saisissez une valeur minimale numérique valide.');
       return;
     }
     const duplicate = [...input.requiredPrerequisites, ...input.preferredPrerequisites].some((selection) => {
@@ -584,7 +688,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       return normalizePrerequisiteLabel(selectionLabel) === normalizedLabel;
     });
     if (duplicate) {
-      setError('Ce prerequis est deja ajoute a cette offre.');
+      setError('Ce prérequis est déjà ajouté à cette offre.');
       return;
     }
     setNewPrerequisiteSaving(true);
@@ -592,8 +696,27 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
     try {
       const payload = await createCompanyPrerequisiteClient(authUser, {
         offerId: currentOfferId,
-        label,
-        ...(requirement ? { candidateHelp: requirement } : {}),
+        prerequisiteFamily: newPrerequisiteFamily,
+        ...(newPrerequisiteFamily === 'offer_requirement' ? { offerRequirementCategory: newOfferRequirementCategory } : {}),
+        companyLabel: label,
+        candidateQuestion,
+        ...(candidateHelp ? { candidateHelp } : {}),
+        answerType: newPrerequisiteAnswerType,
+        options: choiceType ? options : [],
+        expectedCriterion: newPrerequisiteAnswerType === 'boolean'
+          ? newPrerequisiteBooleanExpected
+          : newPrerequisiteAnswerType === 'number'
+            ? numericMinimum
+            : newPrerequisiteAnswerType === 'single_choice' && acceptedOptionValues.length === 1
+              ? acceptedOptionValues[0]
+              : acceptedOptionValues,
+        comparisonOperator: newPrerequisiteAnswerType === 'number'
+          ? 'minimum'
+          : newPrerequisiteAnswerType === 'multiple_choice'
+            ? 'contains_any'
+            : newPrerequisiteAnswerType === 'single_choice' && acceptedOptionValues.length > 1
+              ? 'one_of'
+            : 'equals',
         saveToLibrary: newPrerequisiteSaveToLibrary,
       } satisfies CompanyPrerequisiteCreationInput);
       const definition = normalizePrerequisiteDefinition(payload.definition);
@@ -602,10 +725,10 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       assignPrerequisite(definition, newPrerequisiteImportance);
       resetNewPrerequisiteForm();
       setMessage(newPrerequisiteSaveToLibrary
-        ? 'Prerequis ajoute a l offre et enregistre dans votre bibliotheque.'
-        : 'Prerequis ajoute a l offre.');
+        ? 'Prérequis ajouté à l’offre et proposé à Seven’O pour modération.'
+        : 'Prérequis ajouté à l’offre.');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le prerequis n a pas pu etre ajoute.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le prérequis n’a pas pu être ajouté.');
     } finally {
       setNewPrerequisiteSaving(false);
     }
@@ -638,11 +761,11 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       setCurrentOfferId(payload.offer.id);
       setSavedOffer(payload.offer);
       setInput(mergeOfferInputPreservingPrerequisites(serializedJobOfferToInput(payload.offer), draftInput));
-      setMessage('Brouillon enregistre.');
+      setMessage('Brouillon enregistré.');
       if (!offerId) window.history.replaceState(null, '', `/entreprise/offres/${payload.offer.id}/modifier`);
       return payload.offer;
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Le brouillon n a pas pu etre enregistre.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Le brouillon n’a pas pu être enregistré.');
       return null;
     } finally {
       setSaving(false);
@@ -659,7 +782,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
       await changeCompanyJobOfferStatus(authUser, saved.id, 'publish');
       router.push('/entreprise/offres');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'La publication a echoue.');
+      setError(thrownError instanceof Error ? thrownError.message : 'La publication a échoué.');
     } finally {
       setSaving(false);
     }
@@ -678,7 +801,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
   return (
     <SevenoSurface
       eyebrow="Espace entreprise"
-      title={currentOfferId ? 'Modifier une offre' : 'Creer une offre'}
+      title={currentOfferId ? 'Modifier une offre' : 'Créer une offre'}
       description="Construisez une offre structurée et sélectionnez uniquement des prérequis contrôlés par Seven’O."
       actions={<Link href="/entreprise/offres" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">Retour aux offres</Link>}
       containerClassName="max-w-[96rem]"
@@ -688,11 +811,11 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           items={[
             { label: 'Entreprise', href: '/entreprise' },
             { label: 'Mes offres', href: '/entreprise/offres' },
-            { label: currentOfferId ? 'Modifier l offre' : 'Nouvelle offre' },
+            { label: currentOfferId ? 'Modifier l’offre' : 'Nouvelle offre' },
           ]}
         />
         {profile?.profileStatus === 'suspended' ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Votre profil entreprise est suspendu.</p></SevenoPanel> : null}
-        {profile && isCompanyProfileIncomplete(profile) ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil entreprise incomplet : le brouillon reste disponible, mais la publication sera refusee tant que le profil n est pas complete.</p></SevenoPanel> : null}
+        {profile && isCompanyProfileIncomplete(profile) ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Profil entreprise incomplet : le brouillon reste disponible, mais la publication sera refusée tant que le profil n’est pas complété.</p></SevenoPanel> : null}
         {sessionError || error ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">{sessionError ?? error}</p></SevenoPanel> : null}
         {message ? <SevenoPanel tone="cyan"><p className="text-sm text-cyan-100">{message}</p></SevenoPanel> : null}
 
@@ -708,10 +831,10 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           <SevenoPanel tone="cyan">
             <h2 className="text-xl font-semibold text-white">Le poste</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Titre de l offre<input value={input.title} onChange={(event) => setInput({ ...input, title: event.target.value })} className={FIELD} placeholder="Ex. Developpeur full stack" /></label>
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Titre de l’offre<input value={input.title} onChange={(event) => setInput({ ...input, title: event.target.value })} className={FIELD} placeholder="Ex. Développeur full stack" /></label>
               <label className="space-y-2 text-sm text-slate-200">Secteur<Select value={input.sectorId} onChange={(event) => changeSector(event.target.value)}><option value="">Sélectionner un secteur</option>{JOB_SECTORS.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
-              <label className="space-y-2 text-sm text-slate-200">Famille metier<Select value={input.jobFamilyId} disabled={!input.sectorId} onChange={(event) => changeFamily(event.target.value)}><option value="">Sélectionner une famille métier</option>{families.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
-              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Metier precis<Select value={input.jobRoleId} disabled={!input.jobFamilyId || prerequisitesLoading} onChange={(event) => void changeRole(event.target.value)}><option value="">Sélectionner un métier</option>{roles.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
+              <label className="space-y-2 text-sm text-slate-200">Famille métier<Select value={input.jobFamilyId} disabled={!input.sectorId} onChange={(event) => changeFamily(event.target.value)}><option value="">Sélectionner une famille métier</option>{families.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
+              <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Métier précis<Select value={input.jobRoleId} disabled={!input.jobFamilyId || prerequisitesLoading} onChange={(event) => void changeRole(event.target.value)}><option value="">Sélectionner un métier</option>{roles.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</Select></label>
             </div>
           </SevenoPanel>
         ) : null}
@@ -721,7 +844,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             <h2 className="text-xl font-semibold text-white">Conditions</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-200">Localisation<input value={input.location} onChange={(event) => setInput({ ...input, location: event.target.value })} className={FIELD} placeholder="Paris, Lyon, France..." /></label>
-              <label className="space-y-2 text-sm text-slate-200">Modalite<Select value={input.workMode} onChange={(event) => setInput({ ...input, workMode: event.target.value as JobOfferWorkMode | '' })}><option value="">Sélectionner</option><option value="onsite">Sur site</option><option value="hybrid">Hybride</option><option value="remote">À distance</option></Select></label>
+              <label className="space-y-2 text-sm text-slate-200">Modalité<Select value={input.workMode} onChange={(event) => setInput({ ...input, workMode: event.target.value as JobOfferWorkMode | '' })}><option value="">Sélectionner</option><option value="onsite">Sur site</option><option value="hybrid">Hybride</option><option value="remote">À distance</option></Select></label>
               <label className="space-y-2 text-sm text-slate-200">Contrat<Select value={input.contractType} onChange={(event) => setInput({ ...input, contractType: event.target.value as JobOfferContractType | '' })}><option value="">Sélectionner</option><option value="permanent">CDI</option><option value="fixed_term">CDD</option><option value="temporary">Intérim</option><option value="freelance">Freelance</option><option value="apprenticeship">Alternance</option><option value="internship">Stage</option><option value="other">Autre</option></Select></label>
               <label className="space-y-2 text-sm text-slate-200">Temps de travail<Select value={input.workingTime} onChange={(event) => setInput({ ...input, workingTime: event.target.value as JobOfferWorkingTime | '' })}><option value="">Sélectionner</option><option value="full_time">Temps plein</option><option value="part_time">Temps partiel</option><option value="shift">Horaires postés</option><option value="flexible">Flexible</option><option value="other">Autre</option></Select></label>
             </div>
@@ -732,7 +855,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           <div className="space-y-6">
             {!input.jobRoleId ? (
               <SevenoPanel tone="orange">
-                <p className="text-sm text-orange-100">Selectionnez d abord un metier precis.</p>
+                <p className="text-sm text-orange-100">Sélectionnez d’abord un métier précis.</p>
               </SevenoPanel>
             ) : (
               <>
@@ -741,32 +864,45 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
                   search={search}
                   onSearchChange={setSearch}
                   filteredDefinitions={visibleDefinitions}
-                  requiredCount={requiredCount}
-                  preferredCount={preferredCount}
-                  totalCount={totalCount}
                   canAddRequired={canAddRequired}
                   canAddPreferred={canAddPreferred}
-                  hasLimitWarning={hasLimitWarning}
                   isLoading={prerequisitesLoading}
                   searchError={prerequisiteError}
                   newPrerequisiteOpen={newPrerequisiteOpen}
                   newPrerequisiteSaving={newPrerequisiteSaving}
                   newPrerequisiteName={newPrerequisiteName}
                   onNewPrerequisiteNameChange={setNewPrerequisiteName}
-                  newPrerequisiteRequirement={newPrerequisiteRequirement}
-                  onNewPrerequisiteRequirementChange={setNewPrerequisiteRequirement}
+                  newPrerequisiteQuestion={newPrerequisiteQuestion}
+                  onNewPrerequisiteQuestionChange={setNewPrerequisiteQuestion}
+                  newPrerequisiteHelp={newPrerequisiteHelp}
+                  onNewPrerequisiteHelpChange={setNewPrerequisiteHelp}
+                  newPrerequisiteAnswerType={newPrerequisiteAnswerType}
+                  onNewPrerequisiteAnswerTypeChange={setNewPrerequisiteAnswerType}
+                  newPrerequisiteOptions={newPrerequisiteOptions}
+                  onNewPrerequisiteOptionsChange={setNewPrerequisiteOptions}
+                  newPrerequisiteAcceptedValues={newPrerequisiteAcceptedValues}
+                  onNewPrerequisiteAcceptedValuesChange={setNewPrerequisiteAcceptedValues}
+                  newPrerequisiteBooleanExpected={newPrerequisiteBooleanExpected}
+                  onNewPrerequisiteBooleanExpectedChange={setNewPrerequisiteBooleanExpected}
                   newPrerequisiteImportance={newPrerequisiteImportance}
                   onNewPrerequisiteImportanceChange={setNewPrerequisiteImportance}
+                  newPrerequisiteFamily={newPrerequisiteFamily}
+                  onNewPrerequisiteFamilyChange={setNewPrerequisiteFamily}
+                  newOfferRequirementCategory={newOfferRequirementCategory}
+                  onNewOfferRequirementCategoryChange={setNewOfferRequirementCategory}
                   newPrerequisiteSaveToLibrary={newPrerequisiteSaveToLibrary}
                   onNewPrerequisiteSaveToLibraryChange={setNewPrerequisiteSaveToLibrary}
                   onOpenNewPrerequisiteForm={openNewPrerequisiteForm}
                   onResetNewPrerequisiteForm={resetNewPrerequisiteForm}
                   onSaveNewPrerequisite={() => void saveNewPrerequisite()}
                   onAssignPrerequisite={assignPrerequisite}
+                  onEditSuggestion={editPrerequisiteSuggestion}
                 />
                 <div className="grid gap-5 xl:grid-cols-2">
-                  <SelectionPanel title="Prerequis obligatoires" description="Conditions indispensables pour que la candidature puisse correspondre a cette offre." importance="required" canMoveToOther={canAddPreferred} selections={input.requiredPrerequisites} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
-                  <SelectionPanel title="Prerequis optionnels - valeur ajoutee" description="Elements apprecies qui valorisent une candidature sans etre eliminatoires." importance="preferred" canMoveToOther={canAddRequired} selections={input.preferredPrerequisites} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
+                  <SelectionPanel title="Compétences métier indispensables" description="Compétences nécessaires à l’exercice du poste et utilisées pour construire le questionnaire métier." family="job_skill" badge="Évalué dans le questionnaire" importance="required" canMoveToOther={preferredJobSkills.length < 3} selections={requiredJobSkills} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
+                  <SelectionPanel title="Compétences métier complémentaires" description="Compétences constituant une valeur ajoutée pour le poste et pouvant être évaluées dans le questionnaire." family="job_skill" badge="Valeur ajoutée métier" importance="preferred" canMoveToOther={requiredJobSkills.length < 5} selections={preferredJobSkills} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
+                  <SelectionPanel title="Conditions et justificatifs obligatoires" description="Éléments vérifiés séparément lors de la candidature. Ils ne sont jamais intégrés au questionnaire métier." family="offer_requirement" badge="Vérifié séparément" importance="required" canMoveToOther={preferredOfferRequirements.length < 3} selections={requiredOfferRequirements} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
+                  <SelectionPanel title="Conditions et justificatifs souhaités" description="Éléments appréciés pour le poste, mais non intégrés au questionnaire métier." family="offer_requirement" badge="Vérifié séparément" importance="preferred" canMoveToOther={requiredOfferRequirements.length < 5} selections={preferredOfferRequirements} definitions={definitionCache} savedOffer={savedOffer} onMove={movePrerequisite} onRemove={removePrerequisite} onCriterion={updateCriterion} />
                 </div>
               </>
             )}
@@ -783,52 +919,52 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
               <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{questionnaireSummary}</span>
             </div>
             <label className="mt-5 block space-y-2 text-sm text-slate-200">
-              Questionnaire associe
+              Questionnaire associé
               <Select value={input.questionnaireId} onChange={(event) => setInput((current) => ({ ...current, questionnaireId: event.target.value }))}>
-                <option value="">Aucun questionnaire associe</option>
+                <option value="">Aucun questionnaire associé</option>
                 {questionnaires.map((item) => <option key={item.id} value={item.id}>{questionnaireLabel(item)}</option>)}
               </Select>
             </label>
-            <p className="mt-3 text-sm leading-6 text-slate-400">Choisissez un questionnaire deja enregistre par votre entreprise. La verification de propriete est effectuee cote serveur.</p>
-            {questionnairesLoading ? <p className="mt-2 text-xs text-slate-500">Chargement des questionnaires...</p> : questionnaires.length === 0 ? <p className="mt-2 text-xs text-amber-200">Aucun questionnaire n est encore enregistre pour cette entreprise.</p> : null}
-            <label className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-200"><input type="checkbox" checked={input.questionnaireRequired} onChange={(event) => setInput({ ...input, questionnaireRequired: event.target.checked })} className="mt-1 accent-cyan-400" /><span><strong className="text-white">Questionnaire obligatoire pour cette offre</strong><span className="mt-1 block text-slate-400">Si cette option est activee, un questionnaire associe sera exige uniquement au moment de publier.</span></span></label>
+            <p className="mt-3 text-sm leading-6 text-slate-400">Choisissez un questionnaire déjà enregistré par votre entreprise. La vérification de propriété est effectuée côté serveur.</p>
+            {questionnairesLoading ? <p className="mt-2 text-xs text-slate-500">Chargement des questionnaires...</p> : questionnaires.length === 0 ? <p className="mt-2 text-xs text-amber-200">Aucun questionnaire n’est encore enregistré pour cette entreprise.</p> : null}
+            <label className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-200"><input type="checkbox" checked={input.questionnaireRequired} onChange={(event) => setInput({ ...input, questionnaireRequired: event.target.checked })} className="mt-1 accent-cyan-400" /><span><strong className="text-white">Questionnaire obligatoire pour cette offre</strong><span className="mt-1 block text-slate-400">Si cette option est activée, un questionnaire associé sera exigé uniquement au moment de publier.</span></span></label>
             <div className="mt-5 flex flex-wrap gap-3">
-              {currentOfferId ? <><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">{input.questionnaireId ? 'Modifier le questionnaire de cette offre' : 'Creer le questionnaire de cette offre'}</button><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Previsualiser</button></> : <button type="button" onClick={() => void saveDraft()} disabled={saving} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100">Enregistrer d abord le brouillon</button>}
-              {input.questionnaireId ? <button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Ouvrir le questionnaire associe</button> : null}
+              {currentOfferId ? <><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">{input.questionnaireId ? 'Modifier le questionnaire de cette offre' : 'Créer le questionnaire de cette offre'}</button><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Prévisualiser</button></> : <button type="button" onClick={() => void saveDraft()} disabled={saving} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100">Enregistrer d’abord le brouillon</button>}
+              {input.questionnaireId ? <button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Ouvrir le questionnaire associé</button> : null}
             </div>
           </SevenoPanel>
         ) : null}
 
         {step === 4 ? (
           <SevenoPanel tone="orange">
-            <h2 className="text-xl font-semibold text-white">Presentation</h2>
+            <h2 className="text-xl font-semibold text-white">Présentation</h2>
             <div className="mt-5 space-y-4">
               <label className="block space-y-2 text-sm text-slate-200">Description<textarea value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} className={FIELD} rows={7} /></label>
               <label className="block space-y-2 text-sm text-slate-200">Missions<textarea value={input.missions} onChange={(event) => setInput({ ...input, missions: event.target.value })} className={FIELD} rows={6} /></label>
-              <label className="block space-y-2 text-sm text-slate-200">Profil recherche<textarea value={input.profileSummary} onChange={(event) => setInput({ ...input, profileSummary: event.target.value })} className={FIELD} rows={5} /></label>
+              <label className="block space-y-2 text-sm text-slate-200">Profil recherché<textarea value={input.profileSummary} onChange={(event) => setInput({ ...input, profileSummary: event.target.value })} className={FIELD} rows={5} /></label>
             </div>
           </SevenoPanel>
         ) : null}
 
         {step === 5 ? (
           <SevenoPanel tone="neutral">
-            <h2 className="text-xl font-semibold text-white">Verification avant publication</h2>
+            <h2 className="text-xl font-semibold text-white">Vérification avant publication</h2>
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <h3 className="text-base font-semibold text-white">Poste et conditions</h3>
                 <dl className="mt-4 grid gap-4 md:grid-cols-2 text-sm">
                   <div><dt className="text-slate-500">Titre</dt><dd className="mt-1 text-white">{verificationTitle}</dd></div>
-                  <div><dt className="text-slate-500">Secteur</dt><dd className="mt-1 text-white">{verificationSector?.label ?? savedOffer?.sectorId ?? 'Non renseigne'}</dd></div>
-                  <div><dt className="text-slate-500">Famille metier</dt><dd className="mt-1 text-white">{verificationFamily?.label ?? savedOffer?.jobFamilyId ?? 'Non renseignee'}</dd></div>
-                  <div><dt className="text-slate-500">Metier</dt><dd className="mt-1 text-white">{verificationRole?.label ?? savedOffer?.jobRoleLabel ?? 'Non renseigne'}</dd></div>
+                  <div><dt className="text-slate-500">Secteur</dt><dd className="mt-1 text-white">{verificationSector?.label ?? savedOffer?.sectorId ?? 'Non renseigné'}</dd></div>
+                  <div><dt className="text-slate-500">Famille métier</dt><dd className="mt-1 text-white">{verificationFamily?.label ?? savedOffer?.jobFamilyId ?? 'Non renseignée'}</dd></div>
+                  <div><dt className="text-slate-500">Métier</dt><dd className="mt-1 text-white">{verificationRole?.label ?? savedOffer?.jobRoleLabel ?? 'Non renseigné'}</dd></div>
                   <div><dt className="text-slate-500">Localisation</dt><dd className="mt-1 text-white">{verificationLocation}</dd></div>
-                  <div><dt className="text-slate-500">Modalite</dt><dd className="mt-1 text-white">{workModeLabel(verificationWorkMode)}</dd></div>
+                  <div><dt className="text-slate-500">Modalité</dt><dd className="mt-1 text-white">{workModeLabel(verificationWorkMode)}</dd></div>
                   <div><dt className="text-slate-500">Contrat</dt><dd className="mt-1 text-white">{contractTypeLabel(verificationContractType)}</dd></div>
                   <div><dt className="text-slate-500">Temps de travail</dt><dd className="mt-1 text-white">{workingTimeLabel(verificationWorkingTime)}</dd></div>
                 </dl>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <h3 className="text-base font-semibold text-white">Presentation</h3>
+                <h3 className="text-base font-semibold text-white">Présentation</h3>
                 <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300">
                   <div>
                     <p className="text-slate-500">Description</p>
@@ -839,23 +975,23 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
                     <p className="mt-1 whitespace-pre-wrap text-white">{verificationMissions}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Profil recherche</p>
+                    <p className="text-slate-500">Profil recherché</p>
                     <p className="mt-1 whitespace-pre-wrap text-white">{verificationProfileSummary}</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-200">
-              <p className="text-slate-500">Questionnaire associe</p>
+              <p className="text-slate-500">Questionnaire associé</p>
               <p className="mt-1 text-white">{questionnaireSummary}</p>
             </div>
-            <div className="mt-6 grid gap-5 md:grid-cols-2"><div><h3 className="font-semibold text-orange-100">Prerequis obligatoires ({verificationRequiredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationRequiredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.requiredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div><div><h3 className="font-semibold text-violet-100">Valeurs ajoutees ({verificationPreferredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationPreferredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.preferredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div></div>
+            <div className="mt-6 grid gap-5 md:grid-cols-2"><div><h3 className="font-semibold text-orange-100">Prérequis obligatoires ({verificationRequiredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationRequiredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.requiredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div><div><h3 className="font-semibold text-violet-100">Valeurs ajoutées ({verificationPreferredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationPreferredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.preferredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div></div>
           </SevenoPanel>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-3"><button type="button" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200 disabled:opacity-40">Etape precedente</button><button type="button" disabled={step === STEPS.length - 1} onClick={() => setStep((current) => Math.min(STEPS.length - 1, current + 1))} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100 disabled:opacity-40">Etape suivante</button></div>
-          <div className="flex gap-3"><button type="button" disabled={saving || !authUser} onClick={() => void saveDraft()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement...' : 'Enregistrer le brouillon'}</button><button type="button" disabled={saving || !authUser} onClick={() => void publish()} className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Verifier et publier</button></div>
+          <div className="flex gap-3"><button type="button" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200 disabled:opacity-40">Étape précédente</button><button type="button" disabled={step === STEPS.length - 1} onClick={() => setStep((current) => Math.min(STEPS.length - 1, current + 1))} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100 disabled:opacity-40">Étape suivante</button></div>
+          <div className="flex gap-3"><button type="button" disabled={saving || !authUser} onClick={() => void saveDraft()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement...' : 'Enregistrer le brouillon'}</button><button type="button" disabled={saving || !authUser} onClick={() => void publish()} className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Vérifier et publier</button></div>
         </div>
       </div>
     </SevenoSurface>

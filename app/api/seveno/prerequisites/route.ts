@@ -11,6 +11,7 @@ import {
   listApplicablePrerequisites,
   SevenoPrerequisiteError,
 } from '@/lib/seveno-prerequisites-server';
+import type { CompanyPrerequisiteCreationInput } from '@/types/seveno-prerequisites';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -73,9 +74,13 @@ export async function POST(request: NextRequest) {
     if (!offerId) {
       throw new SevenoPrerequisiteError('offer_required', 400, 'Enregistrez l offre avant de creer un prerequis personnalise.');
     }
-    const label = typeof body.label === 'string' ? body.label.trim() : '';
-    if (!label) {
+    const companyLabel = typeof body.companyLabel === 'string' ? body.companyLabel.trim() : '';
+    if (!companyLabel) {
       throw new SevenoPrerequisiteError('invalid_prerequisite_label', 400, 'Saisissez le nom du prerequis.');
+    }
+    const candidateQuestion = typeof body.candidateQuestion === 'string' ? body.candidateQuestion.trim() : '';
+    if (!candidateQuestion) {
+      throw new SevenoPrerequisiteError('invalid_candidate_question', 400, 'Saisissez la question présentée au candidat.');
     }
     const candidateHelp = typeof body.candidateHelp === 'string' ? body.candidateHelp.trim() : '';
 
@@ -83,8 +88,15 @@ export async function POST(request: NextRequest) {
     const offer = await getJobOffer(decodedToken.uid, offerId);
     const definition = await createCompanyPrerequisite(decodedToken.uid, offer, {
       offerId,
-      label,
+      prerequisiteFamily: body.prerequisiteFamily as CompanyPrerequisiteCreationInput['prerequisiteFamily'],
+      ...(body.offerRequirementCategory ? { offerRequirementCategory: body.offerRequirementCategory as CompanyPrerequisiteCreationInput['offerRequirementCategory'] } : {}),
+      companyLabel,
+      candidateQuestion,
       ...(candidateHelp ? { candidateHelp } : {}),
+      answerType: body.answerType as CompanyPrerequisiteCreationInput['answerType'],
+      options: Array.isArray(body.options) ? body.options as CompanyPrerequisiteCreationInput['options'] : [],
+      expectedCriterion: body.expectedCriterion as CompanyPrerequisiteCreationInput['expectedCriterion'],
+      comparisonOperator: body.comparisonOperator as CompanyPrerequisiteCreationInput['comparisonOperator'],
       saveToLibrary,
     });
     return NextResponse.json({ definition }, { status: 201 });

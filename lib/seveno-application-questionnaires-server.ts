@@ -2,10 +2,12 @@ import 'server-only';
 
 import { Timestamp } from 'firebase-admin/firestore';
 import {
+  COMPANY_QUESTION_POINTS,
   COMPANY_QUESTION_TIME_LIMIT_SECONDS,
   COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
 } from '@/lib/seveno-company-questionnaire-constants';
 import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
+import { calculateCompanyQuestionnaireScorePercent } from '@/lib/seveno-company-questionnaire-scoring';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import { toCompanyQuestionEditorProjection } from '@/lib/seveno-company-questionnaires-server';
@@ -262,7 +264,7 @@ function serializeAssessment(value: unknown, questionnaireVersionFallback: strin
   };
 }
 
-function buildPublicQuestion(question: CompanyQuestion): CompanyApplicationQuestionnaireQuestion {
+export function buildPublicQuestion(question: CompanyQuestion): CompanyApplicationQuestionnaireQuestion {
   const editorQuestion = toCompanyQuestionEditorProjection(question);
   const maxLength = editorQuestion.type === 'short_text'
     ? SHORT_TEXT_MAX_LENGTH
@@ -281,7 +283,7 @@ function buildPublicQuestion(question: CompanyQuestion): CompanyApplicationQuest
       label: option.label,
       order: option.order,
     })),
-    points: editorQuestion.points,
+    points: COMPANY_QUESTION_POINTS,
     order: editorQuestion.order,
     ...(maxLength !== null ? { maxLength } : {}),
   };
@@ -471,7 +473,9 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
     })(),
     currentStatus: currentData?.status === 'active' || currentData?.status === 'archived' ? currentData.status as 'active' | 'archived' : 'draft',
     projection: buildQuestionnaireProjection(questionnaireVersion, versionData),
-    rawQuestions: Array.isArray(versionData.questions) ? versionData.questions as CompanyQuestion[] : [],
+    rawQuestions: Array.isArray(versionData.questions)
+      ? (versionData.questions as CompanyQuestion[]).map((question) => ({ ...question, points: COMPANY_QUESTION_POINTS }))
+      : [],
   };
 }
 
@@ -657,7 +661,7 @@ function evaluateQuestion(question: CompanyQuestion, value: unknown, timedOut = 
         awardedPoints: 0,
       },
       autoScoredPoints: 0,
-      autoScoredMaximum: canAutoScore ? question.points : 0,
+      autoScoredMaximum: canAutoScore ? COMPANY_QUESTION_POINTS : 0,
       manualQuestionsCount: 0,
     };
   }
@@ -708,10 +712,10 @@ function evaluateQuestion(question: CompanyQuestion, value: unknown, timedOut = 
     record: {
       ...baseRecord,
       automaticResult: correct ? 'correct' : 'incorrect',
-      awardedPoints: correct ? question.points : 0,
+      awardedPoints: correct ? COMPANY_QUESTION_POINTS : 0,
     },
-    autoScoredPoints: correct ? question.points : 0,
-    autoScoredMaximum: question.points,
+    autoScoredPoints: correct ? COMPANY_QUESTION_POINTS : 0,
+    autoScoredMaximum: COMPANY_QUESTION_POINTS,
     manualQuestionsCount: 0,
   };
 }
@@ -741,9 +745,7 @@ function computeAssessment(
     manualQuestionsCount += scored.manualQuestionsCount;
   }
 
-  const automaticScorePercent = autoScoredMaximum > 0
-    ? Math.round((autoScoredPoints / autoScoredMaximum) * 100)
-    : null;
+  const automaticScorePercent = calculateCompanyQuestionnaireScorePercent(autoScoredPoints, autoScoredMaximum);
   const manualReviewRequired = manualQuestionsCount > 0;
   const finalScore = manualReviewRequired ? null : automaticScorePercent;
   const status: CompanyApplicationQuestionnaireSessionStatus = manualReviewRequired ? 'submitted' : 'completed';

@@ -26,6 +26,7 @@ export type PrerequisiteAnswerType =
 export type PrerequisiteCriterionMode = 'fixed' | 'configurable';
 export type PrerequisiteComparisonOperator =
   | 'equals'
+  | 'one_of'
   | 'minimum'
   | 'maximum'
   | 'contains_any'
@@ -36,6 +37,11 @@ export type PrerequisiteResponseScope = 'profile_reusable' | 'application_specif
 export type PrerequisiteEvidencePolicy = 'none' | 'optional' | 'required_after_match';
 export type PrerequisiteStatus = 'draft' | 'active' | 'archived';
 export type PrerequisiteImportance = 'required' | 'preferred';
+export type PrerequisiteFamily = 'job_skill' | 'offer_requirement';
+export type OfferRequirementCategory =
+  | 'experience' | 'diploma' | 'permit' | 'vehicle' | 'caces' | 'certification'
+  | 'habilitation' | 'authorization' | 'professional_card' | 'availability'
+  | 'mobility' | 'administrative' | 'other';
 export type PrerequisiteSource = 'seveno' | 'company';
 export type PrerequisiteLibraryScope = 'library' | 'offer';
 export type PrerequisiteApplicabilityLevel = 'global' | 'sector' | 'family' | 'role';
@@ -63,7 +69,10 @@ export interface PrerequisiteDefinitionInput {
   ownerCompanyId?: string;
   originOfferId?: string;
   libraryScope?: PrerequisiteLibraryScope;
+  suggestedToSeveno?: boolean;
   category: PrerequisiteCategory;
+  prerequisiteFamily?: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
   companyLabel: string;
   companyDescription?: string;
   candidateQuestion: string;
@@ -110,7 +119,10 @@ export interface CompanyPrerequisiteDefinition {
   source: PrerequisiteSource;
   ownerCompanyId?: string;
   originOfferId?: string;
+  suggestedToSeveno?: boolean;
   category: PrerequisiteCategory;
+  prerequisiteFamily?: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
   companyLabel: string;
   companyDescription?: string;
   candidateQuestion: string;
@@ -139,7 +151,10 @@ export interface OfferPrerequisiteSnapshot {
   source: PrerequisiteSource;
   ownerCompanyId?: string;
   originOfferId?: string;
+  suggestedToSeveno?: boolean;
   category: PrerequisiteCategory;
+  prerequisiteFamily?: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
   companyLabel: string;
   candidateQuestion: string;
   candidateHelp?: string;
@@ -186,11 +201,18 @@ export interface PrerequisiteImportRequest {
   items: PrerequisiteDefinitionInput[];
 }
 
-/** Simple browser payload used by enterprises to create a custom prerequisite from a label only. */
+/** Structured browser payload used by enterprises to create a custom prerequisite. */
 export interface CompanyPrerequisiteCreationInput {
   offerId: string;
-  label: string;
+  prerequisiteFamily: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
+  companyLabel: string;
+  candidateQuestion: string;
   candidateHelp?: string;
+  answerType: Extract<PrerequisiteAnswerType, 'boolean' | 'single_choice' | 'multiple_choice' | 'number'>;
+  options: PrerequisiteAnswerOption[];
+  expectedCriterion: PrerequisiteCriterionValue;
+  comparisonOperator: Extract<PrerequisiteComparisonOperator, 'equals' | 'one_of' | 'minimum' | 'contains_any' | 'contains_all'>;
   saveToLibrary: boolean;
 }
 

@@ -146,7 +146,7 @@ export default function CandidateIdentityPage() {
 
   return (
     <CandidateShell
-      title="Mon identité privée"
+      title="Identité privée"
       description="Complétez les coordonnées réservées à votre compte. Elles restent séparées de votre profil métier anonyme."
     >
       {loading ? (
@@ -159,7 +159,7 @@ export default function CandidateIdentityPage() {
             items={[
               { label: 'Candidat', href: '/candidat' },
               { label: 'Mon profil', href: '/candidat/onboarding' },
-              { label: 'Identite privee' },
+              { label: 'Identité privée' },
             ]}
           />
 
@@ -193,7 +193,7 @@ export default function CandidateIdentityPage() {
             </div>
           </SevenoPanel>
 
-          <CandidatePrivacyNotice message="Ces informations restent privées et ne sont jamais affichées dans les résultats anonymes consultés par les entreprises." />
+          <CandidatePrivacyNotice message="Ces informations restent privées et ne sont jamais affichées dans votre profil candidat anonyme." />
 
           {success ? <SevenoPanel tone="cyan" className="p-4 text-sm text-cyan-100">{success}</SevenoPanel> : null}
           {error ? <SevenoPanel tone="orange" className="p-4 text-sm text-amber-100">{error}</SevenoPanel> : null}

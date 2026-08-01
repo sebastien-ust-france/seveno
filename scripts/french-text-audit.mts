@@ -38,6 +38,31 @@ const suspiciousPatterns: Array<{ motif: string; pattern: RegExp }> = [
   { motif: 'mojibake_f0', pattern: /\u00F0[\u009F-\u00BF]/gu },
 ];
 
+const visibleSourceRoots = ['app/', 'components/', 'lib/', 'types/', 'public/'];
+const artificialPluralPattern = /\b[\p{L}]+\(s\)/giu;
+const requiredProductLabels = [
+  'Mon identité',
+  'Identité privée',
+  'Clôturer l’offre',
+  'Mettre en pause',
+  'Réactiver',
+  'Archiver',
+  'Restaurer en brouillon',
+  'Supprimer définitivement',
+  'Compétences métier indispensables',
+  'Compétences métier complémentaires',
+  'Conditions et justificatifs obligatoires',
+  'Conditions et justificatifs souhaités',
+  'Évalué dans le questionnaire',
+  'Vérifié séparément',
+  'Prévisualisation entreprise',
+];
+
+const forbiddenCandidateIdentityLabels = [
+  'Mon identite',
+  'Identite privee',
+];
+
 function isIgnoredDirectory(name: string) {
   return IGNORED_DIRS.has(name);
 }
@@ -117,6 +142,8 @@ function relativePath(filePath: string) {
 async function main() {
   const issues: AuditIssue[] = [];
   let scannedFiles = 0;
+  let visibleSource = '';
+  const sourceByFile = new Map<string, string>();
 
   for await (const filePath of walk(projectRoot)) {
     scannedFiles += 1;
@@ -139,8 +166,15 @@ async function main() {
     }
 
     const lines = content.split(/\r?\n/);
+    const file = relativePath(filePath);
+    const isVisibleSource = visibleSourceRoots.some((root) => file.startsWith(root));
+    if (isVisibleSource) {
+      visibleSource += `\n${content}`;
+      sourceByFile.set(file, content);
+    }
+
     lines.forEach((line, index) => {
-      for (const { motif, pattern } of suspiciousPatterns) {
+      for (const { motif, pattern } of isVisibleSource ? suspiciousPatterns : []) {
         if (pattern.test(line)) {
           issues.push({
             file: relativePath(filePath),
@@ -161,6 +195,98 @@ async function main() {
           excerpt: normalizeExcerpt(line),
         });
       }
+
+      if (isVisibleSource && artificialPluralPattern.test(line)) {
+        issues.push({
+          file,
+          line: index + 1,
+          motif: 'artificial_plural',
+          excerpt: normalizeExcerpt(line),
+        });
+      }
+      artificialPluralPattern.lastIndex = 0;
+    });
+  }
+
+  for (const label of requiredProductLabels) {
+    if (!visibleSource.includes(label)) {
+      issues.push({
+        file: '[visible sources]',
+        line: 1,
+        motif: 'missing_product_label',
+        excerpt: label,
+      });
+    }
+  }
+
+  for (const label of forbiddenCandidateIdentityLabels) {
+    if (visibleSource.includes(label)) {
+      issues.push({
+        file: '[visible sources]',
+        line: 1,
+        motif: 'forbidden_candidate_identity_label',
+        excerpt: label,
+      });
+    }
+  }
+
+  const questionnaireEditorFile = 'components/entreprise/CompanyQuestionnaireEditor.tsx';
+  const questionnaireEditor = sourceByFile.get(questionnaireEditorFile) ?? '';
+  const forbiddenQuestionnaireEditorTexts = [
+    'Status :',
+    'Genere',
+    'Sélectionné:',
+    '70%',
+    "Valider l'import",
+    'Revenir au manuel',
+    'question(s)',
+    'point(s)',
+    'bonne(s) réponse(s)',
+    "l'entreprise",
+    "Questionnaire propre à l'offre",
+    'Identifiant de l’offre :</strong>',
+  ];
+  const requiredQuestionnaireEditorTexts = [
+    'Statut :',
+    'Générer un prompt puis importer un JSON',
+    'Valider l’import',
+    'Revenir à l’édition manuelle',
+    'Questionnaire associé à l’offre',
+    ' % — ',
+    'Seuil actif :',
+    ' %, soit ',
+    'Explication de la réponse attendue',
+  ];
+
+  for (const forbiddenText of forbiddenQuestionnaireEditorTexts) {
+    if (questionnaireEditor.includes(forbiddenText)) {
+      issues.push({
+        file: questionnaireEditorFile,
+        line: 1,
+        motif: 'forbidden_questionnaire_editor_text',
+        excerpt: forbiddenText,
+      });
+    }
+  }
+  for (const requiredText of requiredQuestionnaireEditorTexts) {
+    if (!questionnaireEditor.includes(requiredText)) {
+      issues.push({
+        file: questionnaireEditorFile,
+        line: 1,
+        motif: 'missing_questionnaire_editor_text',
+        excerpt: requiredText,
+      });
+    }
+  }
+
+  const selectFile = 'components/ui/Select.tsx';
+  const selectSource = sourceByFile.get(selectFile) ?? '';
+  if (!selectSource.includes('className="sr-only"') || !selectSource.includes("'Ouvrir la liste'")) {
+    issues.push({
+      file: selectFile,
+      line: 1,
+      motif: 'select_accessible_toggle_label_missing',
+      excerpt: 'Le libellé Ouvrir/Fermer doit rester réservé aux lecteurs d’écran.',
     });
   }
 

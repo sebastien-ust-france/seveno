@@ -32,6 +32,8 @@ type SelectProps = {
   name?: string;
   id?: string;
   className?: string;
+  ariaLabel?: string;
+  showSelectionSummary?: boolean;
   children?: ReactNode;
 };
 
@@ -78,6 +80,8 @@ export function Select({
   name,
   id,
   className,
+  ariaLabel,
+  showSelectionSummary = true,
   children,
 }: SelectProps) {
   const reactId = useId();
@@ -304,10 +308,10 @@ export function Select({
 
   return (
     <div ref={rootRef} className="space-y-3">
-      {selectedOption ? (
+      {selectedOption && showSelectionSummary ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span className="max-w-full break-words rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-blue-100">
-            Sélectionné: {selectedText}
+            Sélectionné : {selectedText}
           </span>
           <button
             type="button"
@@ -327,6 +331,7 @@ export function Select({
           disabled={disabled}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
+          aria-label={ariaLabel}
           onClick={() => {
             if (!disabled) {
               setIsOpen((previous) => !previous);
@@ -342,7 +347,8 @@ export function Select({
           <span className={'min-w-0 flex-1 break-words ' + (selectedText ? 'text-white' : 'text-slate-400')}>
             {selectedText || placeholderText}
           </span>
-          <span className="text-xs text-slate-400">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
+          <span aria-hidden="true" className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>⌄</span>
+          <span className="sr-only">{isOpen ? 'Fermer la liste' : 'Ouvrir la liste'}</span>
         </button>
 
         {name ? <input type="hidden" name={name} value={controlledValue} readOnly /> : null}

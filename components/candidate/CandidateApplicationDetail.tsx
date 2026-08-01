@@ -57,7 +57,7 @@ function formatQuestionnaireState(view: CompanyApplicationQuestionnaireView | nu
       label: 'Questionnaire terminé',
       tone: 'text-emerald-100',
       note: view.assessment.manualReviewRequired
-        ? `${view.assessment.manualQuestionsCount} réponse(s) attendent un examen manuel.`
+        ? `${view.assessment.manualQuestionsCount} ${view.assessment.manualQuestionsCount > 1 ? 'réponses attendent' : 'réponse attend'} un examen manuel.`
         : 'Toutes les réponses ont été traitées côté serveur.',
     };
   }
@@ -67,7 +67,7 @@ function formatQuestionnaireState(view: CompanyApplicationQuestionnaireView | nu
       label: 'Questionnaire en cours',
       tone: 'text-amber-100',
       note: view.assessment.manualReviewRequired
-        ? `${view.assessment.manualQuestionsCount} réponse(s) attendent un examen manuel.`
+        ? `${view.assessment.manualQuestionsCount} ${view.assessment.manualQuestionsCount > 1 ? 'réponses attendent' : 'réponse attend'} un examen manuel.`
         : 'Le score automatique est déjà calculé.',
     };
   }

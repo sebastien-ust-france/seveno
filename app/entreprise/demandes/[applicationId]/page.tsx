@@ -385,7 +385,7 @@ export default function CompanyApplicationDetailPage() {
                     <div className="mt-3 space-y-2">
                       <p className="text-xs text-slate-400">
                         {questionnaireAttached
-                          ? `${questionnaireTitle} · ${questionnaireQuestionCount} question(s)`
+                          ? `${questionnaireTitle} · ${questionnaireQuestionCount} ${questionnaireQuestionCount > 1 ? 'questions' : 'question'}`
                           : 'Aucun questionnaire enregistré pour cette offre.'}
                       </p>
                       <div className="flex flex-wrap gap-2">

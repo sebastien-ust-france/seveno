@@ -34,6 +34,15 @@ function snapshot(
 }
 
 assert.equal(evaluatePrerequisiteAnswer(snapshot('equals', 'boolean', 'equals', true), true, true), 'satisfied');
+const oneOf = snapshot('one-of', 'single_choice', 'one_of', ['autonomous', 'expert'], 'required', [
+  { value: 'operational', candidateLabel: 'Opérationnel' },
+  { value: 'autonomous', candidateLabel: 'Autonome' },
+  { value: 'expert', candidateLabel: 'Expert' },
+]);
+assert.equal(evaluatePrerequisiteAnswer(oneOf, 'autonomous', true), 'satisfied');
+assert.equal(evaluatePrerequisiteAnswer(oneOf, 'expert', true), 'satisfied');
+assert.equal(evaluatePrerequisiteAnswer(oneOf, 'operational', true), 'unsatisfied');
+assert.throws(() => evaluatePrerequisiteAnswer(oneOf, 'unknown', true), /invalide/i);
 assert.equal(evaluatePrerequisiteAnswer(snapshot('minimum', 'number', 'minimum', 2), 3, true), 'satisfied');
 assert.equal(evaluatePrerequisiteAnswer(snapshot('maximum', 'number', 'maximum', 4), 5, true), 'unsatisfied');
 assert.equal(evaluatePrerequisiteAnswer(snapshot('any', 'multiple_choice', 'contains_any', ['a', 'b'], 'required', [

@@ -389,7 +389,7 @@ export default function CandidateRecommendationsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Créer une invitation</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Demander une recommandation</h2>
               <p className="mt-3 text-sm leading-7 text-slate-300">
-                Renseignez l identité du répondant, son lien professionnel et le contexte de collaboration. Le lien public est généré côté serveur.
+                Renseignez l’identité du répondant, son lien professionnel et le contexte de collaboration. Le lien public est généré côté serveur.
               </p>
 
               <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>

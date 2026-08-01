@@ -316,7 +316,7 @@ export default function AdminPrerequisiteSuggestionsPage() {
               <h2 className="text-xl font-semibold text-white">Resultats</h2>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {items.length > 0
-                  ? `${renderCount(items.length)} suggestion(s) chargee(s).`
+                  ? `${renderCount(items.length)} ${items.length > 1 ? 'suggestions chargées' : 'suggestion chargée'}.`
                   : loading
                     ? 'Chargement des suggestions privees...'
                     : 'Aucune suggestion ne correspond actuellement à ces critères.'}

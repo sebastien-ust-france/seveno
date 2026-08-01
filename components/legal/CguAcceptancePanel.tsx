@@ -82,7 +82,7 @@ export function CguAcceptancePanel() {
           return;
         }
 
-        setError(thrownError instanceof Error ? thrownError.message : 'La verification de votre session a echoue.');
+        setError(thrownError instanceof Error ? thrownError.message : 'La vérification de votre session a échoué.');
         setLoading(false);
       }
     }
@@ -126,7 +126,7 @@ export function CguAcceptancePanel() {
         router.replace(resolveSevenoRedirect(nextUser));
       }, 900);
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : "L'acceptation des CGU a echoue.");
+      setError(thrownError instanceof Error ? thrownError.message : 'L’acceptation des CGU a échoué.');
     } finally {
       setSaving(false);
     }

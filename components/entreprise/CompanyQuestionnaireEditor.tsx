@@ -1,27 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
 import { Select } from '@/components/ui/Select';
 import {
   COMPANY_QUESTION_TIME_LIMIT_SECONDS,
+  COMPANY_QUESTION_POINTS,
   COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
   COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
   COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_VALUES,
 } from '@/lib/seveno-company-questionnaire-constants';
 import {
-  buildCompanyQuestionnaireAiPrompt,
   parseCompanyQuestionnaireAiImport,
 } from '@/lib/seveno-company-questionnaire-ai';
+import { classifyOfferPrerequisites } from '@/lib/seveno-prerequisite-families';
 import {
   activateCompanyQuestionnaireClient,
   getCompanyQuestionnaireClient,
   saveCompanyQuestionnaireClient,
 } from '@/lib/seveno-company-questionnaires';
-import { getCompanyJobOffer } from '@/lib/seveno-job-offers';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
 import { isCompanyProfileIncomplete } from '@/lib/seveno-companies';
 import type {
@@ -50,6 +50,12 @@ const DIFFICULTY_LABELS: Record<CompanyQuestionDifficulty, string> = {
   hard: 'Difficile',
 };
 
+const STATUS_LABELS: Record<CompanyQuestionnaireEditorProjection['status'], string> = {
+  draft: 'brouillon',
+  active: 'actif',
+  archived: 'archivé',
+};
+
 type EditorQuestion = Omit<CompanyQuestionInput, 'expectedAnswer'> & {
   expectedAnswer?: CompanyQuestionInput['expectedAnswer'];
   expectedAnswerText: string;
@@ -70,7 +76,7 @@ function newQuestion(order: number): EditorQuestion {
     ],
     correctionMode: 'automatic',
     numberOperator: 'equals',
-    points: 1,
+    points: COMPANY_QUESTION_POINTS,
     order,
     difficulty: 'medium',
     expectedAnswerText: '',
@@ -191,7 +197,7 @@ function toInput(question: EditorQuestion): CompanyQuestionInput {
       && (question.expectedAnswerText.trim() || !question.hasExpectedAnswer)
       ? { numberOperator: question.numberOperator ?? 'equals' }
       : {}),
-    points: question.points,
+    points: COMPANY_QUESTION_POINTS,
     order: question.order,
     ...(question.difficulty ? { difficulty: question.difficulty } : {}),
   };
@@ -200,6 +206,7 @@ function toInput(question: EditorQuestion): CompanyQuestionInput {
 function mapLoadedQuestion(question: CompanyQuestionnaireEditorProjection['questions'][number]): EditorQuestion {
   return {
     ...question,
+    points: COMPANY_QUESTION_POINTS,
     help: question.help ?? '',
     explanation: question.explanation ?? '',
     difficulty: question.difficulty ?? 'medium',
@@ -234,26 +241,36 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
   const [aiImportText, setAiImportText] = useState('');
   const [aiImportWarnings, setAiImportWarnings] = useState<string[]>([]);
   const [aiValidationConfirmed, setAiValidationConfirmed] = useState(false);
-
-  const aiPrompt = useMemo(
-    () => (offer ? buildCompanyQuestionnaireAiPrompt(offer) : ''),
-    [offer],
-  );
+  const [aiPrompt, setAiPrompt] = useState('');
+  const loadRequestId = useRef(0);
+  const prerequisiteGroups = offer
+    ? classifyOfferPrerequisites([...offer.requiredPrerequisites, ...offer.preferredPrerequisites])
+    : null;
   const estimatedDuration = formatEstimatedDuration(COMPANY_QUESTIONNAIRE_QUESTION_COUNT);
 
   useEffect(() => {
     if (!authUser) return;
-    let active = true;
+    const requestId = ++loadRequestId.current;
+    setLoading(true);
+    setOffer(null);
+    setQuestionnaire(null);
+    setAiPrompt('');
+    setAiImportText('');
+    setAiImportWarnings([]);
+    setPreview(false);
+    setError(null);
+    setMessage(null);
 
     async function load() {
       try {
-        const [offerPayload, questionnairePayload] = await Promise.all([
-          getCompanyJobOffer(authUser!, offerId),
-          getCompanyQuestionnaireClient(authUser!, offerId),
-        ]);
-        if (!active) return;
-        setOffer(offerPayload.offer);
-        const current = questionnairePayload.questionnaire;
+        const payload = await getCompanyQuestionnaireClient(authUser!, offerId);
+        if (requestId !== loadRequestId.current) return;
+        if (payload.offer.id !== offerId || (payload.questionnaire && payload.questionnaire.offerId !== offerId)) {
+          throw new Error('Le questionnaire chargé n’est pas associé à l’offre actuellement ouverte. La génération a été interrompue.');
+        }
+        setOffer(payload.offer);
+        setAiPrompt(payload.aiPrompt);
+        const current = payload.questionnaire;
         setQuestionnaire(current);
         if (current) {
           setTitle(current.title);
@@ -265,18 +282,16 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
           setAiImportWarnings([]);
         }
       } catch (thrownError) {
-        if (active) {
+        if (requestId === loadRequestId.current) {
           setError(thrownError instanceof Error ? thrownError.message : 'Le questionnaire n’a pas pu être chargé.');
         }
       } finally {
-        if (active) setLoading(false);
+        if (requestId === loadRequestId.current) setLoading(false);
       }
     }
 
     void load();
-    return () => {
-      active = false;
-    };
+    return () => { loadRequestId.current += 1; };
   }, [authUser, offerId]);
 
   useEffect(() => {
@@ -367,6 +382,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
 
       return [...current, {
         ...question,
+        points: COMPANY_QUESTION_POINTS,
         id: crypto.randomUUID(),
         prompt: `${question.prompt} (copie)`,
         order: current.length,
@@ -415,7 +431,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
   }
 
   async function copyPrompt() {
-    if (!aiPrompt) return;
+    if (!aiPrompt || loading || !offer || offer.id !== offerId || (questionnaire && questionnaire.offerId !== offerId)) return;
     await navigator.clipboard.writeText(aiPrompt);
     setMessage('Prompt IA copie.');
   }
@@ -486,10 +502,10 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
     <SevenoSurface
       eyebrow="Espace entreprise"
       title="Questionnaire entreprise"
-      description={`Questionnaire propre a l offre : ${offer?.title || 'Offre sans titre'}`}
+      description={`Questionnaire associé à l’offre « ${offer?.title || 'Offre sans titre'} »`}
       actions={(
         <Link href={`/entreprise/offres/${offerId}/modifier`} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">
-          Retour a l offre
+          Retour à l’offre
         </Link>
       )}
       containerClassName="max-w-[86.4rem]"
@@ -507,13 +523,13 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
         {sessionError || error ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">{sessionError ?? error}</p></SevenoPanel> : null}
         {message ? <SevenoPanel tone="cyan"><p className="text-sm text-cyan-100">{message}</p></SevenoPanel> : null}
 
-        {sessionLoading || loading ? <p className="text-sm text-slate-400">Chargement...</p> : (
+        {sessionLoading || loading ? <p className="text-sm text-slate-400">Chargement…</p> : (
           <>
             <SevenoPanel tone="cyan">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Configuration</h2>
-                  <p className="mt-2 text-sm text-slate-400">Statut : {questionnaire?.status === 'active' ? 'Actif' : questionnaire ? 'Brouillon' : 'Aucun questionnaire'}</p>
+                  <p className="mt-2 text-sm text-slate-400">Statut : {questionnaire ? STATUS_LABELS[questionnaire.status] : 'aucun questionnaire'}</p>
                 </div>
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">Version {questionnaire?.version ?? 0}</span>
               </div>
@@ -538,6 +554,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
               <p className="mt-3 text-xs text-slate-400">
                 Le questionnaire doit contenir exactement {COMPANY_QUESTIONNAIRE_QUESTION_COUNT} questions avant activation.
               </p>
+              <p className="mt-2 text-xs text-slate-400">Chaque question a le même poids dans le résultat.</p>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-slate-200">Titre<input value={title} onChange={(event) => { setTitle(event.target.value); resetAiValidation(); }} className={FIELD} /></label>
                 <label className="space-y-2 text-sm text-slate-200">
@@ -545,10 +562,12 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                   <Select
                     value={minimumPassingScorePercent}
                     onChange={(event) => setMinimumPassingScorePercent(Number(event.target.value))}
+                    ariaLabel="Ouvrir la liste des seuils de réussite"
+                    showSelectionSummary={false}
                   >
                     {COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_VALUES.map((value) => (
                       <option key={value} value={value}>
-                        {value} % - {Math.round((value / 100) * COMPANY_QUESTIONNAIRE_QUESTION_COUNT)} bonnes réponses sur {COMPANY_QUESTIONNAIRE_QUESTION_COUNT} questions
+                        {value} % — {Math.round((value / 100) * COMPANY_QUESTIONNAIRE_QUESTION_COUNT)} bonnes réponses sur {COMPANY_QUESTIONNAIRE_QUESTION_COUNT}
                       </option>
                     ))}
                   </Select>
@@ -556,24 +575,38 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                 <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Instructions<textarea value={instructions} onChange={(event) => { setInstructions(event.target.value); resetAiValidation(); }} className={FIELD} rows={4} /></label>
               </div>
               <p className="mt-3 text-xs text-slate-400">
-                Seuil actif : {minimumPassingScorePercent} % soit {Math.round((minimumPassingScorePercent / 100) * COMPANY_QUESTIONNAIRE_QUESTION_COUNT)} bonnes réponses sur {COMPANY_QUESTIONNAIRE_QUESTION_COUNT} questions.
+                Seuil actif : {minimumPassingScorePercent} %, soit {Math.round((minimumPassingScorePercent / 100) * COMPANY_QUESTIONNAIRE_QUESTION_COUNT)} bonnes réponses sur {COMPANY_QUESTIONNAIRE_QUESTION_COUNT}.
               </p>
             </SevenoPanel>
 
             <SevenoPanel tone="neutral" className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Preparation IA</p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">Génère un prompt puis importe un JSON</h3>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Préparation IA</p>
+                  <h3 className="mt-2 text-xl font-semibold text-white">Générer un prompt puis importer un JSON</h3>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <button type="button" onClick={() => void copyPrompt()} disabled={!aiPrompt} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 disabled:opacity-40">Copier le prompt IA</button>
+                  <button type="button" onClick={() => void copyPrompt()} disabled={!aiPrompt || loading || !offer || offer.id !== offerId || Boolean(questionnaire && questionnaire.offerId !== offerId)} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 disabled:opacity-40">Copier le prompt</button>
                   <label className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
                     Importer un JSON
                     <input type="file" accept=".json,application/json" onChange={(event) => void handleAiImportFile(event)} className="hidden" />
                   </label>
                 </div>
               </div>
+
+              {offer ? (
+                <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4 text-sm text-slate-200">
+                  <p><strong>Offre :</strong> {offer.title}</p>
+                  <p><strong>Métier :</strong> {offer.jobRoleLabel}</p>
+                  <p className="mt-3 font-semibold text-white">Répartition du questionnaire</p>
+                  <p>15 questions fondées sur les compétences métier sélectionnées.</p>
+                  <p>5 questions fondées sur l’analyse globale du poste et de ses missions.</p>
+                  <p className="mt-3 font-semibold text-white">Compétences métier utilisées</p>
+                  <p><strong>Indispensables :</strong> {prerequisiteGroups?.requiredJobSkills.map((item) => item.companyLabel).join(', ') || 'Aucune'}</p>
+                  <p><strong>Complémentaires :</strong> {prerequisiteGroups?.preferredJobSkills.map((item) => item.companyLabel).join(', ') || 'Aucune'}</p>
+                  <p className="mt-2 text-cyan-100">Les conditions et justificatifs de l’offre ne sont jamais transmis au générateur du questionnaire.</p>
+                </div>
+              ) : null}
 
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
@@ -612,11 +645,11 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                         setCreationMode('manual');
                         setAiValidationConfirmed(true);
                         setAiImportWarnings([]);
-                        setMessage('Mode manuel reactivé.');
+                        setMessage('Édition manuelle réactivée.');
                       }}
                       className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200"
                     >
-                      Revenir au manuel
+                      Revenir à l’édition manuelle
                     </button>
                   </div>
                   {aiImportWarnings.length ? (
@@ -630,7 +663,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                      Le JSON importé doit être relu par l’entreprise avant enregistrement.
+                      Le JSON importé doit être relu par l’entreprise avant son enregistrement.
                     </div>
                   )}
                   {creationMode === 'ai_import' ? (
@@ -641,7 +674,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                         onChange={(event) => setAiValidationConfirmed(event.target.checked)}
                         className="mt-1 accent-cyan-400"
                       />
-                      <span>Je confirme avoir relu, valide et accepte ce questionnaire importé avant son enregistrement.</span>
+                      <span>Je confirme avoir relu, validé et accepté ce questionnaire importé avant son enregistrement.</span>
                     </label>
                   ) : null}
                 </div>
@@ -678,18 +711,19 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                     </div>
 
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Intitule<input value={question.prompt} onChange={(event) => updateQuestion(question.id, { prompt: event.target.value })} className={FIELD} /></label>
+                      <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Intitulé<input value={question.prompt} onChange={(event) => updateQuestion(question.id, { prompt: event.target.value })} className={FIELD} /></label>
                       <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Aide optionnelle<input value={question.help ?? ''} onChange={(event) => updateQuestion(question.id, { help: event.target.value })} className={FIELD} /></label>
-                      <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Explication / correction attendue<textarea value={question.explanation ?? ''} onChange={(event) => updateQuestion(question.id, { explanation: event.target.value })} className={FIELD} rows={3} /></label>
-                      <label className="space-y-2 text-sm text-slate-200">Type<Select value={question.type} onChange={(event) => changeType(question, event.target.value as CompanyQuestionType)}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
-                      <label className="space-y-2 text-sm text-slate-200">Difficulte<Select value={question.difficulty ?? 'medium'} onChange={(event) => updateQuestion(question.id, { difficulty: event.target.value as CompanyQuestionDifficulty })}>{Object.entries(DIFFICULTY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
-                      <label className="space-y-2 text-sm text-slate-200">Points<input type="number" min="0" max="100" value={question.points} onChange={(event) => updateQuestion(question.id, { points: Number(event.target.value) })} className={FIELD} /></label>
+                      <label className="space-y-2 text-sm text-slate-200 md:col-span-2">Explication de la réponse attendue<textarea value={question.explanation ?? ''} onChange={(event) => updateQuestion(question.id, { explanation: event.target.value })} className={FIELD} rows={3} /></label>
+                      <label className="space-y-2 text-sm text-slate-200">Type<Select value={question.type} onChange={(event) => changeType(question, event.target.value as CompanyQuestionType)} ariaLabel="Ouvrir la liste des types de questions" showSelectionSummary={false}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
+                      <label className="space-y-2 text-sm text-slate-200">Difficulté<Select value={question.difficulty ?? 'medium'} onChange={(event) => updateQuestion(question.id, { difficulty: event.target.value as CompanyQuestionDifficulty })} ariaLabel="Ouvrir la liste des difficultés" showSelectionSummary={false}>{Object.entries(DIFFICULTY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
                       <label className="flex items-center gap-3 text-sm text-slate-200"><input type="checkbox" checked={question.required} onChange={(event) => updateQuestion(question.id, { required: event.target.checked })} className="accent-cyan-400" />Question obligatoire</label>
                       {['single_choice', 'multiple_choice', 'boolean', 'number'].includes(question.type) ? (
                         <label className="space-y-2 text-sm text-slate-200">
                           Correction
                           <Select
                             value={question.correctionMode}
+                            ariaLabel="Ouvrir la liste des modes de correction"
+                            showSelectionSummary={false}
                             onChange={(event) => updateQuestion(question.id, {
                               correctionMode: event.target.value as CompanyQuestionCorrectionMode,
                               expectedAnswerText: '',
@@ -755,7 +789,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                             >
                               Ajouter une réponse
                             </button>
-                            {question.correctionMode === 'automatic' ? <p className="text-xs text-emerald-200">{correctOptionIds.length} bonne(s) réponse(s) sélectionnée(s)</p> : null}
+                            {question.correctionMode === 'automatic' ? <p className="text-xs text-emerald-200">{correctOptionIds.length} {correctOptionIds.length > 1 ? 'bonnes réponses sélectionnées' : 'bonne réponse sélectionnée'}</p> : null}
                           </div>
                         </div>
                       ) : null}
@@ -763,7 +797,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                       {question.correctionMode === 'automatic' && !isChoice ? (
                         <>
                           <label className="space-y-2 text-sm text-slate-200">Nouvelle réponse attendue<input value={question.expectedAnswerText} onChange={(event) => updateQuestion(question.id, { expectedAnswerText: event.target.value })} className={FIELD} placeholder={question.type === 'boolean' ? 'true ou false' : 'Valeur attendue'} /></label>
-                          {question.type === 'number' ? <label className="space-y-2 text-sm text-slate-200">Critere<Select value={question.numberOperator ?? 'equals'} onChange={(event) => updateQuestion(question.id, { numberOperator: event.target.value as 'equals' | 'minimum' | 'maximum' })}><option value="equals">Égal à</option><option value="minimum">Minimum</option><option value="maximum">Maximum</option></Select></label> : null}
+                          {question.type === 'number' ? <label className="space-y-2 text-sm text-slate-200">Critère<Select value={question.numberOperator ?? 'equals'} onChange={(event) => updateQuestion(question.id, { numberOperator: event.target.value as 'equals' | 'minimum' | 'maximum' })} ariaLabel="Ouvrir la liste des critères" showSelectionSummary={false}><option value="equals">Égal à</option><option value="minimum">Minimum</option><option value="maximum">Maximum</option></Select></label> : null}
                           <p className="text-xs text-emerald-200 md:col-span-2">{question.hasExpectedAnswer && !question.expectedAnswerText ? 'Une correction existe côté serveur. Laissez vide pour la conserver.' : 'La correction saisie sera stockée côté serveur.'}</p>
                         </>
                       ) : null}
@@ -813,13 +847,16 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                 <button type="button" onClick={() => setPreview(false)} className="rounded-full border border-white/10 px-4 py-2 text-sm">Fermer</button>
               </div>
               <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{instructions}</p>
+              <p className="mt-3 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                Prévisualisation entreprise — les réponses et les explications ne sont pas visibles par le candidat.
+              </p>
               <div className="mt-6 space-y-4">
                 {questions.map((question, index) => {
                   const correctOptionIds = selectedOptionIds(question);
                   return (
                     <div key={question.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <p className="font-medium">{index + 1}. {question.prompt} {question.required ? '*' : ''}</p>
-                      <p className="mt-2 text-xs text-slate-400">{TYPE_LABELS[question.type]} - {question.points} point(s) - {question.difficulty ? DIFFICULTY_LABELS[question.difficulty] : 'Moyenne'}</p>
+                      <p className="mt-2 text-xs text-slate-400">{TYPE_LABELS[question.type]} – {question.difficulty ? DIFFICULTY_LABELS[question.difficulty] : 'Moyenne'}</p>
                       {question.explanation ? <p className="mt-2 text-xs text-cyan-100">{question.explanation}</p> : null}
                       {question.options.length ? (
                         <div className="mt-3 space-y-2 text-sm text-slate-300">

@@ -35,6 +35,14 @@ export type PrerequisiteSuggestionUsageDescriptor = {
   jobFamilyId: string;
   jobRoleId: string;
   importance: PrerequisiteImportance;
+  prerequisiteFamily?: OfferPrerequisiteSnapshot['prerequisiteFamily'];
+  offerRequirementCategory?: OfferPrerequisiteSnapshot['offerRequirementCategory'];
+  candidateQuestion: string;
+  candidateHelp?: string;
+  answerType: OfferPrerequisiteSnapshot['answerType'];
+  options: OfferPrerequisiteSnapshot['options'];
+  comparisonOperator: OfferPrerequisiteSnapshot['comparisonOperator'];
+  expectedCriterion: OfferPrerequisiteSnapshot['expectedCriterion'];
   canonicalPrerequisiteCode?: string | null;
 };
 
@@ -126,6 +134,26 @@ function getSuggestionStatusRank(status: PrerequisiteSuggestionStatus) {
   return 3;
 }
 
+export function buildPendingPrerequisiteSuggestionPayload(descriptor: PrerequisiteSuggestionUsageDescriptor) {
+  return {
+    source: 'company_custom_prerequisite' as const,
+    status: 'pending' as const,
+    companyId: descriptor.companyUid,
+    offerId: descriptor.offerId,
+    createdBy: descriptor.companyUid,
+    companyLabel: descriptor.label,
+    candidateQuestion: descriptor.candidateQuestion,
+    ...(descriptor.candidateHelp ? { candidateHelp: descriptor.candidateHelp } : {}),
+    answerType: descriptor.answerType,
+    options: descriptor.options.map((option) => ({ ...option })),
+    comparisonOperator: descriptor.comparisonOperator,
+    expectedCriterion: Array.isArray(descriptor.expectedCriterion) ? [...descriptor.expectedCriterion] : descriptor.expectedCriterion,
+    importance: descriptor.importance,
+    ...(descriptor.prerequisiteFamily ? { prerequisiteFamily: descriptor.prerequisiteFamily } : {}),
+    ...(descriptor.offerRequirementCategory ? { offerRequirementCategory: descriptor.offerRequirementCategory } : {}),
+  };
+}
+
 export function buildPrerequisiteSuggestionGroupingKey(label: string) {
   return normalizeSearchText(label);
 }
@@ -167,8 +195,6 @@ function createDefaultSuggestionState(descriptor: PrerequisiteSuggestionUsageDes
     label: descriptor.label,
     normalizedLabel: descriptor.normalizedLabel,
     groupingKey: descriptor.groupingKey,
-    status: normalizeSuggestionStatus(null, descriptor.canonicalPrerequisiteCode ?? null),
-    statusRank: getSuggestionStatusRank(normalizeSuggestionStatus(null, descriptor.canonicalPrerequisiteCode ?? null)),
     usageCount: 0,
     companyCount: 0,
     requiredCount: 0,
@@ -178,6 +204,9 @@ function createDefaultSuggestionState(descriptor: PrerequisiteSuggestionUsageDes
     observedJobFamilyIds: [descriptor.jobFamilyId],
     observedJobRoleIds: [descriptor.jobRoleId],
     ...(descriptor.canonicalPrerequisiteCode ? { canonicalPrerequisiteCode: descriptor.canonicalPrerequisiteCode } : {}),
+    ...buildPendingPrerequisiteSuggestionPayload(descriptor),
+    status: normalizeSuggestionStatus(null, descriptor.canonicalPrerequisiteCode ?? null),
+    statusRank: getSuggestionStatusRank(normalizeSuggestionStatus(null, descriptor.canonicalPrerequisiteCode ?? null)),
     schemaVersion: SCHEMA_VERSION,
     firstSeenAt: now,
     lastSeenAt: now,
@@ -222,6 +251,18 @@ function parseSuggestionState(
     observedJobRoleIds: toStringArray(raw.observedJobRoleIds),
     ...(canonicalPrerequisiteCode ? { canonicalPrerequisiteCode } : {}),
     ...(typeof raw.mergedIntoSuggestionId === 'string' && raw.mergedIntoSuggestionId ? { mergedIntoSuggestionId: raw.mergedIntoSuggestionId } : {}),
+    source: 'company_custom_prerequisite',
+    companyId: typeof raw.companyId === 'string' ? raw.companyId : descriptor.companyUid,
+    offerId: typeof raw.offerId === 'string' ? raw.offerId : descriptor.offerId,
+    createdBy: typeof raw.createdBy === 'string' ? raw.createdBy : descriptor.companyUid,
+    companyLabel: typeof raw.companyLabel === 'string' ? raw.companyLabel : descriptor.label,
+    candidateQuestion: typeof raw.candidateQuestion === 'string' ? raw.candidateQuestion : descriptor.candidateQuestion,
+    ...(typeof raw.candidateHelp === 'string' ? { candidateHelp: raw.candidateHelp } : descriptor.candidateHelp ? { candidateHelp: descriptor.candidateHelp } : {}),
+    answerType: descriptor.answerType,
+    options: descriptor.options.map((option) => ({ ...option })),
+    comparisonOperator: descriptor.comparisonOperator,
+    expectedCriterion: Array.isArray(descriptor.expectedCriterion) ? [...descriptor.expectedCriterion] : descriptor.expectedCriterion,
+    importance: descriptor.importance,
     schemaVersion: typeof raw.schemaVersion === 'number' && raw.schemaVersion > 0 ? raw.schemaVersion : SCHEMA_VERSION,
     firstSeenAt: timestampOrNow(raw.firstSeenAt, now),
     lastSeenAt: timestampOrNow(raw.lastSeenAt, now),
@@ -310,7 +351,7 @@ function parseUsageState(descriptor: PrerequisiteSuggestionUsageDescriptor, raw:
 
 function collectLabels(snapshots: OfferPrerequisiteSnapshot[]) {
   return [...new Set(snapshots
-    .filter((snapshot) => snapshot.source === 'company')
+    .filter((snapshot) => snapshot.source === 'company' && snapshot.suggestedToSeveno === true)
     .map((snapshot) => buildPrerequisiteSuggestionGroupingKey(snapshot.companyLabel)))];
 }
 
@@ -343,7 +384,7 @@ export function buildPrerequisiteSuggestionUsageDescriptors(
   canonicalCodesByLabel: Map<string, string | null> = new Map(),
 ) {
   return snapshots
-    .filter((snapshot) => snapshot.source === 'company')
+    .filter((snapshot) => snapshot.source === 'company' && snapshot.suggestedToSeveno === true)
     .map<PrerequisiteSuggestionUsageDescriptor>((snapshot) => {
       const groupingKey = buildPrerequisiteSuggestionGroupingKey(snapshot.companyLabel);
       return {
@@ -361,6 +402,14 @@ export function buildPrerequisiteSuggestionUsageDescriptors(
         jobFamilyId: offer.jobFamilyId,
         jobRoleId: offer.jobRoleId,
         importance: snapshot.importance,
+        ...(snapshot.prerequisiteFamily ? { prerequisiteFamily: snapshot.prerequisiteFamily } : {}),
+        ...(snapshot.offerRequirementCategory ? { offerRequirementCategory: snapshot.offerRequirementCategory } : {}),
+        candidateQuestion: snapshot.candidateQuestion,
+        ...(snapshot.candidateHelp ? { candidateHelp: snapshot.candidateHelp } : {}),
+        answerType: snapshot.answerType,
+        options: snapshot.options.map((option) => ({ ...option })),
+        comparisonOperator: snapshot.comparisonOperator,
+        expectedCriterion: Array.isArray(snapshot.expectedCriterion) ? [...snapshot.expectedCriterion] : snapshot.expectedCriterion,
         canonicalPrerequisiteCode: canonicalCodesByLabel.get(groupingKey) ?? null,
       };
     });
@@ -402,6 +451,19 @@ function ensureSuggestionMetadata(state: PrerequisiteSuggestion, descriptor: Pre
   state.observedJobRoleIds = [...new Set([...state.observedJobRoleIds, descriptor.jobRoleId])];
   state.lastSeenAt = now;
   state.updatedAt = now;
+  state.source = 'company_custom_prerequisite';
+  state.companyId = descriptor.companyUid;
+  state.offerId = descriptor.offerId;
+  state.createdBy = state.createdBy ?? descriptor.companyUid;
+  state.companyLabel = descriptor.label;
+  state.candidateQuestion = descriptor.candidateQuestion;
+  if (descriptor.candidateHelp) state.candidateHelp = descriptor.candidateHelp;
+  else delete state.candidateHelp;
+  state.answerType = descriptor.answerType;
+  state.options = descriptor.options.map((option) => ({ ...option }));
+  state.comparisonOperator = descriptor.comparisonOperator;
+  state.expectedCriterion = Array.isArray(descriptor.expectedCriterion) ? [...descriptor.expectedCriterion] : descriptor.expectedCriterion;
+  state.importance = descriptor.importance;
 }
 
 function addActiveUsage(state: PrerequisiteSuggestion, company: PrerequisiteSuggestionCompany, descriptor: PrerequisiteSuggestionUsageDescriptor, now: Timestamp) {

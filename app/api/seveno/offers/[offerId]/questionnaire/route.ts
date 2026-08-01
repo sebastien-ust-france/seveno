@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import {
-  getCompanyQuestionnaire,
+  getCompanyQuestionnairePromptContext,
   saveCompanyQuestionnaire,
   SevenoCompanyQuestionnaireError,
 } from '@/lib/seveno-company-questionnaires-server';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const token = await requireSevenoApiToken(request);
     const { offerId } = await context.params;
-    return NextResponse.json({ questionnaire: await getCompanyQuestionnaire(token.uid, offerId) });
+    return NextResponse.json(await getCompanyQuestionnairePromptContext(token.uid, offerId));
   } catch (error) {
     return errorResponse(error);
   }

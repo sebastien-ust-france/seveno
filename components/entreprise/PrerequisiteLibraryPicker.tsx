@@ -1,11 +1,15 @@
 'use client';
 
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
-import { PREREQUISITE_CATEGORIES, SEVENO_OFFER_PREREQUISITE_LIMITS } from '@/lib/seveno-prerequisite-constants';
+import { Select } from '@/components/ui/Select';
+import { PREREQUISITE_CATEGORIES } from '@/lib/seveno-prerequisite-constants';
 import type { JobOfferInput } from '@/types/seveno-job-offers';
 import type {
   CompanyPrerequisiteDefinition,
+  CompanyPrerequisiteCreationInput,
   PrerequisiteImportance,
+  PrerequisiteFamily,
+  OfferRequirementCategory,
 } from '@/types/seveno-prerequisites';
 
 type LibraryPickerProps = {
@@ -15,26 +19,37 @@ type LibraryPickerProps = {
   filteredDefinitions: CompanyPrerequisiteDefinition[];
   isLoading?: boolean;
   searchError?: string | null;
-  requiredCount: number;
-  preferredCount: number;
-  totalCount: number;
   canAddRequired: boolean;
   canAddPreferred: boolean;
-  hasLimitWarning: boolean;
   newPrerequisiteOpen: boolean;
   newPrerequisiteSaving: boolean;
   newPrerequisiteName: string;
   onNewPrerequisiteNameChange: (value: string) => void;
-  newPrerequisiteRequirement: string;
-  onNewPrerequisiteRequirementChange: (value: string) => void;
+  newPrerequisiteQuestion: string;
+  onNewPrerequisiteQuestionChange: (value: string) => void;
+  newPrerequisiteHelp: string;
+  onNewPrerequisiteHelpChange: (value: string) => void;
+  newPrerequisiteAnswerType: CompanyPrerequisiteCreationInput['answerType'];
+  onNewPrerequisiteAnswerTypeChange: (value: CompanyPrerequisiteCreationInput['answerType']) => void;
+  newPrerequisiteOptions: string;
+  onNewPrerequisiteOptionsChange: (value: string) => void;
+  newPrerequisiteAcceptedValues: string;
+  onNewPrerequisiteAcceptedValuesChange: (value: string) => void;
+  newPrerequisiteBooleanExpected: boolean;
+  onNewPrerequisiteBooleanExpectedChange: (value: boolean) => void;
   newPrerequisiteImportance: PrerequisiteImportance;
   onNewPrerequisiteImportanceChange: (value: PrerequisiteImportance) => void;
+  newPrerequisiteFamily: PrerequisiteFamily;
+  onNewPrerequisiteFamilyChange: (value: PrerequisiteFamily) => void;
+  newOfferRequirementCategory: OfferRequirementCategory;
+  onNewOfferRequirementCategoryChange: (value: OfferRequirementCategory) => void;
   newPrerequisiteSaveToLibrary: boolean;
   onNewPrerequisiteSaveToLibraryChange: (value: boolean) => void;
   onOpenNewPrerequisiteForm: () => void;
   onResetNewPrerequisiteForm: () => void;
   onSaveNewPrerequisite: () => void;
   onAssignPrerequisite: (definition: CompanyPrerequisiteDefinition, importance: PrerequisiteImportance) => void;
+  onEditSuggestion: (definition: CompanyPrerequisiteDefinition) => void;
 };
 
 export function normalizeSearchText(value: string) {
@@ -47,9 +62,19 @@ export function normalizeSearchText(value: string) {
     .replace(/\s+/g, ' ');
 }
 
+export function prerequisiteSearchPlaceholder(family?: PrerequisiteFamily | null) {
+  if (family === 'job_skill') {
+    return 'Rechercher une compétence métier, par exemple : lecture de plans, métré, AutoCAD';
+  }
+  if (family === 'offer_requirement') {
+    return 'Rechercher une condition ou un justificatif, par exemple : permis B, CACES R482, diplôme';
+  }
+  return 'Choisissez d’abord le type d’élément';
+}
+
 function prerequisiteOriginLabel(definition: CompanyPrerequisiteDefinition) {
   if (definition.source === 'company') {
-    return definition.originOfferId ? 'Personnalise' : 'Ma bibliotheque';
+    return definition.originOfferId ? 'Personnalisé' : 'Ma bibliothèque';
   }
   return 'Seven’O';
 }
@@ -63,7 +88,7 @@ function prerequisiteCategoryLabel(value: CompanyPrerequisiteDefinition['categor
 }
 
 function prerequisiteApplicabilityLabel(value: CompanyPrerequisiteDefinition['applicabilityLevel']) {
-  if (value === 'role') return 'Metier';
+  if (value === 'role') return 'Métier';
   if (value === 'family') return 'Famille';
   if (value === 'sector') return 'Secteur';
   return 'Global';
@@ -76,66 +101,58 @@ export function PrerequisiteLibraryPicker({
   filteredDefinitions,
   isLoading = false,
   searchError = null,
-  requiredCount,
-  preferredCount,
-  totalCount,
   canAddRequired,
   canAddPreferred,
-  hasLimitWarning,
   newPrerequisiteOpen,
   newPrerequisiteSaving,
   newPrerequisiteName,
   onNewPrerequisiteNameChange,
-  newPrerequisiteRequirement,
-  onNewPrerequisiteRequirementChange,
+  newPrerequisiteQuestion,
+  onNewPrerequisiteQuestionChange,
+  newPrerequisiteHelp,
+  onNewPrerequisiteHelpChange,
+  newPrerequisiteAnswerType,
+  onNewPrerequisiteAnswerTypeChange,
+  newPrerequisiteOptions,
+  onNewPrerequisiteOptionsChange,
+  newPrerequisiteAcceptedValues,
+  onNewPrerequisiteAcceptedValuesChange,
+  newPrerequisiteBooleanExpected,
+  onNewPrerequisiteBooleanExpectedChange,
   newPrerequisiteImportance,
   onNewPrerequisiteImportanceChange,
+  newPrerequisiteFamily,
+  onNewPrerequisiteFamilyChange,
+  newOfferRequirementCategory,
+  onNewOfferRequirementCategoryChange,
   newPrerequisiteSaveToLibrary,
   onNewPrerequisiteSaveToLibraryChange,
   onOpenNewPrerequisiteForm,
   onResetNewPrerequisiteForm,
   onSaveNewPrerequisite,
   onAssignPrerequisite,
+  onEditSuggestion,
 }: LibraryPickerProps) {
   return (
     <SevenoPanel tone="cyan" className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-white">Bibliotheque applicable</h2>
+          <h2 className="text-xl font-semibold text-white">Bibliothèque applicable</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Recherchez un prerequis Seven&apos;O ou de votre bibliotheque privee, puis ajoutez-le a l offre.
+            Recherchez un prérequis Seven’O ou de votre bibliothèque privée, puis ajoutez-le à l’offre.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
-            Obligatoires : {requiredCount}/{SEVENO_OFFER_PREREQUISITE_LIMITS.required}
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
-            Valeur ajoutee : {preferredCount}/{SEVENO_OFFER_PREREQUISITE_LIMITS.preferred}
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
-            Total : {totalCount}/{SEVENO_OFFER_PREREQUISITE_LIMITS.total}
-          </div>
-        </div>
       </div>
-
-      {hasLimitWarning ? (
-        <div className="rounded-2xl border border-orange-300/20 bg-orange-400/10 p-4 text-sm leading-6 text-orange-100">
-          {requiredCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.required ? 'Cette offre contient deja 5 prerequis obligatoires. ' : ''}
-          {preferredCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.preferred ? 'Cette offre contient deja 3 prerequis constituant une valeur ajoutee. ' : ''}
-          {totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total ? 'Vous avez atteint la limite de 8 prerequis pour cette offre.' : ''}
-        </div>
-      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
         <div className="space-y-4">
           <label className="block space-y-2 text-sm text-slate-200">
-            Rechercher un prerequis
+            Rechercher un prérequis
             <input
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
-              placeholder="Ex. : Lire un plan, Permis B, AutoCAD..."
+              placeholder={prerequisiteSearchPlaceholder(newPrerequisiteFamily)}
             />
           </label>
 
@@ -143,21 +160,21 @@ export function PrerequisiteLibraryPicker({
             <button
               type="button"
               onClick={onOpenNewPrerequisiteForm}
-              disabled={newPrerequisiteSaving || totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total}
+              disabled={newPrerequisiteSaving}
               className="rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
             >
-              Créer un prerequis
+              Créer un prérequis personnalisé
             </button>
             {!isLoading && filteredDefinitions.length > 0 ? (
               <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-                {filteredDefinitions.length} resultat(s)
+                {filteredDefinitions.length} {filteredDefinitions.length > 1 ? 'résultats' : 'résultat'}
               </span>
             ) : null}
           </div>
 
           {isLoading ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-slate-300">
-              Recherche des prerequis...
+              Recherche des prérequis...
             </div>
           ) : searchError ? (
             <div className="rounded-3xl border border-rose-300/15 bg-rose-400/10 p-5 text-sm leading-7 text-rose-100">
@@ -165,12 +182,12 @@ export function PrerequisiteLibraryPicker({
             </div>
           ) : search.trim() && filteredDefinitions.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-slate-300">
-              <p className="font-medium text-white">Aucun prerequis ne correspond a cette recherche.</p>
-              <p className="mt-2 text-slate-400">Vous pouvez creer « {search.trim()} » si aucun resultat ne convient.</p>
+              <p className="font-medium text-white">Aucun prérequis ne correspond à cette recherche.</p>
+              <p className="mt-2 text-slate-400">Vous pouvez créer « {search.trim()} » si aucun résultat ne convient.</p>
               <button
                 type="button"
                 onClick={onOpenNewPrerequisiteForm}
-                disabled={newPrerequisiteSaving || totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total}
+                disabled={newPrerequisiteSaving}
                 className="mt-4 inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
               >
                 Créer « {search.trim()} »
@@ -183,10 +200,10 @@ export function PrerequisiteLibraryPicker({
               <button
                 type="button"
                 onClick={onOpenNewPrerequisiteForm}
-                disabled={newPrerequisiteSaving || totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total}
+                disabled={newPrerequisiteSaving}
                 className="mt-4 inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
               >
-                Créer un prerequis
+                Créer un prérequis personnalisé
               </button>
             </div>
           ) : null}
@@ -198,16 +215,8 @@ export function PrerequisiteLibraryPicker({
                 const inRequired = input.requiredPrerequisites.some((selection) => selection.prerequisiteId === definitionId);
                 const inPreferred = input.preferredPrerequisites.some((selection) => selection.prerequisiteId === definitionId);
                 const selectedImportance = inRequired ? 'required' : inPreferred ? 'preferred' : null;
-                const canPlaceRequired = inRequired
-                  ? false
-                  : inPreferred
-                    ? requiredCount < SEVENO_OFFER_PREREQUISITE_LIMITS.required
-                    : canAddRequired;
-                const canPlacePreferred = inPreferred
-                  ? false
-                  : inRequired
-                    ? preferredCount < SEVENO_OFFER_PREREQUISITE_LIMITS.preferred
-                    : canAddPreferred;
+                const canPlaceRequired = !inRequired && canAddRequired;
+                const canPlacePreferred = !inPreferred && canAddPreferred;
                 return (
                   <article key={definitionId} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -226,12 +235,12 @@ export function PrerequisiteLibraryPicker({
                           </span>
                           {definition.applicableToCurrentRole === false ? (
                             <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-amber-200">
-                              Pas encore associe a ce metier
+                              Pas encore associé à ce métier
                             </span>
                           ) : null}
                           {definition.alreadySelected === true ? (
                             <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-cyan-200">
-                              Deja ajoute
+                              Déjà ajouté
                             </span>
                           ) : null}
                         </div>
@@ -244,7 +253,7 @@ export function PrerequisiteLibraryPicker({
                         onClick={() => onAssignPrerequisite(definition, 'required')}
                         className="rounded-full border border-orange-300/20 bg-orange-400/10 px-3 py-2 text-xs text-orange-100 disabled:opacity-40"
                       >
-                        {selectedImportance === 'required' ? 'Deja obligatoire' : selectedImportance === 'preferred' ? 'Deplacer en obligatoire' : 'Ajouter en obligatoire'}
+                        {selectedImportance === 'required' ? 'Déjà obligatoire' : selectedImportance === 'preferred' ? 'Déplacer en obligatoire' : 'Ajouter en obligatoire'}
                       </button>
                       <button
                         type="button"
@@ -252,7 +261,10 @@ export function PrerequisiteLibraryPicker({
                         onClick={() => onAssignPrerequisite(definition, 'preferred')}
                         className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs text-violet-100 disabled:opacity-40"
                       >
-                        {selectedImportance === 'preferred' ? 'Deja en valeur ajoutee' : selectedImportance === 'required' ? 'Deplacer en valeur ajoutee' : 'Ajouter en valeur ajoutee'}
+                        {selectedImportance === 'preferred' ? 'Déjà en valeur ajoutée' : selectedImportance === 'required' ? 'Déplacer en valeur ajoutée' : 'Ajouter en valeur ajoutée'}
+                      </button>
+                      <button type="button" onClick={() => onEditSuggestion(definition)} className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-200">
+                        Modifier avant ajout
                       </button>
                     </div>
                   </article>
@@ -267,9 +279,9 @@ export function PrerequisiteLibraryPicker({
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Ajouter un nouveau prerequis</h3>
+                  <h3 className="text-lg font-semibold text-white">Créer un prérequis personnalisé</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-300">
-                    Indiquez seulement le nom du prerequis. Le moteur Seven&apos;O generera les valeurs techniques automatiquement.
+                    Définissez une question structurée afin que Seven’O puisse qualifier automatiquement la réponse du candidat.
                   </p>
                 </div>
                 <button
@@ -282,7 +294,7 @@ export function PrerequisiteLibraryPicker({
               </div>
 
               <label className="mt-5 block space-y-2 text-sm text-slate-200">
-                Nom du prerequis
+                Nom du prérequis
                 <input
                   value={newPrerequisiteName}
                   onChange={(event) => onNewPrerequisiteNameChange(event.target.value)}
@@ -295,18 +307,72 @@ export function PrerequisiteLibraryPicker({
               </p>
 
               <label className="mt-4 block space-y-2 text-sm text-slate-200">
-                Valeur attendue / exigence
+                Question affichée au candidat
                 <textarea
-                  value={newPrerequisiteRequirement}
-                  onChange={(event) => onNewPrerequisiteRequirementChange(event.target.value)}
+                  value={newPrerequisiteQuestion}
+                  onChange={(event) => onNewPrerequisiteQuestionChange(event.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40"
                   rows={3}
-                  placeholder="Ex. : Niveau autonome, 2 ans minimum, Notions ou plus..."
+                  placeholder="Ex. : Utilisez-vous cet outil de manière autonome ?"
                 />
               </label>
-              <p className="mt-2 text-xs leading-6 text-slate-400">
-                Cette exigence sera affichee au candidat comme aide de lecture du prerequis.
-              </p>
+              <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                Aide ou précision facultative
+                <textarea value={newPrerequisiteHelp} onChange={(event) => onNewPrerequisiteHelpChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40" rows={2} />
+              </label>
+
+              <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                Type d’élément
+                <Select value={newPrerequisiteFamily} onChange={(event) => onNewPrerequisiteFamilyChange(event.target.value as PrerequisiteFamily)}>
+                  <option value="job_skill">Compétence métier</option>
+                  <option value="offer_requirement">Condition ou justificatif de l’offre</option>
+                </Select>
+              </label>
+              <p className="mt-2 text-sm text-slate-400">{newPrerequisiteFamily === 'job_skill' ? 'Cette compétence pourra être utilisée pour construire le questionnaire métier.' : 'Cet élément sera vérifié séparément lors de la candidature et ne sera jamais intégré au questionnaire métier.'}</p>
+              {newPrerequisiteFamily === 'offer_requirement' ? (
+                <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                  Nature de la condition
+                  <Select value={newOfferRequirementCategory} onChange={(event) => onNewOfferRequirementCategoryChange(event.target.value as OfferRequirementCategory)}>
+                    <option value="experience">Expérience</option><option value="diploma">Diplôme</option><option value="permit">Permis</option><option value="vehicle">Véhicule ou moyen de transport</option><option value="caces">CACES</option><option value="certification">Certification</option><option value="habilitation">Habilitation</option><option value="authorization">Autorisation</option><option value="professional_card">Carte professionnelle</option><option value="availability">Disponibilité</option><option value="mobility">Mobilité</option><option value="administrative">Condition administrative</option><option value="other">Autre</option>
+                  </Select>
+                </label>
+              ) : null}
+
+              <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                Type de réponse
+                <Select value={newPrerequisiteAnswerType} onChange={(event) => onNewPrerequisiteAnswerTypeChange(event.target.value as CompanyPrerequisiteCreationInput['answerType'])}>
+                  <option value="boolean">Oui / non</option>
+                  <option value="single_choice">Choix unique</option>
+                  <option value="multiple_choice">Choix multiple</option>
+                  <option value="number">Nombre minimum</option>
+                </Select>
+              </label>
+
+              {newPrerequisiteAnswerType === 'single_choice' || newPrerequisiteAnswerType === 'multiple_choice' ? (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="block space-y-2 text-sm text-slate-200">
+                    Options proposées, une par ligne
+                    <textarea value={newPrerequisiteOptions} onChange={(event) => onNewPrerequisiteOptionsChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40" rows={5} />
+                  </label>
+                  <label className="block space-y-2 text-sm text-slate-200">
+                    Réponses acceptées, une par ligne
+                    <textarea value={newPrerequisiteAcceptedValues} onChange={(event) => onNewPrerequisiteAcceptedValuesChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40" rows={5} />
+                  </label>
+                </div>
+              ) : newPrerequisiteAnswerType === 'number' ? (
+                <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                  Valeur minimale acceptée
+                  <input type="number" value={newPrerequisiteAcceptedValues} onChange={(event) => onNewPrerequisiteAcceptedValuesChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40" />
+                </label>
+              ) : (
+                <label className="mt-4 block space-y-2 text-sm text-slate-200">
+                  Réponse acceptée
+                  <Select value={newPrerequisiteBooleanExpected ? 'true' : 'false'} onChange={(event) => onNewPrerequisiteBooleanExpectedChange(event.target.value === 'true')}>
+                    <option value="true">Oui</option>
+                    <option value="false">Non</option>
+                  </Select>
+                </label>
+              )}
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
@@ -317,8 +383,8 @@ export function PrerequisiteLibraryPicker({
                     ? 'rounded-2xl border border-orange-300/20 bg-orange-400/10 p-4 text-left text-sm text-orange-100 disabled:opacity-40'
                     : 'rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm text-slate-200 disabled:opacity-40'}
                 >
-                  <strong className="block text-white">Obligatoire</strong>
-                  <span className="mt-2 block text-slate-400">Le candidat doit satisfaire ce critere pour correspondre a l offre.</span>
+                  <strong className="block text-white">{newPrerequisiteFamily === 'job_skill' ? 'Indispensable' : 'Obligatoire'}</strong>
+                  <span className="mt-2 block text-slate-400">Le candidat doit satisfaire ce critère pour correspondre à l’offre.</span>
                 </button>
                 <button
                   type="button"
@@ -328,8 +394,8 @@ export function PrerequisiteLibraryPicker({
                     ? 'rounded-2xl border border-violet-300/20 bg-violet-400/10 p-4 text-left text-sm text-violet-100 disabled:opacity-40'
                     : 'rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm text-slate-200 disabled:opacity-40'}
                 >
-                  <strong className="block text-white">Valeur ajoutee</strong>
-                  <span className="mt-2 block text-slate-400">Ce critere valorise la candidature sans etre eliminatoire.</span>
+                  <strong className="block text-white">{newPrerequisiteFamily === 'job_skill' ? 'Complémentaire' : 'Souhaité'}</strong>
+                  <span className="mt-2 block text-slate-400">Ce critère valorise la candidature sans être éliminatoire.</span>
                 </button>
               </div>
 
@@ -341,19 +407,19 @@ export function PrerequisiteLibraryPicker({
                   className="mt-1 accent-cyan-400"
                 />
                 <span>
-                  <strong className="text-white">Enregistrer aussi dans ma bibliotheque entreprise</strong>
-                  <span className="mt-1 block text-slate-400">Vous pourrez reutiliser ce prerequis dans vos prochaines offres.</span>
+                  <strong className="text-white">Proposer ce prérequis à Seven’O</strong>
+                  <span className="mt-1 block text-slate-400">Votre prérequis restera utilisable immédiatement pour cette offre. Seven’O pourra l’examiner avant de l’ajouter éventuellement aux suggestions communes.</span>
                 </span>
               </label>
 
               <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                disabled={newPrerequisiteSaving || totalCount >= SEVENO_OFFER_PREREQUISITE_LIMITS.total}
+                disabled={newPrerequisiteSaving}
                 onClick={onSaveNewPrerequisite}
                 className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
-                  {newPrerequisiteSaving ? 'Ajout...' : 'Créer le prerequis'}
+                  {newPrerequisiteSaving ? 'Ajout...' : 'Créer le prérequis personnalisé'}
                 </button>
                 <button
                   type="button"
@@ -366,8 +432,8 @@ export function PrerequisiteLibraryPicker({
             </div>
           ) : (
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-slate-300">
-              <p className="font-medium text-white">Ajouter un nouveau prerequis</p>
-              <p className="mt-2 text-slate-400">Cliquez sur le bouton pour creer un prerequis simple a partir de son seul nom.</p>
+              <p className="font-medium text-white">Créer un prérequis personnalisé</p>
+              <p className="mt-2 text-slate-400">Définissez librement son libellé, sa question, son type de réponse et sa condition acceptée.</p>
             </div>
           )}
         </div>

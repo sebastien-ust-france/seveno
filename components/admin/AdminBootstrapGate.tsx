@@ -56,7 +56,7 @@ export default function AdminBootstrapGate() {
           return;
         }
 
-        setError(thrownError instanceof Error ? thrownError.message : "L acces admin n a pas pu etre verifie.");
+        setError(thrownError instanceof Error ? thrownError.message : 'L’accès administrateur n’a pas pu être vérifié.');
         setChecking(false);
       }
     }
@@ -70,16 +70,16 @@ export default function AdminBootstrapGate() {
 
   return (
     <SevenoSurface
-      eyebrow="Acces admin"
+      eyebrow="Accès admin"
       title="Vérification de votre session Seven’O"
-      description="L espace admin reste prive. La page verifie le token Firebase cote serveur puis autorise uniquement les comptes dont le role est admin."
+      description="L’espace admin reste privé. La page vérifie le jeton Firebase côté serveur puis autorise uniquement les comptes dont le rôle est administrateur."
       containerClassName="max-w-4xl"
     >
       <div className="space-y-5">
         <SevenoPanel tone="neutral" className="p-5 text-sm leading-7 text-slate-300">
           {checking ? (
             <>
-              <p className="font-medium text-white">Verification de votre session admin...</p>
+              <p className="font-medium text-white">Vérification de votre session administrateur…</p>
               <p className="mt-3">
                 Le serveur controle le jeton Firebase puis lit le document <code className="text-cyan-100">users/uid</code>{' '}
                 pour confirmer le role admin avant d afficher les donnees sensibles.
@@ -89,7 +89,7 @@ export default function AdminBootstrapGate() {
             <>
               <p className="font-medium text-white">Connexion requise</p>
               <p className="mt-3">
-                Connectez-vous avec le compte admin autorise puis revenez ici. Si votre compte n est pas admin, vous
+                Connectez-vous avec le compte administrateur autorisé puis revenez ici. Si votre compte n’est pas administrateur, vous
                 serez redirige automatiquement vers votre espace.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">

@@ -3,15 +3,20 @@ import 'server-only';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getJobOffer } from '@/lib/seveno-job-offers-server';
+import { buildCompanyQuestionnaireAiPrompt } from '@/lib/seveno-company-questionnaire-ai';
+import { classifyOfferPrerequisites } from '@/lib/seveno-prerequisite-families';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import {
+  COMPANY_QUESTION_POINTS,
   COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
+  COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION,
   COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
 } from '@/lib/seveno-company-questionnaire-constants';
 import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
 import type {
   CompanyQuestion,
   CompanyQuestionCorrectionMode,
+  CompanyQuestionDifficulty,
   CompanyQuestionEditorProjection,
   CompanyQuestionExpectedAnswer,
   CompanyQuestionnaireCreationMode,
@@ -128,6 +133,53 @@ function normalizeCreationMode(raw: unknown): CompanyQuestionnaireCreationMode {
   return raw === 'ai_import' ? 'ai_import' : 'manual';
 }
 
+function aiQuestionnaireContractSignature(questions: CompanyQuestion[]) {
+  return JSON.stringify(questions.map((question) => ({
+    id: question.id,
+    prompt: question.prompt,
+    help: question.help ?? '',
+    explanation: question.explanation ?? '',
+    type: question.type,
+    required: question.required,
+    options: question.options,
+    correctionMode: question.correctionMode,
+    expectedAnswer: question.expectedAnswer,
+    order: question.order,
+    difficulty: question.difficulty,
+  })));
+}
+
+function assertAiQuestionnaireContract(questions: CompanyQuestion[], existingQuestions: CompanyQuestion[]) {
+  const difficultyCounts = questions.reduce<Record<CompanyQuestionDifficulty, number>>((counts, question) => {
+    if (question.difficulty) counts[question.difficulty] += 1;
+    return counts;
+  }, { easy: 0, medium: 0, hard: 0 });
+  const valid = questions.length === COMPANY_QUESTIONNAIRE_QUESTION_COUNT
+    && questions.every((question) => (
+      (question.type === 'single_choice' || question.type === 'multiple_choice')
+      && question.required === true
+      && question.correctionMode === 'automatic'
+      && Boolean(question.explanation?.trim())
+      && question.points === COMPANY_QUESTION_POINTS
+    ))
+    && difficultyCounts.easy === COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.easy
+    && difficultyCounts.medium === COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.medium
+    && difficultyCounts.hard === COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.hard;
+  if (valid) return;
+
+  const unchangedLegacy = existingQuestions.length > 0
+    && aiQuestionnaireContractSignature(questions) === aiQuestionnaireContractSignature(existingQuestions);
+  if (unchangedLegacy) return;
+
+  throw new SevenoCompanyQuestionnaireError(
+    'invalid_ai_questionnaire_contract',
+    400,
+    `Un questionnaire IA doit contenir exactement ${COMPANY_QUESTIONNAIRE_QUESTION_COUNT} questions automatiques obligatoires, `
+      + `réparties en ${COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.easy} faciles, `
+      + `${COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.medium} moyennes et ${COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.hard} difficiles.`,
+  );
+}
+
 function normalizeQuestion(raw: unknown, existing?: CompanyQuestion): CompanyQuestion {
   if (!isPlainObject(raw)) throw new SevenoCompanyQuestionnaireError('invalid_question', 400, 'Une question est invalide.');
   const id = cleanText(raw.id, 80, true);
@@ -139,13 +191,20 @@ function normalizeQuestion(raw: unknown, existing?: CompanyQuestion): CompanyQue
   if (correctionMode === 'automatic' && !AUTOMATIC_TYPES.includes(type)) {
     throw new SevenoCompanyQuestionnaireError('invalid_correction_mode', 400, 'Une reponse libre ne peut pas etre corrigee automatiquement.');
   }
-  const points = typeof raw.points === 'number' && Number.isInteger(raw.points) && raw.points >= 0 && raw.points <= 100
-    ? raw.points
+  const points = raw.points === undefined || raw.points === COMPANY_QUESTION_POINTS
+    ? COMPANY_QUESTION_POINTS
     : null;
   const order = typeof raw.order === 'number' && Number.isInteger(raw.order) && raw.order >= 0
     ? raw.order
     : null;
-  if (points === null || order === null) throw new SevenoCompanyQuestionnaireError('invalid_question', 400, 'Les points ou l ordre sont invalides.');
+  if (points === null) {
+    throw new SevenoCompanyQuestionnaireError(
+      'custom_question_weight_not_allowed',
+      400,
+      'La pondération personnalisée n’est pas autorisée. Chaque question compte de manière identique.',
+    );
+  }
+  if (order === null) throw new SevenoCompanyQuestionnaireError('invalid_question', 400, 'L ordre de la question est invalide.');
   const help = cleanText(raw.help, 1000);
   const explanation = cleanText(raw.explanation, 2000) || existing?.explanation;
   const question: CompanyQuestion = {
@@ -216,13 +275,18 @@ export function validateCompanyQuestionnaireInput(
       'Le seuil minimum doit etre compris entre 50 et 100 par paliers de 5.',
     );
   }
+  const creationMode = normalizeCreationMode(raw.creationMode);
+  const sortedQuestions = questions.sort((left, right) => left.order - right.order);
+  if (creationMode === 'ai_import') {
+    assertAiQuestionnaireContract(sortedQuestions, existingQuestions);
+  }
   return {
     title: cleanText(raw.title, 200),
     instructions: cleanText(raw.instructions, 3000),
-    creationMode: normalizeCreationMode(raw.creationMode),
+    creationMode,
     minimumPassingScorePercent,
     durationMinutes,
-    questions: questions.sort((left, right) => left.order - right.order),
+    questions: sortedQuestions,
   };
 }
 
@@ -242,7 +306,7 @@ export function toCompanyQuestionEditorProjection(question: CompanyQuestion): Co
     required: question.required,
     options,
     correctionMode: question.correctionMode,
-    points: question.points,
+    points: COMPANY_QUESTION_POINTS,
     order: question.order,
     ...(question.difficulty ? { difficulty: question.difficulty } : {}),
     hasExpectedAnswer: question.expectedAnswer !== undefined,
@@ -303,13 +367,53 @@ async function assertCompanyQuestionnaireOwner(companyUid: string) {
 }
 
 export async function getCompanyQuestionnaire(companyUid: string, offerId: string) {
+  return (await getCompanyQuestionnairePromptContext(companyUid, offerId)).questionnaire;
+}
+
+export async function getCompanyQuestionnairePromptContext(companyUid: string, offerId: string) {
   const offer = await getJobOffer(companyUid, offerId);
   const snapshot = await requireDatabase().collection(COLLECTION).doc(offer.id).get();
-  if (!snapshot.exists) return null;
-  if (snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== offer.id) {
-    throw new SevenoCompanyQuestionnaireError('forbidden_questionnaire', 403, 'Ce questionnaire ne vous appartient pas.');
+  let questionnaire: CompanyQuestionnaireEditorProjection | null = null;
+  if (snapshot.exists) {
+    if (snapshot.id !== offer.id || snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== offer.id) {
+      throw new SevenoCompanyQuestionnaireError(
+        'questionnaire_offer_mismatch',
+        409,
+        'Le questionnaire chargé n’est pas associé à l’offre actuellement ouverte. La génération a été interrompue.',
+      );
+    }
+    questionnaire = toProjection(snapshot.id, snapshot.data() as FirestoreRecord);
   }
-  return toProjection(snapshot.id, snapshot.data() as FirestoreRecord);
+  const groups = classifyOfferPrerequisites([...offer.requiredPrerequisites, ...offer.preferredPrerequisites]);
+  const promptOffer = {
+    ...offer,
+    requiredPrerequisites: groups.requiredJobSkills,
+    preferredPrerequisites: groups.preferredJobSkills,
+  };
+  if (process.env.NODE_ENV === 'development') {
+    console.info('[SevenO company questionnaire context]', {
+      step: 'company_questionnaire_prompt_context',
+      requestedOfferId: offerId,
+      loadedOfferId: offer.id,
+      questionnaireOfferId: questionnaire?.offerId ?? null,
+      companyIdChecked: companyUid,
+      requiredPrerequisiteCount: offer.requiredPrerequisites.length,
+      preferredPrerequisiteCount: offer.preferredPrerequisites.length,
+    });
+    console.info('[SevenO company questionnaire context]', {
+      step: 'company_questionnaire_job_skill_filter',
+      offerId: offer.id,
+      requiredJobSkillCount: groups.requiredJobSkills.length,
+      preferredJobSkillCount: groups.preferredJobSkills.length,
+      requiredOfferRequirementCount: groups.requiredOfferRequirements.length,
+      preferredOfferRequirementCount: groups.preferredOfferRequirements.length,
+    });
+  }
+  return {
+    offer,
+    questionnaire,
+    aiPrompt: buildCompanyQuestionnaireAiPrompt(promptOffer, questionnaire),
+  };
 }
 
 export async function saveCompanyQuestionnaire(companyUid: string, offerId: string, raw: unknown) {

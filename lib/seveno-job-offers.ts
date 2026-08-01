@@ -48,6 +48,22 @@ export async function changeCompanyJobOfferStatus(
   );
 }
 
+export async function duplicateCompanyJobOffer(authUser: User, offerId: string) {
+  return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(
+    authUser,
+    `/api/seveno/offers/${encodeURIComponent(offerId)}/duplicate`,
+    { method: 'POST' },
+  );
+}
+
+export async function deleteCompanyJobOffer(authUser: User, offerId: string) {
+  return fetchSevenoMatchApi<{ deleted: true }>(
+    authUser,
+    `/api/seveno/offers/${encodeURIComponent(offerId)}`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function listApplicableOfferPrerequisites(
   authUser: User,
   jobRoleId: string,

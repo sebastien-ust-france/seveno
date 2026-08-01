@@ -1,5 +1,13 @@
 import type { FirestoreDateValue } from '@/types/seveno';
-import type { PrerequisiteImportance } from '@/types/seveno-prerequisites';
+import type {
+  PrerequisiteAnswerOption,
+  PrerequisiteAnswerType,
+  PrerequisiteComparisonOperator,
+  PrerequisiteCriterionValue,
+  PrerequisiteImportance,
+  PrerequisiteFamily,
+  OfferRequirementCategory,
+} from '@/types/seveno-prerequisites';
 
 export type PrerequisiteSuggestionStatus = 'pending' | 'approved' | 'merged' | 'rejected';
 
@@ -20,6 +28,20 @@ export interface PrerequisiteSuggestion {
   observedJobRoleIds: string[];
   canonicalPrerequisiteCode?: string | null;
   mergedIntoSuggestionId?: string | null;
+  source?: 'company_custom_prerequisite';
+  companyId?: string;
+  offerId?: string;
+  createdBy?: string;
+  companyLabel?: string;
+  candidateQuestion?: string;
+  candidateHelp?: string;
+  answerType?: PrerequisiteAnswerType;
+  options?: PrerequisiteAnswerOption[];
+  comparisonOperator?: PrerequisiteComparisonOperator;
+  expectedCriterion?: PrerequisiteCriterionValue;
+  importance?: PrerequisiteImportance;
+  prerequisiteFamily?: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
   schemaVersion: number;
   firstSeenAt: FirestoreDateValue;
   lastSeenAt: FirestoreDateValue;
@@ -42,6 +64,8 @@ export interface PrerequisiteSuggestionUsage {
   jobFamilyId: string;
   jobRoleId: string;
   importance: PrerequisiteImportance;
+  prerequisiteFamily?: PrerequisiteFamily;
+  offerRequirementCategory?: OfferRequirementCategory;
   active: boolean;
   createdAt: FirestoreDateValue;
   updatedAt: FirestoreDateValue;

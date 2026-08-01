@@ -1261,7 +1261,7 @@ export default function SevenoProfessionalAssessmentEditor() {
               {question.situation ? question.situation.slice(0, 90) : 'Situation à compléter'}
             </h3>
             <p className="mt-2 text-sm text-slate-300">
-              {question.path === 'essential' ? 'Parcours essentiel' : 'Parcours approfondi'} · {answerCount} réponse(s)
+              {question.path === 'essential' ? 'Parcours essentiel' : 'Parcours approfondi'} · {answerCount} {answerCount > 1 ? 'réponses' : 'réponse'}
             </p>
           </div>
 
@@ -1656,7 +1656,7 @@ export default function SevenoProfessionalAssessmentEditor() {
             <h3 className="mt-2 text-xl font-semibold text-white">{report.companySummary}</h3>
             <p className="mt-3 text-sm leading-7 text-slate-300">{report.limitations.join(' ')}</p>
             <p className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">
-              Version: {report.assessmentVersion.version} · Volume prévisualisé: {previewPayload.questionCount} question(s)
+              Version : {report.assessmentVersion.version} · Volume prévisualisé : {previewPayload.questionCount} {previewPayload.questionCount > 1 ? 'questions' : 'question'}
             </p>
           </SevenoPanel>
         </div>
@@ -1713,7 +1713,7 @@ export default function SevenoProfessionalAssessmentEditor() {
               </h2>
               <p className="mt-2 text-sm text-slate-300">
                 {selectedVersion
-                  ? `Version ${selectedVersion.version} · ${formatStatusLabel(selectedVersion.status)} · ${selectedVersion.questions.length} question(s)`
+                  ? `Version ${selectedVersion.version} · ${formatStatusLabel(selectedVersion.status)} · ${selectedVersion.questions.length} ${selectedVersion.questions.length > 1 ? 'questions' : 'question'}`
                   : 'Créez ou chargez une version pour commencer.'}
               </p>
             </div>

@@ -1449,14 +1449,14 @@ function computeDimensionResult(
       interpretationCode: 'not_measured',
       evidenceCodes,
       limitations: [
-        'Cette dimension nest pas mesuree par les questions presentees.',
+        'Cette dimension n’est pas mesurée par les questions présentées.',
       ],
     };
   }
 
   if (hasMissingResponse || observationsCount < expectedObservationsCount) {
     if (hasMissingResponse) {
-      limitations.push('Toutes les questions attendues nont pas encore de reponse.');
+      limitations.push('Toutes les questions attendues n’ont pas encore de réponse.');
     }
 
     if (observationsCount < expectedObservationsCount) {
@@ -1557,8 +1557,8 @@ function selectReportItems(
       code: `${result.dimensionCode}:${block?.interpretationCode ?? 'not_measured'}`,
       dimensionCode: result.dimensionCode,
       label: block?.strengthLabel ?? dimension.label,
-      candidateSummary: block?.candidateSummary ?? 'Les reponses indiquent une base interessante a approfondir.',
-      companySummary: block?.companySummary ?? 'Les reponses suggere une base a explorer.',
+      candidateSummary: block?.candidateSummary ?? 'Les réponses indiquent une base intéressante à approfondir.',
+      companySummary: block?.companySummary ?? 'Les réponses suggèrent une base à explorer.',
       interviewQuestionIds: block?.interviewQuestionIds ? [...block.interviewQuestionIds] : [...dimension.interviewQuestionIds],
       limitations: [...result.limitations],
     };
@@ -2156,7 +2156,7 @@ export function calculateProfessionalAssessmentOutcome(
   const responseIssues = validateAssessmentResponses(input.version, input.questions, input.responses);
   const responseErrorIssues = responseIssues.issues.filter((issue) => issue.severity === 'error');
   if (responseErrorIssues.length > 0) {
-    throw new AssessmentModelError('Les reponses de la session SevenO professionnelle sont invalides.', responseIssues.issues);
+    throw new AssessmentModelError('Les réponses de la session Seven’O professionnelle sont invalides.', responseIssues.issues);
   }
 
   const completedPath = input.completedPath;
@@ -2222,7 +2222,7 @@ export function calculateProfessionalAssessmentOutcome(
         result.status === 'not_measured' ? 'assessment_dimension_not_measured' : 'assessment_dimension_insufficient_data',
         `dimensions.${result.dimensionCode}`,
         result.status === 'not_measured'
-          ? 'Cette dimension nest pas mesuree dans la configuration presentee.'
+          ? 'Cette dimension n’est pas mesurée dans la configuration présentée.'
           : 'Cette dimension ne dispose pas encore de suffisamment dobservations.',
         'warning',
       )),

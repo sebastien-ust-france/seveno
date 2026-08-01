@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   assertUniqueOfferPrerequisiteSelections,
+  assertOfferPrerequisiteLimits,
   buildAdminApplicabilityKeys,
   buildCompanyPrerequisitePickerResults,
   buildJobApplicabilityKeys,
@@ -117,6 +119,84 @@ assert.deepEqual(buildPrerequisiteExclusionKeys({
 
 assert.throws(
   () => validatePrerequisiteInput({ ...baseInput, comparisonOperator: 'minimum' }),
+  hasCode('invalid_operator'),
+);
+
+const structuredChoice = validatePrerequisiteInput({
+  ...baseInput,
+  code: 'niveau-typescript',
+  category: 'technical_skill',
+  companyLabel: 'Niveau en TypeScript',
+  candidateQuestion: 'Quel est votre niveau actuel en TypeScript ?',
+  answerType: 'single_choice',
+  options: [
+    { value: 'notions', candidateLabel: 'Notions' },
+    { value: 'autonome', candidateLabel: 'Autonome' },
+  ],
+  defaultCriterion: 'autonome',
+  comparisonOperator: 'equals',
+});
+assert.equal(structuredChoice.candidateQuestion, 'Quel est votre niveau actuel en TypeScript ?');
+assert.equal(structuredChoice.defaultCriterion, 'autonome');
+
+const oneOfOptions = [
+  { value: 'notions', candidateLabel: 'Notions' },
+  { value: 'operational', candidateLabel: 'Opérationnel' },
+  { value: 'autonomous', candidateLabel: 'Autonome' },
+  { value: 'expert', candidateLabel: 'Expert' },
+];
+const structuredOneOf = validatePrerequisiteInput({
+  ...baseInput,
+  code: 'typescript-one-of',
+  answerType: 'single_choice',
+  options: oneOfOptions,
+  defaultCriterion: ['autonomous', 'expert'],
+  comparisonOperator: 'one_of',
+});
+assert.deepEqual(structuredOneOf.defaultCriterion, ['autonomous', 'expert']);
+assert.doesNotThrow(() => validatePrerequisiteInput({ ...structuredOneOf, defaultCriterion: ['notions', 'autonomous', 'expert'] }));
+for (const invalidCriterion of ['autonomous', [], ['autonomous'], ['autonomous', 'autonomous'], ['autonomous', 'unknown']]) {
+  assert.throws(
+    () => validatePrerequisiteInput({ ...structuredOneOf, defaultCriterion: invalidCriterion }),
+    hasCode('invalid_criterion'),
+  );
+}
+assert.throws(
+  () => validatePrerequisiteInput({ ...structuredChoice, defaultCriterion: ['autonome'] }),
+  hasCode('invalid_criterion'),
+);
+
+const structuredMultiple = validatePrerequisiteInput({
+  ...baseInput,
+  code: 'frameworks-frontend',
+  category: 'technical_skill',
+  companyLabel: 'Frameworks frontend',
+  candidateQuestion: 'Avec quels frameworks êtes-vous autonome ?',
+  answerType: 'multiple_choice',
+  options: [
+    { value: 'react', candidateLabel: 'React' },
+    { value: 'next', candidateLabel: 'Next.js' },
+    { value: 'vue', candidateLabel: 'Vue.js' },
+  ],
+  defaultCriterion: ['react', 'next'],
+  comparisonOperator: 'contains_any',
+});
+assert.deepEqual(structuredMultiple.defaultCriterion, ['react', 'next']);
+
+const structuredMinimum = validatePrerequisiteInput({
+  ...baseInput,
+  code: 'experience-minimale',
+  category: 'experience',
+  companyLabel: 'Expérience minimale',
+  candidateQuestion: 'Depuis combien d’années exercez-vous ce métier ?',
+  answerType: 'number',
+  options: [],
+  defaultCriterion: 2,
+  comparisonOperator: 'minimum',
+});
+assert.equal(structuredMinimum.defaultCriterion, 2);
+assert.throws(
+  () => validatePrerequisiteInput({ ...structuredMinimum, comparisonOperator: 'one_of', defaultCriterion: [1, 2] }),
   hasCode('invalid_operator'),
 );
 assert.throws(() => buildJobApplicabilityKeys('metier-inconnu'), hasCode('unknown_job_role'));
@@ -296,16 +376,17 @@ assert.equal(buildPrerequisiteSuggestionGroupingKey('  Controle interne  '), 'co
 assert.equal(buildPrerequisiteSuggestionId(buildPrerequisiteSuggestionGroupingKey('Controle interne')),
   buildPrerequisiteSuggestionId(buildPrerequisiteSuggestionGroupingKey('  controle    interne ')));
 
-const companyRequiredSnapshot = createOfferPrerequisiteSnapshot(companyDefinition, {
+const companyRequiredSnapshot = { ...createOfferPrerequisiteSnapshot(companyDefinition, {
   prerequisiteId: companyDefinition.id,
   expectedCriterion: true,
   importance: 'required',
-});
-const companyPreferredSnapshot = createOfferPrerequisiteSnapshot(companyDefinition, {
+}), suggestedToSeveno: true };
+const companyPreferredSnapshot = { ...createOfferPrerequisiteSnapshot(companyDefinition, {
   prerequisiteId: companyDefinition.id,
   expectedCriterion: true,
   importance: 'preferred',
-});
+}), suggestedToSeveno: true };
+assert.equal(buildPrerequisiteSuggestionUsageDescriptors(companyOfferA, [{ ...companyRequiredSnapshot, suggestedToSeveno: undefined }]).length, 0);
 const companyDescriptorsA = buildPrerequisiteSuggestionUsageDescriptors(companyOfferA, [companyRequiredSnapshot]);
 assert.equal(companyDescriptorsA.length, 1);
 assert.equal(companyDescriptorsA[0]?.suggestionId, buildPrerequisiteSuggestionId('controle interne'));
@@ -354,5 +435,35 @@ assert.throws(
   ]),
   hasCode('duplicate_offer_prerequisite'),
 );
+assert.doesNotThrow(() => assertOfferPrerequisiteLimits([
+  ...Array.from({ length: 5 }, (_, index) => ({ prerequisiteId: `required-${index}`, expectedCriterion: true, importance: 'required' as const })),
+  ...Array.from({ length: 3 }, (_, index) => ({ prerequisiteId: `preferred-${index}`, expectedCriterion: true, importance: 'preferred' as const })),
+]));
+assert.throws(() => assertOfferPrerequisiteLimits(
+  Array.from({ length: 6 }, (_, index) => ({ prerequisiteId: `required-${index}`, expectedCriterion: true, importance: 'required' as const })),
+), hasCode('too_many_prerequisites'));
+assert.throws(() => assertOfferPrerequisiteLimits(
+  Array.from({ length: 4 }, (_, index) => ({ prerequisiteId: `preferred-${index}`, expectedCriterion: true, importance: 'preferred' as const })),
+), hasCode('too_many_prerequisites'));
+
+const pickerSource = readFileSync('components/entreprise/PrerequisiteLibraryPicker.tsx', 'utf8');
+const jobSkillPlaceholder = 'Rechercher une compétence métier, par exemple : lecture de plans, métré, AutoCAD';
+const offerRequirementPlaceholder = 'Rechercher une condition ou un justificatif, par exemple : permis B, CACES R482, diplôme';
+const noFamilyPlaceholder = 'Choisissez d’abord le type d’élément';
+for (const text of [jobSkillPlaceholder, offerRequirementPlaceholder, noFamilyPlaceholder]) {
+  assert.match(pickerSource, new RegExp(text));
+}
+assert.doesNotMatch(jobSkillPlaceholder, /Permis B/i);
+assert.doesNotMatch(offerRequirementPlaceholder, /AutoCAD|lecture de plans/i);
+assert.match(pickerSource, /placeholder=\{prerequisiteSearchPlaceholder\(newPrerequisiteFamily\)\}/);
+assert.match(pickerSource, /Cette compétence pourra être utilisée pour construire le questionnaire métier\./);
+assert.match(pickerSource, /Cet élément sera vérifié séparément lors de la candidature et ne sera jamais intégré au questionnaire métier\./);
+const nonVisualSources = [
+  readFileSync('lib/seveno-company-questionnaire-ai.ts', 'utf8'),
+  readFileSync('lib/seveno-prerequisites-server.ts', 'utf8'),
+].join('\n');
+for (const text of [jobSkillPlaceholder, offerRequirementPlaceholder, noFamilyPlaceholder]) {
+  assert.doesNotMatch(nonVisualSources, new RegExp(text));
+}
 
 console.log('Prerequisite validation smoke tests: OK');

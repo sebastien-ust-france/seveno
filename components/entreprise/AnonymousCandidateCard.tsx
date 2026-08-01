@@ -139,7 +139,7 @@ export default function AnonymousCandidateCard({
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Recommandations visibles</p>
             <p className="mt-2 text-sm text-white">
               {profile.recommendationVisibleCount && profile.recommendationVisibleCount > 0
-                ? `${profile.recommendationVisibleCount} recommandation(s) vérifiée(s)`
+                ? `${profile.recommendationVisibleCount} ${profile.recommendationVisibleCount > 1 ? 'recommandations vérifiées' : 'recommandation vérifiée'}`
                 : 'Aucune recommandation vérifiée'}
             </p>
             <p className="mt-1 text-xs leading-5 text-slate-400">

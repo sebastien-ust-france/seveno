@@ -15,7 +15,19 @@ export type JobOfferContractType =
   | 'internship'
   | 'other';
 export type JobOfferWorkingTime = 'full_time' | 'part_time' | 'shift' | 'flexible' | 'other';
-export type JobOfferStatusAction = 'publish' | 'pause' | 'close' | 'archive';
+export type JobOfferStatusAction = 'publish' | 'pause' | 'reactivate' | 'close' | 'archive' | 'restore';
+
+export interface JobOfferDependencyCounts {
+  applications: number;
+  questionnaire: number;
+  sessions: number;
+  results: number;
+  applicationGuards: number;
+  capacityLocks: number;
+  matchRequests: number;
+  suggestionUsages: number;
+  versions: number;
+}
 
 export interface JobOfferPrerequisiteSelectionInput {
   prerequisiteId: string;

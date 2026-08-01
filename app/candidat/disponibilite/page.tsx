@@ -32,7 +32,7 @@ export default function CandidateAvailabilityPage() {
   const canSubmit = Boolean(requestId && token && action);
   const title = action === 'no'
     ? 'Signaler que je ne suis plus disponible'
-    : 'Confirmer ma disponibilite';
+    : 'Confirmer ma disponibilité';
 
   async function handleSubmit(nextAction: CandidateAvailabilityConfirmationAction | null = action) {
     if (!requestId || !token || !nextAction) {
@@ -58,7 +58,7 @@ export default function CandidateAvailabilityPage() {
           : 'Disponibilité immédiate désactivée.',
       );
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'La confirmation a echoue.');
+      setError(thrownError instanceof Error ? thrownError.message : 'La confirmation a échoué.');
     } finally {
       setLoading(false);
     }
@@ -67,7 +67,7 @@ export default function CandidateAvailabilityPage() {
   return (
     <CandidateShell
       title={title}
-      description="Cette page permet de repondre a la demande de disponibilite sans ouvrir votre tableau de bord."
+      description="Cette page permet de répondre à la demande de disponibilité sans ouvrir votre tableau de bord."
       footer={<p className="text-xs uppercase tracking-[0.24em] text-slate-500">Seven’O - Disponibilité</p>}
     >
       <div className="space-y-5">
@@ -76,7 +76,7 @@ export default function CandidateAvailabilityPage() {
             Seven&apos;O vous demande simplement si vous etes toujours disponible immediatement.
           </p>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            Une reponse Oui confirme votre disponibilite pour 24 heures. Une reponse Non desactive la disponibilite
+            Une réponse « Oui » confirme votre disponibilité pendant 24 heures. Une réponse « Non » désactive la disponibilité
             immediate.
           </p>
         </SevenoPanel>

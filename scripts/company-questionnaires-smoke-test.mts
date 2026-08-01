@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { buildCompanyQuestionnaireAiPrompt, parseCompanyQuestionnaireAiImport } from '@/lib/seveno-company-questionnaire-ai';
 import {
   COMPANY_QUESTION_TIME_LIMIT_SECONDS,
+  COMPANY_QUESTION_POINTS,
+  COMPANY_QUESTIONNAIRE_AI_SCHEMA,
+  COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION,
   COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
 } from '@/lib/seveno-company-questionnaire-constants';
 import {
@@ -9,7 +12,7 @@ import {
   toCompanyQuestionEditorProjection,
   validateCompanyQuestionnaireInput,
 } from '@/lib/seveno-company-questionnaires-server';
-import { shuffleQuestionIds } from '@/lib/seveno-application-questionnaires-server';
+import { buildPublicQuestion, shuffleQuestionIds } from '@/lib/seveno-application-questionnaires-server';
 import type { CompanyQuestion } from '@/types/seveno-company-questionnaires';
 import type { SerializedJobOffer } from '@/types/seveno-job-offers';
 
@@ -39,9 +42,12 @@ function buildAiQuestion(index: number, type: 'single_choice' | 'multiple_choice
     expectedAnswer: type === 'single_choice'
       ? 'option-2'
       : ['option-1', 'option-3'],
-    difficulty: index % 3 === 0 ? 'hard' as const : 'medium' as const,
+    difficulty: index < COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.easy
+      ? 'easy' as const
+      : index < COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.easy + COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION.medium
+        ? 'medium' as const
+        : 'hard' as const,
     explanation: `Explication ${index + 1}.`,
-    points: 99,
     order: index,
   };
 }
@@ -63,7 +69,7 @@ const baseQuestion = {
   correctionMode: 'automatic',
   expectedAnswer: 'option-2',
   difficulty: 'medium',
-  points: 2,
+  points: COMPANY_QUESTION_POINTS,
   order: 0,
 };
 
@@ -81,7 +87,7 @@ const input = {
       required: false,
       options: [],
       correctionMode: 'manual',
-      points: 3,
+      points: COMPANY_QUESTION_POINTS,
       order: 1,
     },
   ],
@@ -91,6 +97,19 @@ const validated = validateCompanyQuestionnaireInput(input);
 assert.equal(validated.questions.length, 2);
 assert.equal(validated.questions[0]?.expectedAnswer, 'option-2');
 assert.equal(validated.creationMode, 'manual');
+assert.equal(validated.questions.every((question) => question.points === COMPANY_QUESTION_POINTS), true);
+
+const withoutPoints = validateCompanyQuestionnaireInput({
+  ...input,
+  questions: [{ ...baseQuestion, points: undefined }],
+});
+assert.equal(withoutPoints.questions[0]?.points, COMPANY_QUESTION_POINTS);
+for (const invalidPoints of [2, 0, -1, '1']) {
+  assert.throws(() => validateCompanyQuestionnaireInput({
+    ...input,
+    questions: [{ ...baseQuestion, points: invalidPoints }],
+  }), hasCode('custom_question_weight_not_allowed'));
+}
 
 const privateQuestion = validated.questions[0] as CompanyQuestion;
 const projection = toCompanyQuestionEditorProjection(privateQuestion);
@@ -99,6 +118,11 @@ assert.equal('numberOperator' in projection, false);
 assert.equal(projection.explanation, 'La bonne reponse depend du contexte fourni par l offre.');
 assert.equal(projection.difficulty, 'medium');
 assert.deepEqual(projection.correctOptionIds, ['option-2']);
+const candidateProjection = buildPublicQuestion(privateQuestion);
+assert.equal('expectedAnswer' in candidateProjection, false);
+assert.equal('explanation' in candidateProjection, false);
+assert.equal('numberOperator' in candidateProjection, false);
+assert.deepEqual(candidateProjection.options, privateQuestion.options);
 
 const preserved = validateCompanyQuestionnaireInput({
   ...input,
@@ -150,6 +174,7 @@ assert.deepEqual(legacyQuestion.questions[0]?.options, [
 ]);
 const legacyProjection = toCompanyQuestionEditorProjection({
   ...privateQuestion,
+  points: 4,
   options: [
     { value: 'option-1', label: 'Ancienne reponse A' },
     { value: 'option-2', label: 'Ancienne reponse B' },
@@ -159,6 +184,8 @@ assert.deepEqual(legacyProjection.options, [
   { id: 'option-1', label: 'Ancienne reponse A', order: 1 },
   { id: 'option-2', label: 'Ancienne reponse B', order: 2 },
 ]);
+assert.equal(legacyProjection.points, COMPANY_QUESTION_POINTS);
+assert.equal(buildPublicQuestion({ ...privateQuestion, points: 4 }).points, COMPANY_QUESTION_POINTS);
 
 assert.throws(() => validateCompanyQuestionnaireInput({
   ...input,
@@ -239,13 +266,48 @@ const imported = parseCompanyQuestionnaireAiImport({
 });
 assert.equal(imported.questionnaire.creationMode, 'ai_import');
 assert.equal(imported.questionnaire.questions.length, COMPANY_QUESTIONNAIRE_QUESTION_COUNT);
-assert.equal(imported.questionnaire.questions[0]?.difficulty, 'hard');
+assert.equal(imported.questionnaire.questions[0]?.difficulty, 'easy');
 assert.equal(imported.questionnaire.questions[0]?.explanation, 'Explication 1.');
 assert.deepEqual(imported.questionnaire.questions[0]?.expectedAnswer, 'option-2');
 assert.deepEqual(imported.questionnaire.questions[1]?.expectedAnswer, ['option-1', 'option-3']);
 assert.equal(imported.questionnaire.questions[0]?.points, 1);
 assert.equal(imported.questionnaire.questions[1]?.points, 1);
 assert.equal(imported.warnings.length, 0);
+assert.equal(validateCompanyQuestionnaireInput(imported.questionnaire).questions.length, COMPANY_QUESTIONNAIRE_QUESTION_COUNT);
+assert.throws(() => validateCompanyQuestionnaireInput({
+  ...imported.questionnaire,
+  questions: imported.questionnaire.questions.map((question) => ({ ...question, difficulty: 'medium' })),
+}), hasCode('invalid_ai_questionnaire_contract'));
+
+assert.throws(() => parseCompanyQuestionnaireAiImport({
+  schema: COMPANY_QUESTIONNAIRE_AI_SCHEMA,
+  creationMode: 'ai_import',
+  questionCount: COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
+  title: 'Questionnaire IA',
+  instructions: 'Validez puis enregistrez.',
+  questions: buildAiImportQuestions(COMPANY_QUESTIONNAIRE_QUESTION_COUNT).map((question) => ({ ...question, difficulty: 'medium' })),
+}), /répartition reçue 0\/20\/0.*6\/10\/4/i);
+
+assert.throws(() => parseCompanyQuestionnaireAiImport({
+  schema: COMPANY_QUESTIONNAIRE_AI_SCHEMA,
+  creationMode: 'ai_import',
+  questionCount: COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
+  title: 'Questionnaire IA',
+  instructions: 'Validez puis enregistrez.',
+  questions: buildAiImportQuestions(COMPANY_QUESTIONNAIRE_QUESTION_COUNT).map((question, index) => ({
+    ...question,
+    difficulty: index < 7 ? 'easy' : index < 16 ? 'medium' : 'hard',
+  })),
+}), /répartition reçue 7\/9\/4.*6\/10\/4/i);
+
+assert.throws(() => parseCompanyQuestionnaireAiImport({
+  schema: COMPANY_QUESTIONNAIRE_AI_SCHEMA,
+  creationMode: 'ai_import',
+  questionCount: COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
+  title: 'Questionnaire IA',
+  instructions: 'Validez puis enregistrez.',
+  questions: buildAiImportQuestions(COMPANY_QUESTIONNAIRE_QUESTION_COUNT).map((question, index) => index === 0 ? { ...question, points: 1 } : question),
+}), /questions\[0\]\.points.*interdit/i);
 
 assert.throws(() => parseCompanyQuestionnaireAiImport({
   schema: 'seveno_company_questionnaire_v1',
@@ -290,16 +352,19 @@ const sampleOffer = {
   requiredPrerequisites: [
     {
       prerequisiteId: 'prerequisite-1',
-      prerequisiteCode: 'permit-b',
+      prerequisiteCode: 'outil-metier',
       prerequisiteVersion: 1,
       source: 'seveno',
-      category: 'license',
-      companyLabel: 'Permis B obligatoire',
-      candidateQuestion: 'Possedez-vous le permis B ?',
-      answerType: 'boolean',
-      options: [],
+      category: 'software',
+      companyLabel: 'Outil métier',
+      candidateQuestion: 'Quel niveau utilisez-vous au quotidien ?',
+      answerType: 'single_choice',
+      options: [
+        { value: 'notions', candidateLabel: 'Notions' },
+        { value: 'autonome', candidateLabel: 'Autonome' },
+      ],
       comparisonOperator: 'equals',
-      expectedCriterion: true,
+      expectedCriterion: 'autonome',
       responseScope: 'profile_reusable',
       evidencePolicy: 'none',
       importance: 'required',
@@ -315,16 +380,45 @@ const sampleOffer = {
 } as SerializedJobOffer;
 const prompt = buildCompanyQuestionnaireAiPrompt(sampleOffer);
 assert.equal(prompt.includes(`${COMPANY_QUESTION_TIME_LIMIT_SECONDS} secondes`), true);
-assert.equal(prompt.includes('Cree exactement 20 questions.'), true);
+assert.equal(prompt.includes('français naturel, grammaticalement correct et intégralement accentué'), true);
+assert.equal(prompt.includes('conservés en UTF-8'), true);
+assert.equal(prompt.includes('convertir les titres, instructions, questions, options ou explications en ASCII'), true);
+assert.equal(prompt.includes('Crée exactement 20 questions.'), true);
 assert.equal(prompt.includes('questionCount": 20'), true);
-assert.equal(prompt.includes('ordre aleatoire'), true);
-assert.equal(prompt.includes('independante'), true);
+assert.equal(prompt.includes('ordre aléatoire'), true);
+assert.equal(prompt.includes('indépendante'), true);
+assert.equal(prompt.includes('6 easy, 10 medium et 4 hard'), true);
+assert.equal(prompt.includes('NIVEAU PROFESSIONNEL MINIMAL'), true);
+assert.equal(prompt.includes('connaissance élémentaire propre au métier analysé'), true);
+assert.equal(prompt.includes('connaissances scolaires, à la culture générale, au bon sens ou à l’élimination d’options absurdes'), true);
+assert.equal(prompt.includes('formule de l’aire d’un rectangle'), true);
+assert.equal(prompt.includes('question scolaire artificiellement habillée avec un contexte métier'), true);
+assert.equal(prompt.includes('calcul professionnel contextualisé'), true);
+assert.equal(prompt.includes('raisonnement à plusieurs étapes'), true);
+assert.equal(prompt.includes('même univers professionnel'), true);
+assert.equal(prompt.includes('confusions métier crédibles'), true);
+assert.equal(prompt.includes('Outil métier'), true);
+assert.equal(prompt.includes('Question candidat : Quel niveau utilisez-vous au quotidien ?'), false);
+assert.equal(prompt.includes('Type de réponse : single_choice'), false);
+assert.equal(prompt.includes('Opérateur : equals'), false);
+assert.equal(prompt.includes('Valeur(s) acceptée(s)'), false);
+assert.equal(prompt.includes('exactement 15 questions'), true);
+assert.equal(prompt.includes('exactement 5 questions'), true);
+assert.equal(prompt.includes('75 % / 25 %'), true);
+assert.equal(prompt.includes('description, les missions et le profil recherché'), true);
+assert.equal(prompt.includes('compétences indispensables restent prioritaires'), true);
+assert.equal(prompt.includes('compétence complémentaire avec au moins une question'), true);
+assert.equal(prompt.includes('plus de 5 questions'), true);
+assert.equal(prompt.includes('mauvaises réponses doivent être plausibles'), true);
+assert.equal(prompt.includes('question-01 à question-20'), true);
+for (const hardcodedExample of ['Développeur', 'responsable de magasin', 'client mécontent', 'inventaire', 'rupture de stock', 'Permis B', 'disponible le samedi']) {
+  assert.equal(prompt.includes(hardcodedExample), false);
+}
 assert.equal(prompt.includes('Si la question est libre'), false);
 assert.equal(prompt.includes('correctionMode = manual'), false);
 assert.equal(prompt.includes('type text'), false);
 assert.equal(prompt.includes('"points"'), false);
-assert.equal(prompt.includes('Aucun prerequis enregistre.'), true);
-assert.equal(prompt.includes('Permis B obligatoire'), true);
+assert.equal(prompt.includes('Aucune compétence métier renseignée.'), true);
 assert.equal(prompt.includes('5 minutes maximum'), true);
 
 console.log('Company questionnaire validation smoke tests: OK');

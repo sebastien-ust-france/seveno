@@ -511,7 +511,7 @@ export default function CompanyOnboardingPage() {
                   <div>
                     <p className="text-sm font-medium text-slate-200">Zones de recrutement *</p>
                     <p className="text-xs leading-5 text-slate-400">
-                      Une ou plusieurs zones geographiques, separées visuellement mais stockees en tableau.
+                      Une ou plusieurs zones géographiques, séparées visuellement mais stockées dans un tableau.
                     </p>
                   </div>
 

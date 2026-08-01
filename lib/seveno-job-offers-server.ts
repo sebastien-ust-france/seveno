@@ -7,15 +7,16 @@ import { JOB_SECTORS } from '@/lib/job-taxonomy';
 import {
   countActiveCandidateFilesForOffer,
 } from '@/lib/seveno-active-candidate-files-server';
-import { SEVENO_OFFER_PREREQUISITE_LIMITS } from '@/lib/seveno-prerequisite-constants';
 import { syncPrerequisiteSuggestionsForOffer } from '@/lib/seveno-prerequisite-suggestions-server';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import {
   buildOfferPrerequisiteSnapshots,
+  assertOfferPrerequisiteLimits,
   SevenoPrerequisiteError,
 } from '@/lib/seveno-prerequisites-server';
 import type {
   JobOfferContractType,
+  JobOfferDependencyCounts,
   JobOfferInput,
   JobOfferListPage,
   JobOfferPrerequisiteSelectionInput,
@@ -31,10 +32,17 @@ import type {
   OfferPrerequisiteSnapshot,
   PrerequisiteCriterionValue,
 } from '@/types/seveno-prerequisites';
+import { resolvePrerequisiteFamily } from '@/lib/seveno-prerequisite-families';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
 const COMPANY_QUESTIONNAIRES_COLLECTION = 'company_questionnaires';
+const APPLICATIONS_COLLECTION = 'job_applications';
+const APPLICATION_GUARDS_COLLECTION = 'job_application_guards';
+const OFFER_CAPACITY_LOCKS_COLLECTION = 'job_application_offer_locks';
+const TEST_SESSIONS_COLLECTION = 'test_sessions';
+const TEST_RESULTS_COLLECTION = 'test_results';
+const MATCH_REQUESTS_COLLECTION = 'match_requests';
 const DEFAULT_LIST_LIMIT = 30;
 const MAX_LIST_LIMIT = 50;
 const WORK_MODES: JobOfferWorkMode[] = ['onsite', 'hybrid', 'remote'];
@@ -141,7 +149,7 @@ function timestampToIso(value: unknown) {
 function normalizeOfferPrerequisiteSnapshot(value: unknown): OfferPrerequisiteSnapshot | null {
   if (!isPlainObject(value)) return null;
   const importance = value.importance === 'preferred' ? 'preferred' : 'required';
-  return {
+  const base: OfferPrerequisiteSnapshot = {
     prerequisiteId: String(value.prerequisiteId ?? ''),
     prerequisiteCode: String(value.prerequisiteCode ?? ''),
     prerequisiteVersion: typeof value.prerequisiteVersion === 'number' ? value.prerequisiteVersion : 1,
@@ -161,6 +169,7 @@ function normalizeOfferPrerequisiteSnapshot(value: unknown): OfferPrerequisiteSn
     ...(typeof value.freshnessDays === 'number' ? { freshnessDays: value.freshnessDays } : {}),
     importance,
   };
+  return { ...base, ...resolvePrerequisiteFamily(base) };
 }
 
 function cloneCriterion(value: unknown): PrerequisiteCriterionValue {
@@ -310,16 +319,6 @@ async function syncOfferPrerequisiteSuggestions(
       error,
     });
   }
-}
-
-function countOfferPrerequisites(snapshots: OfferPrerequisiteSnapshot[]) {
-  const required = snapshots.filter((item) => item.importance === 'required').length;
-  const preferred = snapshots.length - required;
-  return {
-    required,
-    preferred,
-    total: snapshots.length,
-  };
 }
 
 function deterministicCompanyPublicId(uid: string) {
@@ -500,7 +499,7 @@ function serializeOffer(id: string, data: FirestoreRecord): SerializedJobOffer {
   };
 }
 
-function assertOfferOwner(offer: SerializedJobOffer | null, companyUid: string): asserts offer is SerializedJobOffer {
+export function assertOfferOwner(offer: SerializedJobOffer | null, companyUid: string): asserts offer is SerializedJobOffer {
   if (!offer) throw new SevenoJobOfferError('offer_not_found', 404, 'Offre introuvable.');
   if (offer.companyUid !== companyUid) throw new SevenoJobOfferError('forbidden_offer', 403, 'Cette offre ne vous appartient pas.');
 }
@@ -523,19 +522,16 @@ function assertPublishable(offer: SerializedJobOffer, context: CompanyContext) {
   }
   resolveJobContext(offer.sectorId, offer.jobFamilyId, offer.jobRoleId);
   assertProfessionalContent([offer.title, offer.description, offer.missions, offer.profileSummary]);
-  const counts = countOfferPrerequisites([...offer.requiredPrerequisites, ...offer.preferredPrerequisites]);
-  if (
-    counts.required > SEVENO_OFFER_PREREQUISITE_LIMITS.required
-    || counts.preferred > SEVENO_OFFER_PREREQUISITE_LIMITS.preferred
-    || counts.total > SEVENO_OFFER_PREREQUISITE_LIMITS.total
-  ) {
+  const snapshots = [...offer.requiredPrerequisites, ...offer.preferredPrerequisites];
+  try {
+    assertOfferPrerequisiteLimits(snapshots);
+  } catch (error) {
     throw new SevenoJobOfferError(
       'offer_prerequisite_limit',
       409,
-      'La publication impose au maximum 5 prerequis obligatoires, 3 en valeur ajoutee et 8 au total.',
+      error instanceof Error ? error.message : 'Les limites de prérequis sont dépassées.',
     );
   }
-  const snapshots = [...offer.requiredPrerequisites, ...offer.preferredPrerequisites];
   const ids = snapshots.map((item) => item.prerequisiteId);
   if (new Set(ids).size !== ids.length || snapshots.some((item) => !item.prerequisiteVersion || !item.candidateQuestion)) {
     throw new SevenoJobOfferError('invalid_snapshots', 409, 'Les snapshots de prerequis sont invalides.');
@@ -636,6 +632,138 @@ export async function createJobOffer(companyUid: string, raw: unknown) {
     [...snapshots.requiredPrerequisites, ...snapshots.preferredPrerequisites],
   );
   return hydrateQuestionnaireSnapshot(companyUid, serializeOffer(id, stored));
+}
+
+export function buildDuplicatedJobOfferData(
+  source: SerializedJobOffer,
+  company: { uid: string; companyName: string; companyPublicId: string },
+) {
+  return {
+    companyUid: company.uid,
+    companyPublicId: company.companyPublicId,
+    companyNameSnapshot: company.companyName,
+    title: `Copie de ${source.title}`.slice(0, 200),
+    sectorId: source.sectorId,
+    jobFamilyId: source.jobFamilyId,
+    jobRoleId: source.jobRoleId,
+    jobRoleLabel: source.jobRoleLabel,
+    location: source.location,
+    workMode: source.workMode,
+    contractType: source.contractType,
+    workingTime: source.workingTime,
+    description: source.description,
+    missions: source.missions,
+    profileSummary: source.profileSummary,
+    questionnaireRequired: source.questionnaireRequired,
+    questionnaireId: null,
+    questionnaireVersion: null,
+    questionnaireTitleSnapshot: null,
+    questionnaireQuestionCountSnapshot: null,
+    requiredPrerequisites: source.requiredPrerequisites.map((item) => ({
+      ...item,
+      options: item.options.map((option) => ({ ...option })),
+      expectedCriterion: Array.isArray(item.expectedCriterion) ? [...item.expectedCriterion] : item.expectedCriterion,
+    })),
+    preferredPrerequisites: source.preferredPrerequisites.map((item) => ({
+      ...item,
+      options: item.options.map((option) => ({ ...option })),
+      expectedCriterion: Array.isArray(item.expectedCriterion) ? [...item.expectedCriterion] : item.expectedCriterion,
+    })),
+    status: 'draft' as const,
+    publishedAt: null,
+    closedAt: null,
+    version: 1,
+  };
+}
+
+export async function duplicateJobOffer(companyUid: string, offerId: string) {
+  const context = await loadCompanyContext(companyUid);
+  const source = await getJobOffer(companyUid, offerId);
+  const id = randomUUID();
+  const now = Timestamp.now();
+  const content = buildDuplicatedJobOfferData(source, {
+    uid: companyUid,
+    companyName: context.companyName,
+    companyPublicId: context.companyPublicId,
+  });
+  const stored: FirestoreRecord = {
+    id,
+    ...content,
+    duplicatedFromOfferId: source.id,
+    createdBy: companyUid,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await requireDatabase().collection(COLLECTION).doc(id).create(stored);
+  await syncOfferPrerequisiteSuggestions(
+    companyUid,
+    { companyUid, id, sectorId: source.sectorId, jobFamilyId: source.jobFamilyId, jobRoleId: source.jobRoleId },
+    [],
+    { companyUid, id, sectorId: source.sectorId, jobFamilyId: source.jobFamilyId, jobRoleId: source.jobRoleId },
+    [...content.requiredPrerequisites, ...content.preferredPrerequisites],
+  );
+  return serializeOffer(id, stored);
+}
+
+export function assertJobOfferDeletionAllowed(status: JobOfferStatus, dependencies: JobOfferDependencyCounts) {
+  if (status !== 'draft' && status !== 'archived') {
+    throw new SevenoJobOfferError(
+      'offer_deletion_status_forbidden',
+      409,
+      `Une offre au statut ${status} ne peut pas être supprimée définitivement. Archivez-la d’abord.`,
+    );
+  }
+  if (Object.values(dependencies).some((count) => count > 0)) {
+    throw new SevenoJobOfferError(
+      'offer_has_dependencies',
+      409,
+      'Cette offre possède déjà des candidatures, des questionnaires ou des échanges. Elle ne peut pas être supprimée définitivement, mais vous pouvez l’archiver.',
+    );
+  }
+}
+
+async function countQuery(query: Query) {
+  const snapshot = await query.limit(1).get();
+  return snapshot.empty ? 0 : 1;
+}
+
+async function loadJobOfferDependencyCounts(offerId: string): Promise<JobOfferDependencyCounts> {
+  const firestore = requireDatabase();
+  const [applications, questionnaire, sessions, results, applicationGuards, capacityLocks, matchRequests, suggestionUsages, versions] = await Promise.all([
+    countQuery(firestore.collection(APPLICATIONS_COLLECTION).where('offerId', '==', offerId)),
+    firestore.collection(COMPANY_QUESTIONNAIRES_COLLECTION).doc(offerId).get().then((snapshot) => snapshot.exists ? 1 : 0),
+    countQuery(firestore.collection(TEST_SESSIONS_COLLECTION).where('offerId', '==', offerId)),
+    countQuery(firestore.collection(TEST_RESULTS_COLLECTION).where('offerId', '==', offerId)),
+    countQuery(firestore.collection(APPLICATION_GUARDS_COLLECTION).where('offerId', '==', offerId)),
+    countQuery(firestore.collection(OFFER_CAPACITY_LOCKS_COLLECTION).where('offerId', '==', offerId)),
+    countQuery(firestore.collection(MATCH_REQUESTS_COLLECTION).where('offerId', '==', offerId)),
+    countQuery(firestore.collectionGroup('usages').where('offerId', '==', offerId)),
+    countQuery(firestore.collection(COLLECTION).doc(offerId).collection('versions')),
+  ]);
+  return { applications, questionnaire, sessions, results, applicationGuards, capacityLocks, matchRequests, suggestionUsages, versions };
+}
+
+export async function deleteJobOffer(companyUid: string, offerId: string) {
+  await loadCompanyContext(companyUid);
+  const firestore = requireDatabase();
+  const id = cleanText(offerId, 100, true);
+  const ref = firestore.collection(COLLECTION).doc(id);
+  const snapshot = await ref.get();
+  const offer = snapshot.exists ? serializeOffer(snapshot.id, snapshot.data() as FirestoreRecord) : null;
+  assertOfferOwner(offer, companyUid);
+  const dependencies = await loadJobOfferDependencyCounts(id);
+  assertJobOfferDeletionAllowed(offer.status, dependencies);
+  await firestore.runTransaction(async (transaction) => {
+    const currentSnapshot = await transaction.get(ref);
+    const current = currentSnapshot.exists ? serializeOffer(currentSnapshot.id, currentSnapshot.data() as FirestoreRecord) : null;
+    assertOfferOwner(current, companyUid);
+    assertJobOfferDeletionAllowed(current.status, dependencies);
+    const questionnaire = await transaction.get(firestore.collection(COMPANY_QUESTIONNAIRES_COLLECTION).doc(id));
+    if (questionnaire.exists) {
+      throw new SevenoJobOfferError('offer_has_dependencies', 409, 'Cette offre possède déjà des candidatures, des questionnaires ou des échanges. Elle ne peut pas être supprimée définitivement, mais vous pouvez l’archiver.');
+    }
+    transaction.delete(ref);
+  });
 }
 
 export async function getJobOffer(companyUid: string, offerId: string) {
@@ -785,7 +913,7 @@ export async function listJobOffers(companyUid: string, options: {
 }
 
 export async function changeJobOfferStatus(companyUid: string, offerId: string, action: JobOfferStatusAction) {
-  const context = await loadCompanyContext(companyUid, action === 'publish');
+  const context = await loadCompanyContext(companyUid, action === 'publish' || action === 'reactivate');
   const firestore = requireDatabase();
   const ref = firestore.collection(COLLECTION).doc(cleanText(offerId, 100, true));
   return firestore.runTransaction(async (transaction) => {
@@ -824,6 +952,7 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
         ? { publishedAt: snapshot.get('publishedAt') instanceof Timestamp ? snapshot.get('publishedAt') : now, closedAt: null }
         : {}),
       ...(status === 'closed' ? { closedAt: now } : {}),
+      ...(action === 'restore' ? { publishedAt: null, closedAt: null } : {}),
       questionnaireId,
       questionnaireVersion,
       questionnaireTitleSnapshot,
@@ -842,11 +971,22 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
 }
 
 export function resolveJobOfferStatus(status: JobOfferStatus, action: JobOfferStatusAction): JobOfferStatus {
-  if (action === 'publish' && (status === 'draft' || status === 'paused')) return 'published';
+  if (action === 'publish' && status === 'draft') return 'published';
   if (action === 'pause' && status === 'published') return 'paused';
+  if (action === 'reactivate' && status === 'paused') return 'published';
   if (action === 'close' && (status === 'published' || status === 'paused')) return 'closed';
-  if (action === 'archive' && status === 'closed') return 'archived';
-  throw new SevenoJobOfferError('invalid_status_transition', 409, 'Cette transition de statut est impossible.');
+  if (action === 'archive' && (status === 'paused' || status === 'closed')) return 'archived';
+  if (action === 'restore' && (status === 'closed' || status === 'archived')) return 'draft';
+  const allowed = status === 'draft' ? ['publish']
+    : status === 'published' ? ['pause', 'close']
+      : status === 'paused' ? ['reactivate', 'close', 'archive']
+        : status === 'closed' ? ['archive', 'restore']
+          : ['restore'];
+  throw new SevenoJobOfferError(
+    'invalid_status_transition',
+    409,
+    `Action ${action} impossible depuis le statut ${status}. Actions autorisées : ${allowed.join(', ')}.`,
+  );
 }
 
 export function toPublicJobOffer(offer: SerializedJobOffer): PublicJobOffer {

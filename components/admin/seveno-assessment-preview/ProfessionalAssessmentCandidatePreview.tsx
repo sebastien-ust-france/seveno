@@ -348,7 +348,7 @@ export default function ProfessionalAssessmentCandidatePreview({
                   Mobile
                 </button>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                  {sourceVersion.questions.length} question(s) dans le brouillon
+                  {sourceVersion.questions.length} {sourceVersion.questions.length > 1 ? 'questions' : 'question'} dans le brouillon
                 </span>
                 {preview ? (
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
@@ -394,7 +394,7 @@ export default function ProfessionalAssessmentCandidatePreview({
 
                         <div className="space-y-2">
                           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                            {selectedReviewQuestionCount} question(s) visibles
+                            {selectedReviewQuestionCount} {selectedReviewQuestionCount > 1 ? 'questions visibles' : 'question visible'}
                           </span>
                           <span className="block rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
                             Relecture: {reviewSummary.approvedForPilot}/{reviewSummary.totalQuestions} acceptées

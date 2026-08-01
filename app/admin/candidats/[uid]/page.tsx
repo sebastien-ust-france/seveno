@@ -260,7 +260,7 @@ export default function AdminCandidateDetailPage() {
                     </p>
                     <h2 className="mt-2 text-2xl font-semibold text-white">{candidate.publicCandidateId}</h2>
                     <p className="mt-3 text-sm leading-6 text-slate-300">
-                      Le profil anonyme reste visible cote entreprise, sans aucune identite privee.
+                      Le profil anonyme reste visible côté entreprise, sans aucune identité privée.
                     </p>
                   </div>
 
@@ -341,7 +341,7 @@ export default function AdminCandidateDetailPage() {
               </SevenoPanel>
 
               <SevenoPanel tone="violet" className="p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Identite privee</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Identité privée</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Compte utilisateur et donnees privees</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-300">
                   Ces donnees proviennent du compte `users/{uid}` et restent invisibles cote entreprise.
@@ -469,7 +469,7 @@ export default function AdminCandidateDetailPage() {
                             {axisResult.direction} · {axisResult.strength}
                           </p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {axisResult.observationCount} observation(s) · {axisResult.evidenceLevel}
+                            {axisResult.observationCount} {axisResult.observationCount > 1 ? 'observations' : 'observation'} · {axisResult.evidenceLevel}
                           </p>
                         </article>
                       ))}

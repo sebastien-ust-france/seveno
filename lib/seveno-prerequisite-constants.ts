@@ -35,6 +35,7 @@ export const PREREQUISITE_ANSWER_TYPES: ReadonlyArray<{ value: PrerequisiteAnswe
 
 export const PREREQUISITE_OPERATORS: ReadonlyArray<{ value: PrerequisiteComparisonOperator; label: string }> = [
   { value: 'equals', label: 'Egal a' },
+  { value: 'one_of', label: 'Une des valeurs' },
   { value: 'minimum', label: 'Minimum' },
   { value: 'maximum', label: 'Maximum' },
   { value: 'contains_any', label: 'Contient au moins une valeur' },
@@ -70,7 +71,7 @@ export const PREREQUISITE_OPERATOR_COMPATIBILITY: Record<
   readonly PrerequisiteComparisonOperator[]
 > = {
   boolean: ['equals'],
-  single_choice: ['equals'],
+  single_choice: ['equals', 'one_of'],
   multiple_choice: ['contains_any', 'contains_all'],
   level: ['equals', 'minimum', 'maximum'],
   number: ['equals', 'minimum', 'maximum'],
@@ -81,4 +82,6 @@ export const SEVENO_OFFER_PREREQUISITE_LIMITS = {
   required: 5,
   preferred: 3,
   total: 8,
+  job_skill: { required: 5, preferred: 3 },
+  offer_requirement: { required: 5, preferred: 3 },
 } as const;

@@ -311,7 +311,7 @@ function BreakdownTable({
       <div className="flex items-end justify-between gap-4">
         <div className="space-y-2">
           <ToneBadge tone={tone}>{title}</ToneBadge>
-          <p className="text-sm text-slate-300">{items.length} valeur(s)</p>
+          <p className="text-sm text-slate-300">{items.length} {items.length > 1 ? 'valeurs' : 'valeur'}</p>
         </div>
         <p className="text-sm text-slate-400">Base: {total}</p>
       </div>
@@ -1023,7 +1023,7 @@ export default function AdminStudyPage() {
                     <h2 className="mt-2 text-xl font-semibold text-white">Réponses individuelles</h2>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-                    <span>{responseCount} réponse(s) trouvée(s)</span>
+                    <span>{responseCount} {responseCount > 1 ? 'réponses trouvées' : 'réponse trouvée'}</span>
                     <span>Page {responsePage} sur {responseTotalPages}</span>
                   </div>
                 </div>

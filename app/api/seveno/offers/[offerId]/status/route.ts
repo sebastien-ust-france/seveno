@@ -10,7 +10,7 @@ import { readOfferJsonBody, toJobOfferApiError } from '../../_shared';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ACTIONS: JobOfferStatusAction[] = ['publish', 'pause', 'close', 'archive'];
+const ACTIONS: JobOfferStatusAction[] = ['publish', 'pause', 'reactivate', 'close', 'archive', 'restore'];
 type RouteContext = { params: Promise<{ offerId: string }> };
 
 export async function POST(request: NextRequest, context: RouteContext) {

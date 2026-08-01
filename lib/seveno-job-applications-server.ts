@@ -410,7 +410,7 @@ async function loadPublishedOfferForCandidate(offerId: string, context: Candidat
   const offerRef = firestore.collection(OFFERS_COLLECTION).doc(cleanText(offerId, 100));
   const currentSnapshot = await offerRef.get();
   const current = currentSnapshot.data();
-  if (!currentSnapshot.exists || !current || current.status !== 'published') {
+  if (!currentSnapshot.exists || !current || !isOfferAvailableForNewApplication(current.status)) {
     throw new SevenoJobApplicationError('offer_not_available', 404, 'Cette offre n est plus disponible.');
   }
   const version = typeof current.version === 'number' ? current.version : 0;
@@ -435,7 +435,7 @@ async function loadPublishedOfferForCompany(companyUid: string, offerId: string)
   if (!currentSnapshot.exists || !current || current.companyUid !== companyUid) {
     throw new SevenoJobApplicationError('offer_not_found', 404, 'Offre introuvable.');
   }
-  if (current.status !== 'published') {
+  if (!isOfferAvailableForNewApplication(current.status)) {
     throw new SevenoJobApplicationError('offer_not_available', 409, 'L offre doit etre publiee pour lancer une relation.');
   }
   const version = typeof current.version === 'number' ? current.version : 0;
@@ -450,6 +450,10 @@ async function loadPublishedOfferForCompany(companyUid: string, offerId: string)
     current,
     projection: projectPublishedOffer(offerRef.id, version, versionSnapshot.data() as FirestoreRecord),
   };
+}
+
+export function isOfferAvailableForNewApplication(status: unknown) {
+  return status === 'published';
 }
 
 function isValidDate(value: string) {
@@ -492,6 +496,11 @@ export function evaluatePrerequisiteAnswer(
 
   if (snapshot.comparisonOperator === 'equals') {
     satisfied = JSON.stringify(answer) === JSON.stringify(expected);
+  } else if (snapshot.comparisonOperator === 'one_of') {
+    if (snapshot.answerType !== 'single_choice' || typeof answer !== 'string' || !Array.isArray(expected)) {
+      throw new SevenoJobApplicationError('invalid_snapshot_criterion', 500, 'Le critère one_of du prérequis est invalide.');
+    }
+    satisfied = expected.includes(answer);
   } else if (snapshot.comparisonOperator === 'contains_any') {
     satisfied = Array.isArray(answer) && Array.isArray(expected) && expected.some((item) => answer.includes(item));
   } else if (snapshot.comparisonOperator === 'contains_all') {

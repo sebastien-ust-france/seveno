@@ -18,7 +18,7 @@ export default function EntrepriseLayout({ children }: { children: ReactNode }) 
       description="Consultez vos offres, vos mises en relation et le profil anonyme de vos candidats."
       navigation={COMPANY_NAVIGATION}
       role="company"
-      footerNote="Les donnees privees candidats restent toujours hors de portee avant acceptation explicite."
+      footerNote="Les données privées des candidats restent toujours hors de portée avant acceptation explicite."
     >
       {children}
     </AuthenticatedAppShell>

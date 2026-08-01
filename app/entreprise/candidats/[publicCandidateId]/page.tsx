@@ -435,7 +435,7 @@ export default function CompanyCandidateDetailPage() {
                   <h3 className="mt-2 text-xl font-semibold text-white">Ce que le candidat met en avant</h3>
                 </div>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-                  {recommendations.length} recommandation(s) visible(s)
+                  {recommendations.length} {recommendations.length > 1 ? 'recommandations visibles' : 'recommandation visible'}
                 </span>
               </div>
 

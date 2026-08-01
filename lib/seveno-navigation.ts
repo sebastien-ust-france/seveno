@@ -3,7 +3,7 @@ import type { SidebarNavigationItemConfig } from '@/types/seveno-navigation';
 export const CANDIDATE_NAVIGATION: SidebarNavigationItemConfig[] = [
   { href: '/candidat', label: 'Tableau de bord', match: 'exact' },
   { href: '/candidat/onboarding', label: 'Mon profil' },
-  { href: '/candidat/identite', label: 'Mon identite' },
+  { href: '/candidat/identite', label: 'Mon identité' },
   { href: '/candidat/recommandations', label: 'Recommandations' },
 ];
 

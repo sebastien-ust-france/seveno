@@ -240,7 +240,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
 
     if (!timeout && currentQuestion.required && !isQuestionAnswered(currentQuestion, draftAnswer)) {
       if (!timeout) {
-        setError('Completez la reponse avant de passer a la question suivante.');
+        setError('Complétez la réponse avant de passer à la question suivante.');
       }
       return;
     }
@@ -263,7 +263,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
       const nextQuestion = response.questionnaire?.questions[response.attempt?.currentQuestionIndex ?? currentQuestionIndex + 1] ?? null;
       setDraftAnswer(defaultAnswerValue(nextQuestion));
     } catch (thrownError) {
-      const message = thrownError instanceof Error ? thrownError.message : 'La soumission a echoue.';
+      const message = thrownError instanceof Error ? thrownError.message : 'La soumission a échoué.';
       setError(message);
       if (message.toLowerCase().includes('temps imparti')) {
         await loadQuestionnaire();
@@ -329,12 +329,12 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   </h2>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
                     {questionnaire?.instructions
-                      || 'Repondez aux questions de cette entreprise sur la version figee de votre candidature.'}
+                      || 'Répondez aux questions de cette entreprise sur la version figée de votre candidature.'}
                   </p>
 
                   <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-300">
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {questionnaire?.questions.length ?? 0} question(s)
+                      {questionnaire?.questions.length ?? 0} {(questionnaire?.questions.length ?? 0) > 1 ? 'questions' : 'question'}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                       {currentQuestionTimeSeconds} s / question
@@ -350,7 +350,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
                   <article className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Etat</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">État</p>
                     <p className="mt-2 text-lg font-semibold text-white">
                       {isCompleted
                         ? 'Termine'
@@ -385,12 +385,12 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                 <div className="mt-5 grid gap-3 md:grid-cols-2">
                   <article className="rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
                     {currentQuestionTimeSeconds
-                      ? `Chaque question est chronometree sur ${currentQuestionTimeSeconds} seconde(s).`
+                      ? `Chaque question est chronométrée pendant ${currentQuestionTimeSeconds} ${currentQuestionTimeSeconds > 1 ? 'secondes' : 'seconde'}.`
                       : 'Chaque question est chronometree individuellement.'}
                   </article>
                   <article className="rounded-[20px] border border-white/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
                     {questionnaire?.questions.length
-                      ? `${questionnaire.questions.length} question(s) seront presentees dans la meme session.`
+                      ? `${questionnaire.questions.length} ${questionnaire.questions.length > 1 ? 'questions seront présentées' : 'question sera présentée'} dans la même session.`
                       : 'Le questionnaire ne contient pas encore de questions.'}
                   </article>
                 </div>
@@ -491,7 +491,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                         </span>
                       )}
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                        {currentQuestion.points} point(s)
+                        {currentQuestion.points} {currentQuestion.points > 1 ? 'points' : 'point'}
                       </span>
                     </div>
                   </div>
@@ -625,7 +625,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   </div>
                 </SevenoPanel>
 
-                <CandidatePrivacyNotice message="Vos reponses detaillees restent privees. Elles servent seulement au traitement de cette candidature et ne modifient pas votre profil anonyme." />
+                <CandidatePrivacyNotice message="Vos réponses détaillées restent privées. Elles servent seulement au traitement de cette candidature et ne modifient pas votre profil anonyme." />
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
@@ -653,7 +653,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <CandidateStatusCard
                   tone="cyan"
-                  label="Etat"
+                  label="État"
                   value={assessment?.status === 'completed' ? 'Termine' : 'En attente'}
                   note="Le questionnaire appartient a cette candidature uniquement."
                 />
@@ -671,13 +671,13 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   tone="orange"
                   label="Questions libres"
                   value={assessment?.manualQuestionsCount ?? 0}
-                  note="Ces reponses attendent un examen manuel si l entreprise les a prevues."
+                  note="Ces réponses attendent un examen manuel si l’entreprise les a prévues."
                 />
                 <CandidateStatusCard
                   tone="neutral"
                   label="Date de soumission"
                   value={formatDate(assessment?.submittedAt ?? null)}
-                  note="La date est conservee cote serveur."
+                  note="La date est conservée côté serveur."
                 />
               </div>
             ) : null}

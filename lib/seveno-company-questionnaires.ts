@@ -7,11 +7,17 @@ import type {
   CompanyQuestionnaireListItem,
   CompanyQuestionnaireInput,
 } from '@/types/seveno-company-questionnaires';
+import type { SerializedJobOffer } from '@/types/seveno-job-offers';
 
 export function getCompanyQuestionnaireClient(authUser: User, offerId: string) {
-  return fetchSevenoMatchApi<{ questionnaire: CompanyQuestionnaireEditorProjection | null }>(
+  return fetchSevenoMatchApi<{
+    offer: SerializedJobOffer;
+    questionnaire: CompanyQuestionnaireEditorProjection | null;
+    aiPrompt: string;
+  }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/questionnaire`,
+    { cache: 'no-store' },
   );
 }
 

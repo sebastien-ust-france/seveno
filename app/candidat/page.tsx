@@ -144,7 +144,7 @@ function getProgressState(
       },
       {
         label: 'Métiers recherchés',
-        description: `${profile.targetJobRoleIds?.length ?? 1}/3 métier(s) sélectionné(s).`,
+        description: `${profile.targetJobRoleIds?.length ?? 1}/3 ${(profile.targetJobRoleIds?.length ?? 1) > 1 ? 'métiers sélectionnés' : 'métier sélectionné'}.`,
         state: profileComplete ? 'done' : 'todo',
       },
       {
@@ -611,7 +611,7 @@ export default function CandidateDashboardPage() {
           value: String(recommendationVerifiedCount),
           note:
             recommendationVerifiedCount > 0
-              ? `${recommendationVerifiedCount} recommandation(s) vérifiée(s) déjà disponible(s).`
+              ? `${recommendationVerifiedCount} ${recommendationVerifiedCount > 1 ? 'recommandations vérifiées déjà disponibles' : 'recommandation vérifiée déjà disponible'}.`
               : 'Demandez à d anciens employeurs de partager un avis.',
           action: (
             <Link
@@ -727,7 +727,7 @@ export default function CandidateDashboardPage() {
                     {profile.publicCandidateId}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                    {targetJobs.length} / 3 métier(s)
+                    {targetJobs.length} / 3 {targetJobs.length > 1 ? 'métiers' : 'métier'}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                     {sectorLabel ?? 'Secteur non renseigné'}
@@ -760,7 +760,7 @@ export default function CandidateDashboardPage() {
                     href="/candidat/identite"
                     className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
                   >
-                    {identityComplete ? 'Modifier mon identité' : 'Compléter mon identité'}
+                    {identityComplete ? 'Modifier mon identité privée' : 'Accéder à mon identité privée'}
                   </Link>
                   <Link
                     href="/candidat/recommandations"
@@ -969,7 +969,7 @@ export default function CandidateDashboardPage() {
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Visibles aux entreprises</p>
                   <p className="mt-2 text-sm font-medium text-white">{recommendationVisibleCount}</p>
                   <p className="mt-1 text-xs text-slate-400">
-                    {recommendationVerifiedCountLater} recommandation(s) vérifiée(s) au total.
+                    {recommendationVerifiedCountLater} {recommendationVerifiedCountLater > 1 ? 'recommandations vérifiées' : 'recommandation vérifiée'} au total.
                   </p>
                 </article>
               </div>
@@ -1088,7 +1088,7 @@ export default function CandidateDashboardPage() {
               label="Mon identité privée"
               value={identityComplete ? 'Complète' : 'À compléter'}
               note="Nom, email et téléphone ne sont jamais exposés aux entreprises."
-              action={<Link href="/candidat/identite" className="text-sm font-semibold text-cyan-100">{identityComplete ? 'Modifier mon identité' : 'Compléter mon identité'}</Link>}
+              action={<Link href="/candidat/identite" className="text-sm font-semibold text-cyan-100">{identityComplete ? 'Modifier mon identité privée' : 'Accéder à mon identité privée'}</Link>}
             />
             <CandidateStatusCard
               tone="violet"

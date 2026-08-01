@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { connect } from 'node:net';
 import type {
   AdminPrerequisiteSuggestionDetailPayload,
   AdminPrerequisiteSuggestionListPayload,
@@ -42,6 +43,9 @@ function loadDotEnvFile(filePath: string) {
 
 function configureEmulatorEnvironment() {
   const projectId = process.env.SEVENO_EMULATOR_PROJECT_ID ?? 'seveno-emulator';
+  if (projectId === 'seveno-a8eb1') {
+    throw new Error('Le test refuse explicitement le projectId de production seveno-a8eb1.');
+  }
   process.env.GCLOUD_PROJECT = projectId;
   process.env.PROJECT_ID = projectId;
   process.env.FIREBASE_ADMIN_PROJECT_ID = projectId;
@@ -49,9 +53,35 @@ function configureEmulatorEnvironment() {
   process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
 }
 
+async function assertFirestoreEmulatorAvailable() {
+  const target = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
+  const separator = target.lastIndexOf(':');
+  const host = target.slice(0, separator);
+  const port = Number(target.slice(separator + 1));
+  if (!host || !Number.isInteger(port)) throw new Error(`FIRESTORE_EMULATOR_HOST invalide : ${target}`);
+  await new Promise<void>((resolveConnection, rejectConnection) => {
+    const socket = connect({ host, port });
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      rejectConnection(new Error(`Firestore Emulator indisponible sur ${target} après 2 secondes.`));
+    }, 2_000);
+    socket.once('connect', () => {
+      clearTimeout(timeout);
+      socket.end();
+      resolveConnection();
+    });
+    socket.once('error', (error) => {
+      clearTimeout(timeout);
+      rejectConnection(new Error(`Firestore Emulator indisponible sur ${target} : ${error.message}`));
+    });
+  });
+}
+
 async function main() {
   loadDotEnvFile(resolve(process.cwd(), '.env.local'));
   configureEmulatorEnvironment();
+  console.log('Prerequisite suggestion emulator test: vérification de Firestore Emulator...');
+  await assertFirestoreEmulatorAvailable();
 
   const { Timestamp } = await import('firebase-admin/firestore');
   const { adminDb } = await import('@/lib/firebase-admin');

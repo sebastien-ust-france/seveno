@@ -119,7 +119,7 @@ export default function OnboardingPage() {
       await signOutUser();
       router.replace('/connexion');
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'La deconnexion a echoue.');
+      setError(thrownError instanceof Error ? thrownError.message : 'La déconnexion a échoué.');
     }
   }
 
@@ -132,7 +132,7 @@ export default function OnboardingPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/80">Choix du rôle</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">Qui représentez-vous ?</h1>
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
-                Le rôle est choisi après la première connexion. Le rôle admin n est pas proposé publiquement.
+                Le rôle est choisi après la première connexion. Le rôle administrateur n’est pas proposé publiquement.
               </p>
               <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
                 {COMPANY_INVITE_ONLY_MESSAGE}

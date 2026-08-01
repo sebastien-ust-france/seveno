@@ -252,7 +252,7 @@ export default function AdminPrerequisiteSuggestionDetailPage() {
                   <h2 className="text-xl font-semibold text-white">Usages observes</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-300">
                     {data.usages.length > 0
-                      ? `${formatCount(data.usages.length)} usage(s) affiche(s) sur ${formatCount(data.usageLimit)} maximum.`
+                      ? `${formatCount(data.usages.length)} ${data.usages.length > 1 ? 'usages affichés' : 'usage affiché'} sur ${formatCount(data.usageLimit)} maximum.`
                       : 'Aucun usage ne correspond a cette suggestion.'}
                   </p>
                 </div>

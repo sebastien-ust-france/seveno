@@ -265,7 +265,7 @@ export function CompanyApplicationQuestionnaireReview({
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              {questionnaire.questions.length} question(s)
+              {questionnaire.questions.length} {questionnaire.questions.length > 1 ? 'questions' : 'question'}
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
               {questionnaire.questionTimeSeconds} s / question
@@ -315,7 +315,7 @@ export function CompanyApplicationQuestionnaireReview({
         </div>
       ) : (
         <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-4 text-sm leading-7 text-emerald-100">
-          {correctCount}/{answers.length} réponse(s) automatiques correctes.
+          {correctCount}/{answers.length} {answers.length > 1 ? 'réponses automatiques correctes' : 'réponse automatique correcte'}.
         </div>
       )}
 
@@ -360,15 +360,12 @@ export function CompanyApplicationQuestionnaireReview({
                       Difficulte {question.difficulty}
                     </span>
                   ) : null}
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                    {question.points} point(s)
-                  </span>
                   <span className={`rounded-full border px-3 py-1 ${toneClasses(tone)}`}>
                     {formatQuestionTone(answer)}
                   </span>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                     {answer?.awardedPoints !== null && answer?.awardedPoints !== undefined
-                      ? `${answer.awardedPoints} pt(s)`
+                      ? `${answer.awardedPoints} ${answer.awardedPoints > 1 ? 'pts' : 'pt'}`
                       : question.correctionMode === 'manual'
                         ? 'À valider manuellement'
                         : '0 pt'}

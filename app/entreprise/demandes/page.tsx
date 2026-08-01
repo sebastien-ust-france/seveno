@@ -162,7 +162,7 @@ export default function CompanyApplicationsPage() {
         setPrioritySelection(payload.prioritySelection ?? null);
       }
     } catch (thrownError) {
-      setError(thrownError instanceof Error ? thrownError.message : 'Les dossiers entreprise n ont pas pu etre charges.');
+      setError(thrownError instanceof Error ? thrownError.message : 'Les dossiers entreprise n’ont pas pu être chargés.');
     } finally {
       if (append) {
         setLoadingMore(false);
@@ -213,7 +213,7 @@ export default function CompanyApplicationsPage() {
                   Filtre actif
                 </p>
                 <p className="mt-2 text-sm text-cyan-100">
-                  Cette liste affiche les candidatures liées à l offre selectionnee.
+                  Cette liste affiche les candidatures liées à l’offre sélectionnée.
                 </p>
               </div>
               <Link
@@ -232,7 +232,7 @@ export default function CompanyApplicationsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Sélection prioritaire</p>
               <h3 className="mt-2 text-xl font-semibold text-white">
                 {prioritySelection.applications.length > 0
-                  ? `${prioritySelection.applications.length} profil(s) à prioriser`
+                  ? `${prioritySelection.applications.length} ${prioritySelection.applications.length > 1 ? 'profils' : 'profil'} à prioriser`
                   : 'Aucun profil à prioriser'}
               </h3>
               <p className="mt-2 text-sm leading-6 text-slate-300">

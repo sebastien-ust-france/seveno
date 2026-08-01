@@ -207,7 +207,7 @@ export default function AdminOverviewPage() {
                 tone="neutral"
                 label="Mises en relation"
                 value={counts?.matchRequests ?? 0}
-                note={`${counts?.pendingMatchRequests ?? 0} en attente, ${counts?.acceptedMatchRequests ?? 0} acceptees.`}
+                note={`${counts?.pendingMatchRequests ?? 0} en attente, ${counts?.acceptedMatchRequests ?? 0} ${(counts?.acceptedMatchRequests ?? 0) > 1 ? 'acceptées' : 'acceptée'}.`}
               />
             </div>
 
@@ -215,18 +215,18 @@ export default function AdminOverviewPage() {
               <SevenoPanel tone="cyan" className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Etude</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Collecte des reponses</h2>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Étude</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">Collecte des réponses</h2>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
-                      {counts?.studyResponses ?? 0} reponse(s) dans `study_responses`. La structure reste compatible avec
-                      l existant.
+                      {counts?.studyResponses ?? 0} {(counts?.studyResponses ?? 0) > 1 ? 'réponses' : 'réponse'} dans `study_responses`. La structure reste compatible avec
+                      l’existant.
                     </p>
                   </div>
                   <Link
                     href="/admin/etude"
                     className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/30 hover:bg-cyan-400/15"
                   >
-                    Ouvrir l etude
+                    Ouvrir l’étude
                   </Link>
                 </div>
               </SevenoPanel>
@@ -235,7 +235,7 @@ export default function AdminOverviewPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Journal</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Dernieres actions admin</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {counts?.adminLogs ?? 0} entree(s) dans le journal interne, avec traceabilite des acces sensibles.
+                  {counts?.adminLogs ?? 0} {(counts?.adminLogs ?? 0) > 1 ? 'entrées' : 'entrée'} dans le journal interne, avec traçabilité des accès sensibles.
                 </p>
               </SevenoPanel>
             </div>

@@ -464,11 +464,11 @@ export default function AdminPrerequisitesPage() {
           <SevenoPanel tone="orange" className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-200/80">Applicabilité métier</p>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300">
-              Ce prérequis sera applicable à : {form.global ? 'tous les métiers' : `${form.sectorIds.length} secteur(s), ${form.jobFamilyIds.length} famille(s), ${form.jobRoleIds.length} métier(s) spécifique(s)`}.
+              Ce prérequis sera applicable à : {form.global ? 'tous les métiers' : `${form.sectorIds.length} ${form.sectorIds.length > 1 ? 'secteurs' : 'secteur'}, ${form.jobFamilyIds.length} ${form.jobFamilyIds.length > 1 ? 'familles' : 'famille'}, ${form.jobRoleIds.length} ${form.jobRoleIds.length > 1 ? 'métiers spécifiques' : 'métier spécifique'}`}.
               {' '}
-              Exclusions actives : {form.excludedSectorIds.length} secteur(s), {form.excludedJobFamilyIds.length} famille(s), {form.excludedJobRoleIds.length} metier(s).
+              Exclusions actives : {form.excludedSectorIds.length} {form.excludedSectorIds.length > 1 ? 'secteurs' : 'secteur'}, {form.excludedJobFamilyIds.length} {form.excludedJobFamilyIds.length > 1 ? 'familles' : 'famille'}, {form.excludedJobRoleIds.length} {form.excludedJobRoleIds.length > 1 ? 'métiers' : 'métier'}.
               {' '}
-              Couverture estimee : {coveredRoleCount} metier(s).
+              Couverture estimée : {coveredRoleCount} {coveredRoleCount > 1 ? 'métiers' : 'métier'}.
             </div>
             <label className="mt-4 flex items-center gap-3 text-sm text-white">
               <input type="checkbox" checked={form.global} onChange={(event) => setForm({ ...form, global: event.target.checked })} className="accent-cyan-400" />
@@ -562,7 +562,7 @@ export default function AdminPrerequisitesPage() {
         <SevenoPanel tone="neutral" className="p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-white">Définitions</h2>
-            <span className="text-sm text-slate-400">{items.length} affichee(s)</span>
+            <span className="text-sm text-slate-400">{items.length} {items.length > 1 ? 'affichés' : 'affiché'}</span>
           </div>
           <div className="mt-4 space-y-3">
             {loading && items.length === 0 ? <p className="text-sm text-slate-400">Chargement...</p> : items.map((item) => (
@@ -601,7 +601,7 @@ export default function AdminPrerequisitesPage() {
           </div>
           {importReport ? (
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-              <p>{importReport.dryRun ? 'Dry-run' : 'Import'} : {importReport.total} entree(s), {importReport.created.length} creation(s), {importReport.updated.length} mise(s) a jour, {importReport.unchanged.length} inchangee(s), {importReport.errors.length} erreur(s).</p>
+              <p>{importReport.dryRun ? 'Simulation' : 'Import'} : {importReport.total} {importReport.total > 1 ? 'entrées' : 'entrée'}, {importReport.created.length} {importReport.created.length > 1 ? 'créations' : 'création'}, {importReport.updated.length} {importReport.updated.length > 1 ? 'mises à jour' : 'mise à jour'}, {importReport.unchanged.length} {importReport.unchanged.length > 1 ? 'inchangées' : 'inchangée'}, {importReport.errors.length} {importReport.errors.length > 1 ? 'erreurs' : 'erreur'}.</p>
               {importReport.errors.map((item) => <p key={`${item.index}-${item.code ?? ''}`} className="mt-2 text-orange-200">Ligne {item.index + 1} {item.code ?? ''}: {item.message}</p>)}
             </div>
           ) : null}

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/candidat', label: 'Tableau de bord' },
   { href: '/candidat/onboarding', label: 'Mon profil' },
-  { href: '/candidat/identite', label: 'Mon identite' },
+  { href: '/candidat/identite', label: 'Mon identité' },
   { href: '/candidat/recommandations', label: 'Recommandations' },
 ];
 
