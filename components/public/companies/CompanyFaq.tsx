@@ -54,17 +54,17 @@ const faqItems = [
 
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   return (
-    <details className="group border-b border-white/10 py-4 last:border-b-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-left text-base font-semibold leading-7 text-white transition hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40 focus-visible:ring-offset-0 [&::-webkit-details-marker]:hidden sm:text-[17px]">
+    <details className="group border-b border-seveno-border-subtle py-4 last:border-b-0">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-left text-base font-semibold leading-7 text-seveno-text-primary transition hover:text-seveno-brand-cyan-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus focus-visible:ring-offset-0 [&::-webkit-details-marker]:hidden sm:text-[17px]">
         <span className="min-w-0 flex-1">{question}</span>
         <span
           aria-hidden="true"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm leading-none text-slate-300 transition-transform duration-200 group-open:rotate-180 group-open:border-cyan-300/20 group-open:text-cyan-100"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-seveno-border-subtle bg-seveno-surface-elevated text-sm leading-none text-seveno-text-secondary transition-transform duration-200 group-open:rotate-180 group-open:border-seveno-brand-cyan/30 group-open:text-seveno-brand-cyan-soft"
         >
           ˅
         </span>
       </summary>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-[15px]">{answer}</p>
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-seveno-text-secondary sm:text-[15px]">{answer}</p>
     </details>
   );
 }
@@ -76,7 +76,7 @@ export function CompanyFaq() {
   return (
     <CompanySection eyebrow="FAQ ENTREPRISE" title="Les réponses aux questions les plus fréquentes.">
       <div className="grid grid-cols-1 gap-x-8 gap-y-0 lg:grid-cols-2">
-        <div className="lg:pr-4 lg:border-r lg:border-white/10">
+        <div className="lg:pr-4 lg:border-r lg:border-seveno-border-subtle">
           {leftColumnItems.map((item) => (
             <FaqItem key={item.question} question={item.question} answer={item.answer} />
           ))}

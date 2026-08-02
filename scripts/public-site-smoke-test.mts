@@ -61,14 +61,15 @@ assertPageContains('app/entreprises/page.tsx', [
   'CompanyPublicHero',
   'CompanyQuestionnaireDifference',
   'CompanyQuestionnaireCreation',
-  'CompanyQuestionnaireControl',
-  'CompanyCandidateQuestionnaire',
-  'CompanyThresholdSection',
-  'CompanyRecruitmentJourney',
-  'CompanyLaunchCta',
+  'CompanyValueConclusion',
   'CompanyFaq',
   "canonical: '/entreprises'",
 ]);
+assert.doesNotMatch(
+  readSource('app/entreprises/page.tsx'),
+  /CompanyQuestionnaireControl|CompanyCandidateQuestionnaire|CompanyThresholdSection|CompanyRecruitmentJourney|CompanyLaunchCta/,
+);
+assert.doesNotMatch(readSource('components/public/companies/CompanyPublicHero.tsx'), /#parcours-entreprise/);
 
 assertPageContains('app/comment-ca-marche/page.tsx', [
   "permanentRedirect('/observatoire')",

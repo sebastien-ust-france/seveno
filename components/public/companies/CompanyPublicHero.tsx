@@ -1,85 +1,84 @@
 import Link from 'next/link';
 
-const heroNodes = [
-  {
-    label: 'Besoin',
-    accent: 'border-cyan-400/15 bg-cyan-400/8 text-cyan-100',
-  },
-  {
-    label: 'Critères',
-    accent: 'border-violet-400/15 bg-violet-400/8 text-violet-100',
-  },
-  {
-    label: 'Questionnaire',
-    accent: 'border-orange-400/15 bg-orange-400/8 text-orange-100',
-  },
-  {
-    label: 'Réponses',
-    accent: 'border-white/10 bg-white/5 text-slate-100',
-  },
+const observedSignals = [
+  'Le parcours passé',
+  'Les intitulés de poste',
+  'Les diplômes',
+  'Le nombre d’années d’expérience',
+  'L’aisance en entretien',
+] as const;
+
+const roleRequirements = [
+  'Des connaissances métier',
+  'Des méthodes de travail',
+  'Des contrôles précis',
+  'Des décisions concrètes',
+  'Une capacité à réagir en situation',
 ] as const;
 
 export function CompanyPublicHero() {
   return (
-    <section className="overflow-hidden rounded-[36px] border border-violet-400/12 bg-[linear-gradient(180deg,rgba(12,14,34,0.98),rgba(8,15,28,0.93))] shadow-[0_28px_100px_rgba(2,6,23,0.34)]">
-      <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
+    <section className="overflow-hidden rounded-[36px] border border-seveno-border-active/40 bg-gradient-to-br from-seveno-surface-section via-seveno-surface-panel to-seveno-surface-page shadow-2xl">
+      <div className="grid items-stretch lg:grid-cols-[1.12fr_0.88fr]">
         <div className="space-y-6 p-6 sm:p-8 lg:p-10 xl:p-12">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-violet-200/90">SEVEN’O POUR LES ENTREPRISES</p>
-          <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Recrutez sur ce qui compte vraiment pour le poste.
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-seveno-brand-cyan">LE CONSTAT</p>
+          <h1 className="max-w-4xl text-4xl leading-[1.12] font-semibold tracking-tight text-seveno-text-primary sm:text-[2.75rem] sm:leading-[1.1] lg:text-[3.125rem] lg:leading-[1.08] xl:text-[3.375rem]">
+            Et si les <span className="text-seveno-brand-cyan">compétences</span> nécessaires au <span className="text-seveno-brand-cyan">poste</span> n’étaient pas réellement <span className="text-seveno-brand-cyan">évaluées</span> avant l’embauche ?
           </h1>
-          <p className="max-w-4xl text-lg leading-8 text-slate-300">
-            Seven’O transforme votre besoin de recrutement en un parcours clair : des prérequis utiles, un questionnaire ciblé, des résultats lisibles et un intérêt confirmé avant la conversation.
+
+          <div className="max-w-3xl space-y-4 text-base leading-7 text-seveno-text-secondary sm:text-lg sm:leading-8">
+            <p>Le CV décrit un parcours. L’entretien permet de rencontrer une personne et d’échanger sur ses expériences.</p>
+            <p>
+              Mais, dans de nombreux recrutements, les compétences réellement nécessaires au futur poste sont encore déduites d’un intitulé, d’un diplôme, d’un nombre d’années d’expérience ou de la manière dont le candidat présente son parcours.
+            </p>
+            <p>
+              L’entreprise estime alors que ces compétences sont présentes, sans toujours les avoir directement évaluées face aux réalités du poste. La première véritable confrontation intervient parfois seulement après l’embauche, pendant la période d’essai.
+            </p>
+          </div>
+
+          <p className="max-w-3xl border-l-2 border-seveno-brand-cyan bg-seveno-surface-active px-5 py-4 text-base font-semibold leading-7 text-seveno-text-primary sm:text-lg sm:leading-8">
+            Le problème n’est pas seulement que les compétences sont évaluées trop tard. C’est parfois qu’elles ne sont jamais réellement évaluées avant l’embauche.
           </p>
-          <p className="max-w-4xl text-lg leading-8 text-slate-300">
-            Vous ne commencez plus par trier une pile de CV. Vous commencez par le poste, les compétences attendues et les réponses apportées par les candidats.
-          </p>
-          <div className="pt-2">
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
             <Link
-              href="#questionnaires-seveno"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/10"
+              href="#moteur-seveno"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-seveno-action-primary px-6 py-3 text-center text-sm font-semibold text-seveno-text-on-accent transition hover:bg-seveno-action-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus focus-visible:ring-offset-2 focus-visible:ring-offset-seveno-surface-page sm:w-auto"
             >
-              Comprendre les questionnaires
+              Découvrir le moteur Seven’O
             </Link>
           </div>
         </div>
 
-        <div className="relative border-t border-white/10 p-6 lg:border-l lg:border-t-0 lg:p-8 xl:p-10">
-          <div
-            aria-hidden="true"
-            className="relative min-h-[360px] overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,17,32,0.96),rgba(7,13,24,0.92))] p-6"
-          >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.18),transparent_30%),radial-gradient(circle_at_center,rgba(249,115,22,0.08),transparent_24%)]" />
-            <div className="relative flex h-full flex-col justify-between gap-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {heroNodes.slice(0, 2).map((node) => (
-                  <div key={node.label} className={`rounded-[24px] border p-4 ${node.accent}`}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em]">{node.label}</p>
-                  </div>
+        <div className="flex items-center border-t border-seveno-border-subtle p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-8 xl:p-10">
+          <div className="w-full space-y-5 rounded-[30px] border border-seveno-border-default bg-seveno-surface-panel p-5 sm:p-6">
+            <article className="rounded-[24px] border border-seveno-border-subtle bg-seveno-surface-elevated p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-seveno-text-primary">Ce qui est souvent observé</h2>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-seveno-text-secondary sm:text-base">
+                {observedSignals.map((signal) => (
+                  <li key={signal} className="flex gap-3">
+                    <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-seveno-text-muted" />
+                    <span>{signal}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
+            </article>
 
-              <div className="flex items-center justify-center">
-                <div className="relative flex h-40 w-40 items-center justify-center rounded-full border border-white/15 bg-slate-950/85 shadow-[0_24px_70px_rgba(2,6,23,0.42)] sm:h-44 sm:w-44 lg:h-48 lg:w-48">
-                  <div className="absolute inset-3 rounded-full border border-white/20" />
-                  <div className="absolute inset-8 rounded-full border border-cyan-400/20" />
-                  <div className="absolute inset-14 rounded-full border border-violet-400/20" />
-                  <div className="absolute inset-x-5 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                  <div className="absolute inset-y-5 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/20 to-transparent" />
-                  <span className="relative px-3 text-center text-sm font-semibold uppercase tracking-[0.3em] text-slate-100">
-                    Intérêt mutuel
-                  </span>
-                </div>
-              </div>
+            <p className="border-y border-seveno-border-subtle py-3 text-center text-sm font-semibold uppercase tracking-[0.2em] text-seveno-brand-cyan">
+              Déduire n’est pas évaluer.
+            </p>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {heroNodes.slice(2).map((node) => (
-                  <div key={node.label} className={`rounded-[24px] border p-4 ${node.accent}`}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em]">{node.label}</p>
-                  </div>
+            <article className="rounded-[24px] border border-seveno-brand-blue/30 bg-seveno-surface-active p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-seveno-brand-blue">Ce que le poste exige réellement</h2>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-seveno-text-secondary sm:text-base">
+                {roleRequirements.map((requirement) => (
+                  <li key={requirement} className="flex gap-3">
+                    <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-seveno-brand-blue" />
+                    <span>{requirement}</span>
+                  </li>
                 ))}
-              </div>
-            </div>
+              </ul>
+            </article>
           </div>
         </div>
       </div>

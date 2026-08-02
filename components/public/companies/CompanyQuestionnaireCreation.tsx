@@ -1,63 +1,105 @@
-import { CompanySection } from '@/components/public/companies/CompanySection';
-
-const creationSteps = [
+const assistedSteps = [
   {
-    number: '1',
-    title: 'Décrivez précisément l’offre',
-    text: 'Le titre, le métier, les missions, le contexte de travail, le profil recherché et les prérequis servent de base au questionnaire.',
-    accent: 'border-cyan-400/15 bg-white/5',
-    numberClassName: 'bg-cyan-400/10 text-cyan-100',
+    title: 'Seven’O prépare',
+    text: 'Une première version construite à partir de l’offre et de ses compétences métier.',
   },
   {
-    number: '2',
-    title: 'Choisissez votre méthode de création',
-    text: 'Rédigez le questionnaire manuellement ou utilisez le prompt structuré préparé par Seven’O dans l’IA de votre choix.',
-    accent: 'border-violet-400/15 bg-white/5',
-    numberClassName: 'bg-violet-400/10 text-violet-100',
+    title: 'L’entreprise contrôle',
+    text: 'Elle relit les questions, les réponses attendues, les explications et les niveaux de difficulté.',
   },
   {
-    number: '3',
-    title: 'Relisez et corrigez la proposition',
-    text: 'Modifiez chaque question, les réponses proposées, les bonnes réponses, les explications et le niveau de difficulté avant de valider le questionnaire.',
-    accent: 'border-orange-400/15 bg-white/5',
-    numberClassName: 'bg-orange-400/10 text-orange-100',
-  },
-  {
-    number: '4',
-    title: 'Associez-le à l’offre',
-    text: 'Le candidat répond au questionnaire lié au poste. Une autre offre peut disposer d’un questionnaire différent, adapté à ses propres critères.',
-    accent: 'border-white/10 bg-white/5',
-    numberClassName: 'bg-white/10 text-slate-100',
+    title: 'L’entreprise décide',
+    text: 'Elle corrige ce qui doit l’être puis active uniquement la version qu’elle juge adaptée.',
   },
 ] as const;
 
 export function CompanyQuestionnaireCreation() {
   return (
-    <CompanySection
-      eyebrow="UN QUESTIONNAIRE POUR CHAQUE OFFRE"
-      title="Partez de votre besoin, puis construisez l’évaluation qui lui correspond."
-      description="Chaque offre peut disposer de son propre questionnaire. Vous choisissez la méthode de création et vous gardez la main avant toute utilisation."
+    <section
+      id="construction-evaluation"
+      className="scroll-mt-28 rounded-[34px] border border-seveno-border-default bg-seveno-surface-section p-6 shadow-2xl sm:p-8 lg:p-10"
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {creationSteps.map((step) => (
-          <article
-            key={step.number}
-            className={`flex h-full rounded-[26px] border p-5 shadow-[0_18px_60px_rgba(2,6,23,0.18)] sm:p-6 ${step.accent}`}
-          >
-            <div className="flex h-full flex-col gap-4">
-              <span
-                className={`flex h-11 w-11 items-center justify-center rounded-full text-base font-semibold ${step.numberClassName}`}
-              >
-                {step.number}
-              </span>
-              <div className="space-y-3">
-                <p className="text-lg font-semibold leading-7 text-white">{step.title}</p>
-                <p className="text-sm leading-7 text-slate-300">{step.text}</p>
-              </div>
-            </div>
-          </article>
-        ))}
+      <div className="grid gap-6 lg:grid-cols-12 lg:gap-10 xl:gap-14">
+        <div className="lg:col-span-5">
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-seveno-brand-cyan">CONSTRUIRE ET VALIDER</p>
+          <h2 className="mt-4 text-[2rem] leading-[1.12] font-semibold tracking-tight text-seveno-text-primary sm:text-[2.375rem] lg:text-[2.75rem]">
+            <span className="text-seveno-brand-cyan">Gagnez</span> du <span className="text-seveno-brand-cyan">temps</span> avec une première <span className="text-seveno-brand-cyan">proposition</span>, sans perdre le <span className="text-seveno-brand-cyan">contrôle</span>.
+          </h2>
+        </div>
+        <div className="space-y-4 text-base leading-7 text-seveno-text-secondary sm:text-lg sm:leading-8 lg:col-span-7 lg:pt-9">
+          <p>
+            À partir des compétences, des missions et du contexte de l’offre, Seven’O peut préparer une première version du questionnaire métier.
+          </p>
+          <p>
+            L’entreprise n’a plus à construire seule les 20 questions : elle relit la proposition, corrige ce qui doit l’être et décide de son activation.
+          </p>
+        </div>
       </div>
-    </CompanySection>
+
+      <div className="mt-9 grid gap-5 lg:grid-cols-[minmax(0,1.9fr)_minmax(17rem,1fr)] lg:items-stretch">
+        <article className="relative overflow-hidden rounded-[30px] border border-seveno-brand-cyan/35 bg-gradient-to-br from-seveno-surface-active to-seveno-surface-panel p-5 shadow-xl sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-seveno-brand-cyan">MODE ASSISTÉ</p>
+            <span className="rounded-full border border-seveno-brand-blue/35 bg-seveno-surface-active px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-seveno-brand-cyan-soft">
+              RECOMMANDÉ
+            </span>
+          </div>
+
+          <h3 className="mt-5 max-w-2xl text-2xl font-semibold leading-8 tracking-tight text-seveno-text-primary">
+            Partez d’une première version déjà structurée.
+          </h3>
+          <div className="mt-5 max-w-3xl space-y-3 text-base leading-7 text-seveno-text-secondary">
+            <p>Seven’O prépare une proposition de questionnaire directement liée au besoin réel du poste.</p>
+            <p>
+              L’entreprise contrôle ensuite chaque question, les réponses proposées, la réponse attendue, l’explication et le niveau de difficulté.
+            </p>
+            <p>Elle peut modifier, compléter, réorganiser ou supprimer tout élément avant l’activation.</p>
+          </div>
+
+          <div className="relative mt-7 border-y border-seveno-border-subtle py-6">
+            <div aria-hidden="true" className="absolute top-11 right-[16.666%] left-[16.666%] hidden h-px bg-seveno-brand-blue/25 md:block" />
+            <ol className="relative grid gap-4 md:grid-cols-3">
+              {assistedSteps.map((step, index) => (
+                <li key={step.title} className="relative flex gap-3 md:flex-col">
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-seveno-brand-cyan/35 bg-seveno-surface-elevated text-sm font-semibold text-seveno-brand-cyan-soft">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h4 className="text-base font-semibold leading-6 text-seveno-text-primary">{step.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-seveno-text-secondary">{step.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <p className="mt-6 rounded-[20px] border border-seveno-brand-blue/25 bg-seveno-surface-active px-5 py-4 text-base font-semibold leading-7 text-seveno-brand-cyan-soft">
+            Un gain de temps important dans la préparation, tout en conservant une validation humaine complète.
+          </p>
+        </article>
+
+        <article className="flex h-full flex-col rounded-[28px] border border-seveno-border-default bg-seveno-surface-panel p-5 sm:p-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-seveno-text-muted">MODE MANUEL</p>
+          <h3 className="mt-5 text-2xl font-semibold leading-8 tracking-tight text-seveno-text-primary">
+            Construisez entièrement votre questionnaire.
+          </h3>
+          <div className="mt-5 space-y-4 text-base leading-7 text-seveno-text-secondary">
+            <p>
+              L’entreprise peut également partir d’une page blanche et rédiger elle-même les questions, les réponses attendues, les explications et les niveaux de difficulté.
+            </p>
+            <p>
+              Ce mode reste disponible pour les besoins très spécifiques ou lorsqu’un questionnaire existe déjà en interne.
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div className="mt-6 rounded-[24px] border border-seveno-border-default bg-seveno-surface-panel px-5 py-5 text-center sm:px-8 sm:py-6">
+        <p className="text-base font-semibold leading-7 text-seveno-text-primary sm:text-lg sm:leading-8">
+          Seven’O prépare une première base. L’entreprise vérifie, corrige et décide de ce qui sera réellement proposé aux candidats.
+        </p>
+        <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-seveno-brand-cyan">Aucune question n’est activée automatiquement.</p>
+      </div>
+    </section>
   );
 }

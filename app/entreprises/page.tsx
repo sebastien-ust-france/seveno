@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
-import { CompanyCandidateQuestionnaire } from '@/components/public/companies/CompanyCandidateQuestionnaire';
+import { CompanyAfterEvaluation } from '@/components/public/companies/CompanyAfterEvaluation';
+import { CompanyEvaluationConsequences } from '@/components/public/companies/CompanyEvaluationConsequences';
 import { CompanyFaq } from '@/components/public/companies/CompanyFaq';
-import { CompanyLaunchCta } from '@/components/public/companies/CompanyLaunchCta';
 import { CompanyPublicHero } from '@/components/public/companies/CompanyPublicHero';
-import { CompanyQuestionnaireControl } from '@/components/public/companies/CompanyQuestionnaireControl';
 import { CompanyQuestionnaireCreation } from '@/components/public/companies/CompanyQuestionnaireCreation';
 import { CompanyQuestionnaireDifference } from '@/components/public/companies/CompanyQuestionnaireDifference';
-import { CompanyRecruitmentJourney } from '@/components/public/companies/CompanyRecruitmentJourney';
-import { CompanyThresholdSection } from '@/components/public/companies/CompanyThresholdSection';
+import { CompanyRecruitmentFinding } from '@/components/public/companies/CompanyRecruitmentFinding';
+import { CompanyTradeEngine } from '@/components/public/companies/CompanyTradeEngine';
+import { CompanyValueConclusion } from '@/components/public/companies/CompanyValueConclusion';
 import { PublicSiteShell } from '@/components/public/PublicSiteShell';
 
 export const metadata: Metadata = {
@@ -24,13 +24,13 @@ export default function EnterprisesPublicPage() {
     <PublicSiteShell>
       <div className="space-y-12 lg:space-y-16">
         <CompanyPublicHero />
+        <CompanyRecruitmentFinding />
+        <CompanyEvaluationConsequences />
+        <CompanyTradeEngine />
         <CompanyQuestionnaireDifference />
         <CompanyQuestionnaireCreation />
-        <CompanyQuestionnaireControl />
-        <CompanyCandidateQuestionnaire />
-        <CompanyThresholdSection />
-        <CompanyRecruitmentJourney />
-        <CompanyLaunchCta />
+        <CompanyAfterEvaluation />
+        <CompanyValueConclusion />
         <CompanyFaq />
       </div>
     </PublicSiteShell>
