@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function ObservatoryPage() {
   return (
     <PublicSiteShell>
-      <div className="space-y-8 sm:space-y-10">
+      <div className="space-y-14 lg:space-y-20">
         <ObservatoryHero />
         <ObservatoryFindings />
         <ObservatoryPrinciples />

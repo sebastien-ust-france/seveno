@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function CandidatesPublicPage() {
   return (
     <PublicSiteShell>
-      <div className="space-y-12 lg:space-y-16">
+      <div className="space-y-14 lg:space-y-20">
         <CandidatePublicHero />
         <CandidateAnonymityIntro />
         <CandidateJourney />

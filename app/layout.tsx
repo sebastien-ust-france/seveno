@@ -28,16 +28,7 @@ export const metadata: Metadata = {
     description: 'Le bon recrutement ne commence pas par une pile de CV. Il commence par une rencontre qui a du sens.',
     images: ['https://seveno.eu/images/logo-seveno.png'],
   },
-  icons: {
-    icon: [
-      {
-        url: '/images/favicon-seveno.png',
-        type: 'image/png',
-      },
-    ],
-    shortcut: '/images/favicon-seveno.png',
-    apple: '/images/favicon-seveno.png',
-  },
+  manifest: '/manifest.webmanifest',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

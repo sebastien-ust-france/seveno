@@ -4,6 +4,60 @@
 
 :root {
   color-scheme: dark;
+
+  /* Seven’O provisional brand palette. Keep these RGB triplets compatible with Tailwind opacity modifiers. */
+  --seveno-brand-cyan: 0 216 248;
+  --seveno-brand-cyan-soft: var(--seveno-brand-cyan);
+  --seveno-brand-blue: 0 120 240;
+  --seveno-brand-blue-strong: 0 72 184;
+  --seveno-brand-warm: 247 104 0;
+
+  --seveno-surface-page: 2 8 23;
+  --seveno-surface-section: 8 17 31;
+  --seveno-surface-panel: 11 23 40;
+  --seveno-surface-elevated: 16 34 56;
+  --seveno-surface-active: 18 48 74;
+  --seveno-surface-hover: 16 42 64;
+  --seveno-surface-overlay: 2 8 23;
+
+  --seveno-text-primary: 248 250 252;
+  --seveno-text-secondary: 203 213 225;
+  --seveno-text-muted: 148 163 184;
+  --seveno-text-disabled: 100 116 139;
+  --seveno-text-on-accent: 2 6 23;
+  --seveno-text-link: 103 232 249;
+
+  --seveno-border-subtle: 255 255 255;
+  --seveno-border-default: 148 163 184;
+  --seveno-border-strong: 165 243 252;
+  --seveno-border-active: var(--seveno-brand-cyan);
+  --seveno-border-focus: 103 232 249;
+
+  --seveno-action-primary: var(--seveno-brand-cyan);
+  --seveno-action-primary-hover: 103 232 249;
+  --seveno-action-secondary: var(--seveno-surface-active);
+  --seveno-action-secondary-hover: var(--seveno-surface-hover);
+  --seveno-action-danger: 251 113 133;
+  --seveno-action-disabled: 51 65 85;
+
+  --seveno-state-success: 52 211 153;
+  --seveno-state-warning: 251 191 36;
+  --seveno-state-error: 251 113 133;
+  --seveno-state-info: var(--seveno-brand-cyan);
+  --seveno-state-pending: 167 139 250;
+
+  --seveno-assessment-general: var(--seveno-brand-cyan);
+  --seveno-assessment-job: var(--seveno-brand-blue);
+  --seveno-skill: var(--seveno-brand-blue);
+  --seveno-prerequisite: var(--seveno-text-muted);
+  --seveno-candidate: var(--seveno-brand-cyan);
+  --seveno-company: var(--seveno-brand-blue);
+  --seveno-conversation: var(--seveno-brand-blue);
+  --seveno-reciprocal-agreement: var(--seveno-brand-warm);
+  --seveno-identity-reveal: var(--seveno-brand-warm);
+  --seveno-score-qualified: var(--seveno-state-success);
+  --seveno-score-near-threshold: var(--seveno-state-warning);
+  --seveno-score-below-threshold: var(--seveno-state-error);
 }
 
 html {

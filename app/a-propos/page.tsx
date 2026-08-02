@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export default function AboutPublicPage() {
   return (
     <PublicSiteShell>
-      <div className="space-y-8 sm:space-y-10 lg:space-y-12">
+      <div className="space-y-14 lg:space-y-20">
         <AboutHero />
         <AboutOrigin />
         <AboutMission />

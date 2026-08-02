@@ -53,14 +53,20 @@ function JourneyStep({
   title: string;
   text: string;
 }) {
+  const numberTone = number <= 4
+    ? 'border-seveno-brand-cyan/35 bg-seveno-brand-cyan/10 text-cyan-100'
+    : number < 8
+      ? 'border-seveno-brand-blue/35 bg-gradient-to-br from-seveno-brand-cyan/10 to-seveno-brand-blue/15 text-blue-100'
+      : 'border-seveno-brand-warm/45 bg-seveno-brand-blue/15 text-orange-100';
+
   return (
     <li className="relative pl-11">
-      <span className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 text-sm font-semibold text-cyan-100">
+      <span className={`absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${numberTone}`}>
         {number}
       </span>
-      <div className="border-l border-white/10 pb-5 pl-5 last:pb-0">
-        <h3 className="text-lg font-semibold leading-7 text-white">{title}</h3>
-        <p className="mt-2 text-sm leading-7 text-slate-300">{text}</p>
+      <div className="border-l border-seveno-brand-blue/15 pb-5 pl-5 last:pb-0">
+        <h3 className="text-lg font-semibold leading-7 text-seveno-text-primary">{title}</h3>
+        <p className="mt-2 text-sm leading-7 text-seveno-text-secondary">{text}</p>
       </div>
     </li>
   );
@@ -68,7 +74,7 @@ function JourneyStep({
 
 function JourneyColumn({ steps }: { steps: readonly { number: number; title: string; text: string }[] }) {
   return (
-    <ol className="relative space-y-4 before:absolute before:inset-y-2 before:left-4 before:w-px before:bg-gradient-to-b before:from-cyan-300/20 before:via-white/10 before:to-transparent">
+    <ol className="relative space-y-4 before:absolute before:inset-y-2 before:left-4 before:w-px before:bg-gradient-to-b before:from-seveno-brand-cyan/30 before:via-seveno-brand-blue/20 before:to-transparent">
       {steps.map((step) => (
         <JourneyStep key={step.number} number={step.number} title={step.title} text={step.text} />
       ))}
@@ -80,17 +86,17 @@ export function CandidateJourney() {
   return (
     <section
       id="parcours-candidat"
-      className="rounded-[34px] border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(10,16,31,0.96),rgba(8,15,28,0.92))] p-6 shadow-[0_28px_100px_rgba(2,6,23,0.28)] sm:p-8 lg:p-10"
+      className="relative overflow-hidden rounded-[36px] border border-seveno-brand-blue/30 bg-[radial-gradient(circle_at_top_right,rgb(var(--seveno-brand-blue)/0.16),transparent_34%),linear-gradient(180deg,rgba(9,17,32,0.98),rgba(8,15,28,0.94))] p-6 shadow-[0_28px_100px_rgba(2,6,23,0.3)] sm:p-8 lg:p-10"
     >
       <div className="space-y-5">
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200/90">VOTRE PARCOURS CANDIDAT</p>
-        <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          De la création du compte à la rencontre.
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-seveno-brand-cyan">VOTRE PARCOURS CANDIDAT</p>
+        <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-seveno-text-primary sm:text-4xl">
+          De la <span className="text-seveno-brand-cyan">création</span> du <span className="text-seveno-brand-cyan">compte</span> à la <span className="text-seveno-brand-blue">rencontre</span>.
         </h2>
-        <p className="max-w-4xl text-lg leading-8 text-slate-300">
+        <p className="max-w-4xl text-lg leading-8 text-seveno-text-secondary">
           Chaque étape complète la précédente. Vous gardez la maîtrise de votre profil et vous décidez toujours si vous souhaitez poursuivre.
         </p>
-        <p className="max-w-4xl text-lg leading-8 text-slate-300">
+        <p className="max-w-4xl text-lg leading-8 text-seveno-text-secondary">
           Le parcours comporte exactement huit étapes.
         </p>
       </div>

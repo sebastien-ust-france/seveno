@@ -1,27 +1,27 @@
 export function AboutMission() {
   return (
-    <section className="space-y-6 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,17,32,0.95),rgba(7,13,24,0.92))] px-6 py-7 shadow-[0_18px_60px_rgba(2,6,23,0.18)] sm:px-8 sm:py-8 lg:px-10 lg:py-9">
-      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200/90">NOTRE MISSION</p>
-      <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-        Mieux préparer la rencontre avant de révéler les identités.
+    <section className="space-y-6 rounded-[36px] border border-seveno-brand-cyan/20 bg-[linear-gradient(180deg,rgba(9,17,32,0.98),rgba(8,15,28,0.94))] px-6 py-7 shadow-[0_28px_100px_rgba(2,6,23,0.28)] sm:px-8 sm:py-8 lg:px-10 lg:py-9">
+      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-seveno-brand-cyan">NOTRE MISSION</p>
+      <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-seveno-text-primary sm:text-4xl">
+        Mieux <span className="text-seveno-brand-cyan">préparer</span> la <span className="text-seveno-brand-warm">rencontre</span> avant de révéler les identités.
       </h2>
-      <p className="max-w-4xl text-lg leading-8 text-slate-300">
+      <p className="max-w-4xl text-lg leading-8 text-seveno-text-secondary">
         Seven’O ne cherche pas à automatiser la décision ou à remplacer le recruteur. La plateforme organise les
         informations utiles avant l’échange humain.
       </p>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="flex h-full flex-col gap-4 rounded-[26px] border border-white/10 bg-white/[0.03] p-6 sm:p-7">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.26em] text-cyan-100/90">Pour le candidat</h3>
-          <p className="text-lg leading-8 text-slate-200">
+        <div className="flex h-full flex-col gap-4 rounded-[26px] border border-seveno-brand-cyan/25 bg-seveno-brand-cyan/5 p-6 sm:p-7">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.26em] text-seveno-brand-cyan">Pour le candidat</h3>
+          <p className="text-lg leading-8 text-seveno-text-secondary">
             Présenter son projet, son expérience, sa disponibilité, ses aptitudes professionnelles et ses
             recommandations sans commencer par son identité.
           </p>
         </div>
 
-        <div className="flex h-full flex-col gap-4 rounded-[26px] border border-white/10 bg-white/[0.03] p-6 sm:p-7">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.26em] text-violet-100/90">Pour l’entreprise</h3>
-          <p className="text-lg leading-8 text-slate-200">
+        <div className="flex h-full flex-col gap-4 rounded-[26px] border border-seveno-brand-blue/25 bg-seveno-brand-blue/5 p-6 sm:p-7">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.26em] text-seveno-brand-blue">Pour l’entreprise</h3>
+          <p className="text-lg leading-8 text-seveno-text-secondary">
             Définir précisément le besoin, distinguer les prérequis, préparer un questionnaire adapté au poste et
             comprendre les réponses avant de poursuivre.
           </p>

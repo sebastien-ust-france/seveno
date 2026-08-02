@@ -33,24 +33,24 @@ const principles = [
 
 export function AboutPrinciples() {
   return (
-    <section className="space-y-6 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,15,28,0.92),rgba(6,12,24,0.9))] px-6 py-7 shadow-[0_18px_60px_rgba(2,6,23,0.18)] sm:px-8 sm:py-8 lg:px-10 lg:py-9">
-      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200/90">LES PRINCIPES SEVEN’O</p>
-      <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-        Une autre manière d’aborder le recrutement.
+    <section className="space-y-6 py-2">
+      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-seveno-brand-cyan">LES PRINCIPES SEVEN’O</p>
+      <h2 className="max-w-4xl text-3xl font-semibold tracking-tight text-seveno-text-primary sm:text-4xl">
+        Une autre manière d’aborder le <span className="text-seveno-brand-blue">recrutement</span>.
       </h2>
 
       <ol className="grid gap-6 lg:grid-cols-2 lg:gap-x-12 lg:gap-y-10">
         {principles.map((principle) => (
-          <li key={principle.number} className="border-t border-white/10 pt-5 sm:pt-6">
+          <li key={principle.number} className="border-t border-seveno-brand-blue/15 pt-5 sm:pt-6">
             <div className="flex items-start gap-4 sm:gap-5">
-              <p className="shrink-0 text-4xl font-semibold tracking-[-0.05em] text-slate-500/70 sm:text-5xl lg:text-6xl">
+              <p className="shrink-0 text-4xl font-semibold tracking-[-0.05em] text-seveno-brand-cyan/60 sm:text-5xl lg:text-6xl">
                 {principle.number}
               </p>
               <div className="min-w-0">
-                <h3 className="max-w-3xl text-2xl font-semibold tracking-tight text-white sm:text-[1.65rem]">
+                <h3 className="max-w-3xl text-2xl font-semibold tracking-tight text-seveno-text-primary sm:text-[1.65rem]">
                   {principle.title}
                 </h3>
-                <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-300">{principle.text}</p>
+                <p className="mt-4 max-w-3xl text-lg leading-8 text-seveno-text-secondary">{principle.text}</p>
               </div>
             </div>
           </li>

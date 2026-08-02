@@ -19,6 +19,8 @@
     "test:candidate-profile-presentation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-profile-presentation-smoke-test.mts",
     "test:candidate-launch-readiness": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-launch-readiness-smoke-test.mts",
     "test:public-site": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-site-smoke-test.mts",
+    "test:favicon-readiness": "node --experimental-strip-types ./scripts/favicon-readiness-smoke-test.mts",
+    "test:color-system": "node --experimental-strip-types ./scripts/seveno-color-system-smoke-test.mts",
     "test:public-auth-isolation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-auth-isolation.mts",
     "test:public-performance-architecture": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-performance-architecture.mts",
     "test:seveno-contact": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-contact-smoke-test.mts",

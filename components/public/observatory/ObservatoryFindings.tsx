@@ -37,21 +37,20 @@ export function ObservatoryFindings() {
 
   function renderFinding(finding: (typeof findings)[number], originalIndex: number) {
     const number = String(originalIndex + 1).padStart(2, '0');
-    const accentClass =
-      originalIndex % 3 === 0 ? 'text-cyan-200/70' : originalIndex % 3 === 1 ? 'text-violet-200/70' : 'text-orange-200/70';
+    const accentClass = originalIndex % 2 === 0 ? 'text-seveno-brand-cyan/70' : 'text-seveno-brand-blue/70';
 
     return (
-      <article key={finding.title} className="border-t border-white/10 pt-5 sm:pt-6">
+      <article key={finding.title} className="border-t border-seveno-brand-blue/15 pt-5 sm:pt-6">
         <div className="flex items-start gap-4 sm:gap-5">
           <p className={`shrink-0 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl lg:text-6xl ${accentClass}`}>
             {number}
           </p>
           <div className="min-w-0">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200/85">{finding.kicker}</p>
-            <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-[2rem]">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-seveno-brand-cyan">{finding.kicker}</p>
+            <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-seveno-text-primary sm:text-[2rem]">
               {finding.title}
             </h2>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-300">{finding.text}</p>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-seveno-text-secondary">{finding.text}</p>
           </div>
         </div>
       </article>
