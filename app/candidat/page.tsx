@@ -19,9 +19,14 @@ import {
   confirmCandidateAvailabilityFromDashboard,
   registerCandidateAvailabilityDevice,
   requestCandidateAvailabilityPushToken,
-  sendCandidateAvailabilityTestNotification,
+  respondToAvailabilityRequest,
+  subscribeToCandidateAvailabilityForegroundNotifications,
   updateCandidateAvailabilityNotifications,
+  buildCandidatePushReadinessFromLiveSupport,
+  getPassiveCandidatePushReadinessSnapshot,
 } from '@/lib/seveno-candidate-availability-client';
+import { describeCandidatePushReadinessForCandidate, type CandidatePushReadiness } from '@/lib/seveno-candidate-push-readiness';
+import { isActionableAvailabilityForegroundNotification } from '@/lib/seveno-candidate-availability-foreground';
 import {
   getCandidateAvailabilityView,
   isProfileVisibleToCompanies as isCandidateProfileVisibleToCompanies,
@@ -174,53 +179,11 @@ function getProfileAction(
   };
 }
 
-type AvailabilityPushSupport = Awaited<ReturnType<typeof requestCandidateAvailabilityPushToken>>;
-
 function logCandidateAvailabilityDebug(step: string, details?: Record<string, unknown>) {
   console.info('[SevenO availability test]', {
     step,
     ...details,
   });
-}
-
-function getAvailabilityTestFailureMessage(
-  support: AvailabilityPushSupport | null,
-  hasActiveDevice: boolean | null,
-  serverError: unknown = null,
-) {
-  if (!support) {
-    return 'Impossible de vérifier les notifications.';
-  }
-
-  if (!support.supported) {
-    return 'Ce navigateur ne prend pas en charge les notifications.';
-  }
-
-  if (!support.serviceWorkerRegistration || !support.serviceWorkerRegistration.active) {
-    return 'Le service de notifications n’est pas encore actif.';
-  }
-
-  if (support.permission !== 'granted') {
-    return 'Les notifications ne sont pas autorisées dans Chrome.';
-  }
-
-  if (!support.token) {
-    if (support.vapidKeyPresent === false) {
-      return 'La clé VAPID Firebase est manquante.';
-    }
-
-    return 'Impossible de créer l’abonnement Firebase.';
-  }
-
-  if (hasActiveDevice === false) {
-    return 'Cet appareil n’est pas enregistré.';
-  }
-
-  if (serverError) {
-    return 'L’envoi de test a échoué côté serveur.';
-  }
-
-  return 'La notification de test a échoué.';
 }
 
 export default function CandidateDashboardPage() {
@@ -231,10 +194,18 @@ export default function CandidateDashboardPage() {
   const [user, setUser] = useState<SevenoUser | null>(null);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [availabilityAction, setAvailabilityAction] = useState<
-    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications' | 'send_test_notification' | null
+    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications' | null
   >(null);
   const [availabilityNotice, setAvailabilityNotice] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [pushReadiness, setPushReadiness] = useState<CandidatePushReadiness | null>(null);
+  const [foregroundAvailabilityRequest, setForegroundAvailabilityRequest] = useState<{
+    requestId: string;
+    token: string;
+    body: string;
+  } | null>(null);
+  const [foregroundActionPending, setForegroundActionPending] = useState(false);
+  const [foregroundActionError, setForegroundActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -298,6 +269,56 @@ export default function CandidateDashboardPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    let active = true;
+
+    void getPassiveCandidatePushReadinessSnapshot(profile).then((snapshot) => {
+      if (active) {
+        setPushReadiness(snapshot);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [profile]);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    let active = true;
+
+    void subscribeToCandidateAvailabilityForegroundNotifications((message) => {
+      logCandidateAvailabilityDebug('foreground_message_received', {
+        kind: message.kind,
+      });
+
+      if (!isActionableAvailabilityForegroundNotification(message)) {
+        // Les messages de test ou sans identifiant de demande ne doivent jamais
+        // déclencher d'action sur le tableau de bord candidat.
+        return;
+      }
+
+      setForegroundActionError(null);
+      setForegroundAvailabilityRequest({
+        requestId: message.requestId,
+        token: message.token,
+        body: message.body,
+      });
+    }).then((unsubscribeFn) => {
+      if (active) {
+        unsubscribe = unsubscribeFn;
+      } else {
+        unsubscribeFn();
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
+
+  const candidatePushSummary = pushReadiness ? describeCandidatePushReadinessForCandidate(pushReadiness) : null;
   const sectorLabel = profile ? findSectorLabel(profile.sectorId) ?? profile.sectorId : null;
   const familyLabel = profile ? findFamilyLabel(profile.jobFamilyId) ?? profile.jobFamilyId : null;
   const roleLabel = profile ? findRoleLabel(profile.jobRoleId) ?? profile.jobRoleId : null;
@@ -402,10 +423,11 @@ export default function CandidateDashboardPage() {
       }
 
       const support = await requestCandidateAvailabilityPushToken();
+      setPushReadiness(buildCandidatePushReadinessFromLiveSupport(support, profile));
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
       if (support.permission === 'granted' && support.token) {
         try {
-          await registerCandidateAvailabilityDevice(authUser, {
+          const registrationResult = await registerCandidateAvailabilityDevice(authUser, {
             deviceId: support.deviceId,
             token: support.token,
             permission: support.permission,
@@ -414,6 +436,7 @@ export default function CandidateDashboardPage() {
             userAgent: navigator.userAgent,
             source: 'dashboard',
           });
+          setPushReadiness(buildCandidatePushReadinessFromLiveSupport(support, profile, registrationResult.hasActiveDevice));
           logCandidateAvailabilityDebug('register_device_success', {
             action,
             deviceId: support.deviceId,
@@ -448,95 +471,39 @@ export default function CandidateDashboardPage() {
     }
   }
 
-  async function handleSendAvailabilityTestNotification() {
-    if (!authUser || !profile || !user) {
-      setAvailabilityError('Le profil candidat n’est pas encore chargé.');
+  async function handleForegroundAvailabilityResponse(action: 'yes' | 'no') {
+    if (!foregroundAvailabilityRequest || !user) {
       return;
     }
 
-    logCandidateAvailabilityDebug('activation_click', {
-      action: 'send_test_notification',
-    });
-    setAvailabilityAction('send_test_notification');
-    setAvailabilityError(null);
-    setAvailabilityNotice(null);
-
-    let support: AvailabilityPushSupport | null = null;
-    let hasActiveDevice: boolean | null = null;
+    const { requestId, token } = foregroundAvailabilityRequest;
+    setForegroundActionPending(true);
+    setForegroundActionError(null);
 
     try {
-      support = await requestCandidateAvailabilityPushToken();
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-
-      if (!support.serviceWorkerRegistration) {
-        throw new Error('Le service de notifications n’est pas encore actif.');
-      }
-
-      if (support.permission !== 'granted') {
-        throw new Error('Les notifications ne sont pas autorisées dans Chrome.');
-      }
-
-      if (!support.token) {
-        throw new Error('Impossible de créer l’abonnement Firebase.');
-      }
-
-      let registrationResult: Awaited<ReturnType<typeof registerCandidateAvailabilityDevice>>;
-      try {
-        registrationResult = await registerCandidateAvailabilityDevice(authUser, {
-          deviceId: support.deviceId,
-          token: support.token,
-          permission: support.permission,
-          timezone,
-          platform: navigator.platform,
-          userAgent: navigator.userAgent,
-          source: 'dashboard',
-        });
-        logCandidateAvailabilityDebug('register_device_success', {
-          action: 'send_test_notification',
-          deviceId: support.deviceId,
-          permission: support.permission,
-          hasActiveDevice: registrationResult.hasActiveDevice,
-        });
-      } catch (error) {
-        logCandidateAvailabilityDebug('register_device_failed', {
-          action: 'send_test_notification',
-          deviceId: support.deviceId,
-          permission: support.permission,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-      hasActiveDevice = registrationResult.hasActiveDevice;
-
-      if (!registrationResult.hasActiveDevice) {
-        throw new Error('Cet appareil n’est pas enregistré.');
-      }
-
-      const result = await sendCandidateAvailabilityTestNotification(authUser, {
+      await respondToAvailabilityRequest({
+        requestId,
+        token,
+        action,
         source: 'dashboard',
       });
 
-      setProfile(result.profile ?? await getCandidateProfile(user.uid));
+      setProfile(await getCandidateProfile(user.uid));
       setAvailabilityNotice(
-        `Permission Chrome : ${support.permission}. Service worker : OK. Token FCM : ${support.token ? 'present' : 'absent'}. Appareil actif : ${registrationResult.hasActiveDevice ? 'oui' : 'non'}. Notification de test : ${result.sent > 0 ? 'envoyee' : 'non envoyee'}.`,
+        action === 'yes'
+          ? 'Disponibilité confirmée pour 24 heures.'
+          : 'Disponibilité immédiate désactivée.',
       );
+      setForegroundAvailabilityRequest(null);
     } catch (thrownError) {
-      setAvailabilityError(
-        thrownError instanceof Error && thrownError.message.trim().length > 0
-          ? thrownError.message
-          : getAvailabilityTestFailureMessage(support, hasActiveDevice, thrownError),
+      setForegroundActionError(
+        thrownError instanceof Error ? thrownError.message : 'La confirmation a échoué.',
       );
     } finally {
-      setAvailabilityAction(null);
+      setForegroundActionPending(false);
     }
   }
 
-  void availabilityAction;
-  void availabilityNotice;
-  void availabilityError;
-  void handleAvailabilityConfirmation;
-  void handleAvailabilityNotifications;
-  void handleSendAvailabilityTestNotification;
   const recommendationVerifiedCount = profile?.recommendationVerifiedCount ?? 0;
   const summaryCards: CandidateSummaryCard[] = profile
     ? [
@@ -827,8 +794,48 @@ export default function CandidateDashboardPage() {
                 <p>Visibilité entreprise : {profileVisibleToCompanies ? 'Oui' : 'Non'}</p>
                 <p>Disponibilité immédiate : {immediateAvailabilityConfirmed ? 'Confirmée' : 'À confirmer'}</p>
                 <p>État notifications : {availabilityNotificationsEnabled ? 'Confirmations quotidiennes actives' : 'Confirmations quotidiennes désactivées'}</p>
+                {pushReadiness ? (
+                  <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-xs text-slate-400">
+                    <p>Navigateur : {candidatePushSummary?.browserLabel}</p>
+                    <p>Cet appareil : {candidatePushSummary?.deviceLabel}</p>
+                    <p>Confirmations quotidiennes : {candidatePushSummary?.dailyPreferenceLabel}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
+
+            {foregroundAvailabilityRequest ? (
+              <div className="mt-4 rounded-2xl border border-blue-300/15 bg-blue-400/10 px-4 py-3 text-sm text-blue-100">
+                <p>{foregroundAvailabilityRequest.body}</p>
+                {foregroundActionError ? (
+                  <p className="mt-2 text-rose-200">{foregroundActionError}</p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleForegroundAvailabilityResponse('yes')}
+                    disabled={foregroundActionPending}
+                    className="inline-flex items-center justify-center rounded-full bg-blue-400/20 px-4 py-2 text-sm font-semibold text-blue-50 transition hover:bg-blue-400/30 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Toujours disponible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleForegroundAvailabilityResponse('no')}
+                    disabled={foregroundActionPending}
+                    className="inline-flex items-center justify-center rounded-full border border-blue-300/30 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Plus disponible
+                  </button>
+                  <Link
+                    href="/candidat/disponibilite"
+                    className="inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-blue-200 underline-offset-4 hover:underline"
+                  >
+                    Ouvrir la page de disponibilité
+                  </Link>
+                </div>
+              </div>
+            ) : null}
 
             {availabilityNotice ? (
               <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">

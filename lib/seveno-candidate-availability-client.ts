@@ -4,6 +4,14 @@ import type { User } from 'firebase/auth';
 import { getToken, isSupported, getMessaging, onMessage } from 'firebase/messaging';
 import { firebaseApp } from '@/lib/firebase';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
+import {
+  computeCandidatePushReadiness,
+  type CandidatePushReadiness,
+} from '@/lib/seveno-candidate-push-readiness';
+import {
+  parseCandidateForegroundNotification,
+  type CandidateForegroundNotification,
+} from '@/lib/seveno-candidate-availability-foreground';
 import type {
   AvailabilityNotificationSource,
   CandidateAvailabilityConfirmationAction,
@@ -215,6 +223,102 @@ export async function requestCandidateAvailabilityPushToken() {
   };
 }
 
+type CandidateAvailabilityPreferenceInput = Pick<
+  CandidateProfile,
+  'dailyAvailabilityConfirmationEnabled' | 'hasActiveAvailabilityPushSubscription'
+>;
+
+function resolveDailyPreferenceState(profile: CandidateAvailabilityPreferenceInput | null) {
+  if (!profile) {
+    return 'unknown' as const;
+  }
+
+  return profile.dailyAvailabilityConfirmationEnabled ? ('enabled' as const) : ('disabled' as const);
+}
+
+/**
+ * Read-only snapshot of the push pipeline, safe to call on mount: it never registers the service
+ * worker, never requests the notification permission, and never fetches a new FCM token. Use
+ * {@link buildCandidatePushReadinessFromLiveSupport} right after an explicit user action (enable,
+ * test) to refine the snapshot with the signals collected during that action.
+ */
+export async function getPassiveCandidatePushReadinessSnapshot(
+  profile: CandidateAvailabilityPreferenceInput | null,
+): Promise<CandidatePushReadiness> {
+  const dailyPreference = resolveDailyPreferenceState(profile);
+  const deviceRegistration = profile
+    ? (profile.hasActiveAvailabilityPushSubscription ? ('registered' as const) : ('missing' as const))
+    : ('unknown' as const);
+
+  if (!hasWindow()) {
+    return computeCandidatePushReadiness({
+      browserSupport: 'unsupported',
+      permission: 'unsupported',
+      serviceWorker: 'unknown',
+      hasToken: false,
+      deviceRegistration,
+      dailyPreference,
+    });
+  }
+
+  const hasNotificationApi = 'Notification' in window;
+  const hasServiceWorkerApi = 'serviceWorker' in navigator;
+  const hasPushManagerApi = 'PushManager' in window;
+  const browserSupport = hasNotificationApi && hasServiceWorkerApi && hasPushManagerApi
+    ? ('supported' as const)
+    : ('unsupported' as const);
+  const permission = browserSupport === 'unsupported' ? ('unsupported' as const) : Notification.permission;
+
+  let serviceWorker: 'unknown' | 'registering' | 'active' | 'error' = 'unknown';
+  if (browserSupport === 'supported' && hasServiceWorkerApi) {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration(AVAILABILITY_SERVICE_WORKER_PATH);
+      serviceWorker = registration ? (registration.active ? 'active' : 'registering') : 'unknown';
+    } catch {
+      serviceWorker = 'error';
+    }
+  }
+
+  return computeCandidatePushReadiness({
+    browserSupport,
+    permission,
+    serviceWorker,
+    // A device only ever gets registered server-side once a real token was created client-side,
+    // so a registered device is proof a token exists without having to fetch it again here.
+    hasToken: deviceRegistration === 'registered',
+    deviceRegistration,
+    dailyPreference,
+  });
+}
+
+/**
+ * Refines the readiness snapshot using the concrete signals returned by an explicit push action
+ * (enable notifications, send test notification), which already performed the permission request,
+ * service worker registration and token creation.
+ */
+export function buildCandidatePushReadinessFromLiveSupport(
+  support: Awaited<ReturnType<typeof requestCandidateAvailabilityPushToken>>,
+  profile: CandidateAvailabilityPreferenceInput | null,
+  hasActiveDevice: boolean | null = null,
+): CandidatePushReadiness {
+  const deviceRegistration = hasActiveDevice !== null
+    ? (hasActiveDevice ? ('registered' as const) : ('missing' as const))
+    : profile
+      ? (profile.hasActiveAvailabilityPushSubscription ? ('registered' as const) : ('missing' as const))
+      : ('unknown' as const);
+
+  return computeCandidatePushReadiness({
+    browserSupport: support.supported ? 'supported' : 'unsupported',
+    permission: support.permission,
+    serviceWorker: support.serviceWorkerRegistration
+      ? (support.serviceWorkerRegistration.active ? 'active' : 'registering')
+      : 'unknown',
+    hasToken: Boolean(support.token),
+    deviceRegistration,
+    dailyPreference: resolveDailyPreferenceState(profile),
+  });
+}
+
 export async function registerCandidateAvailabilityDevice(
   authUser: User,
   input: {
@@ -287,11 +391,7 @@ export async function sendCandidateAvailabilityTestNotification(
 }
 
 export async function subscribeToCandidateAvailabilityForegroundNotifications(
-  handler: (input: {
-    title: string;
-    body: string;
-    kind: 'availability' | 'test' | 'unknown';
-  }) => void,
+  handler: (notification: CandidateForegroundNotification) => void,
 ) {
   if (!firebaseApp || !hasWindow()) {
     return () => {};
@@ -304,18 +404,7 @@ export async function subscribeToCandidateAvailabilityForegroundNotifications(
 
   const messaging = getMessaging(firebaseApp);
   return onMessage(messaging, (payload) => {
-    const data = payload.data ?? {};
-    const kind = data.kind === 'test' || data.kind === 'availability' ? data.kind : 'unknown';
-    const title = payload.notification?.title
-      ?? (kind === 'test'
-        ? "Seven’O — Test de notification"
-        : "Seven’O — Disponibilité");
-    const body = payload.notification?.body
-      ?? (kind === 'test'
-        ? 'Les notifications sont correctement activées sur cet appareil.'
-        : 'Vous avez reçu une nouvelle notification Seven’O.');
-
-    handler({ title, body, kind });
+    handler(parseCandidateForegroundNotification(payload.data, payload.notification));
   });
 }
 
