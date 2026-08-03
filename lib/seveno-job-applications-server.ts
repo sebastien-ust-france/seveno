@@ -13,6 +13,11 @@ import {
   touchOfferCapacityLockPayload,
 } from '@/lib/seveno-active-candidate-files-server';
 import { selectCompanyQuestionnairePriorityApplications } from '@/lib/seveno-company-questionnaire-thresholds';
+import {
+  buildApplicationSubmittedNotificationEventId,
+  dispatchCompanyNotificationEvent,
+  prepareApplicationSubmittedNotificationEvent,
+} from '@/lib/seveno-company-notifications-server';
 import type {
   ApplicationSevenoAssessmentSnapshot,
   CandidateOfferListPage,
@@ -1706,7 +1711,7 @@ export async function submitJobApplication(uid: string, applicationId: string) {
   const context = await loadCandidateContext(uid);
   const firestore = requireDatabase();
   const ref = firestore.collection(APPLICATIONS_COLLECTION).doc(cleanText(applicationId, 100));
-  return firestore.runTransaction(async (transaction) => {
+  const submittedApplication = await firestore.runTransaction(async (transaction) => {
     const applicationSnapshot = await transaction.get(ref);
     if (!applicationSnapshot.exists || applicationSnapshot.data()?.candidateUid !== uid) {
       throw new SevenoJobApplicationError('forbidden_application', 403, 'Cette candidature ne vous appartient pas.');
@@ -1721,7 +1726,14 @@ export async function submitJobApplication(uid: string, applicationId: string) {
     }
     const offerRef = firestore.collection(OFFERS_COLLECTION).doc(application.offerId);
     const offerSnapshot = await transaction.get(offerRef);
-    if (!offerSnapshot.exists || offerSnapshot.data()?.status !== 'published' || offerSnapshot.data()?.version !== application.offerVersion) {
+    const companyUid = cleanText(applicationSnapshot.data()?.companyUid, 100);
+    if (
+      !companyUid
+      || !offerSnapshot.exists
+      || offerSnapshot.data()?.companyUid !== companyUid
+      || offerSnapshot.data()?.status !== 'published'
+      || offerSnapshot.data()?.version !== application.offerVersion
+    ) {
       throw new SevenoJobApplicationError('offer_version_changed', 409, 'L offre a change. Recommencez la candidature sur sa version actuelle.');
     }
     const versionSnapshot = await transaction.get(offerRef.collection('versions').doc(String(application.offerVersion)));
@@ -1735,6 +1747,12 @@ export async function submitJobApplication(uid: string, applicationId: string) {
       throw new SevenoJobApplicationError('required_prerequisites_not_satisfied', 409, 'Tous les prerequis obligatoires doivent etre satisfaits.');
     }
     const now = Timestamp.now();
+    await prepareApplicationSubmittedNotificationEvent(transaction, firestore, {
+      applicationId: ref.id,
+      offerId: application.offerId,
+      companyUid,
+      now,
+    });
     transaction.update(ref, {
       ...results,
       status: 'submitted',
@@ -1772,6 +1790,18 @@ export async function submitJobApplication(uid: string, applicationId: string) {
       updatedAt: now.toDate().toISOString(),
     };
   });
+
+  const notificationEventId = buildApplicationSubmittedNotificationEventId(ref.id);
+  try {
+    await dispatchCompanyNotificationEvent(notificationEventId);
+  } catch (error) {
+    console.error('[SevenO company notifications] Immediate delivery deferred', {
+      eventId: notificationEventId,
+      code: error instanceof Error && 'code' in error ? String((error as { code?: unknown }).code ?? 'unknown') : 'unknown',
+    });
+  }
+
+  return submittedApplication;
 }
 
 export async function withdrawJobApplication(uid: string, applicationId: string) {

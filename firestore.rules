@@ -981,6 +981,19 @@ service cloud.firestore {
       }
     }
 
+    // Company push subscriptions and the notification outbox are server-only.
+    match /company_push_subscriptions/{uid} {
+      allow read, write: if false;
+
+      match /devices/{deviceId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /notification_outbox/{eventId} {
+      allow read, write: if false;
+    }
+
     match /company_profiles/{uid} {
       allow read: if isAdmin() || (isCompany() && isOwner(uid));
       allow create: if (

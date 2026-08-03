@@ -31,6 +31,8 @@ export async function GET() {
   const testNotificationClickPathLiteral = toJavaScriptLiteral('/candidat');
   const availabilityYesActionTitleLiteral = toJavaScriptLiteral('Oui');
   const availabilityNoActionTitleLiteral = toJavaScriptLiteral('Non');
+  const companyApplicationNotificationTitleLiteral = toJavaScriptLiteral('Nouvelle candidature reçue');
+  const companyApplicationNotificationBodyLiteral = toJavaScriptLiteral('Un candidat vient de postuler à l’une de vos offres.');
   const script = `
     importScripts(${firebaseAppCompatUrl});
     importScripts(${firebaseMessagingCompatUrl});
@@ -42,6 +44,8 @@ export async function GET() {
     const testNotificationBody = ${testNotificationBodyLiteral};
     const testNotificationTag = ${testNotificationTagLiteral};
     const testNotificationClickPath = ${testNotificationClickPathLiteral};
+    const companyApplicationNotificationTitle = ${companyApplicationNotificationTitleLiteral};
+    const companyApplicationNotificationBody = ${companyApplicationNotificationBodyLiteral};
     const firebaseConfig = ${JSON.stringify(config)};
 
     function buildFallbackUrl(data, decision) {
@@ -86,6 +90,15 @@ export async function GET() {
       }
     }
 
+    function getSafeCompanyApplicationUrl(data) {
+      if (!data || data.kind !== 'company_application_submitted' || !data.applicationId || !data.clickUrl) {
+        return null;
+      }
+
+      const expectedPath = '/entreprise/demandes/' + encodeURIComponent(String(data.applicationId));
+      return data.clickUrl === expectedPath ? expectedPath : null;
+    }
+
     if (
       firebaseConfig
       && firebaseConfig.apiKey
@@ -100,12 +113,28 @@ export async function GET() {
         const data = payload && payload.data ? payload.data : {};
         const notification = payload && payload.notification ? payload.notification : null;
         const isTestNotification = data && data.kind === 'test';
+        const isCompanyApplicationNotification = data && data.kind === 'company_application_submitted';
         const title = notification && notification.title
           ? notification.title
+          : isCompanyApplicationNotification
+            ? companyApplicationNotificationTitle
+            : isTestNotification
+              ? testNotificationTitle
+              : availabilityNotificationTitle;
+        const options = isCompanyApplicationNotification
+          ? {
+              body: notification && notification.body ? notification.body : companyApplicationNotificationBody,
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+              data: {
+                kind: 'company_application_submitted',
+                applicationId: data.applicationId || '',
+                offerId: data.offerId || '',
+                clickUrl: getSafeCompanyApplicationUrl(data),
+                payloadVersion: data.payloadVersion || '',
+              },
+            }
           : isTestNotification
-            ? testNotificationTitle
-            : availabilityNotificationTitle;
-        const options = isTestNotification
           ? {
               body: notification && notification.body ? notification.body : testNotificationBody,
               icon: '/images/favicon-seveno.png',
@@ -145,6 +174,24 @@ export async function GET() {
       event.notification.close();
 
       event.waitUntil((async () => {
+        const companyApplicationUrl = getSafeCompanyApplicationUrl(data);
+        if (companyApplicationUrl) {
+          const existingClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const client of existingClients) {
+            if ('navigate' in client) {
+              await client.navigate(companyApplicationUrl);
+            }
+            if ('focus' in client) {
+              await client.focus();
+              return;
+            }
+          }
+          if (clients.openWindow) {
+            await clients.openWindow(companyApplicationUrl);
+          }
+          return;
+        }
+
         if (action === 'availability_yes' || action === 'availability_no') {
           const succeeded = await respondToAvailability(data, action === 'availability_yes' ? 'yes' : 'no');
           if (succeeded) {
