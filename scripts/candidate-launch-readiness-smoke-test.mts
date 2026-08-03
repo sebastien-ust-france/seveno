@@ -18,13 +18,13 @@ function readSource(relativePath: string) {
 const OPEN_CANDIDATE_ROUTES = [
   '/candidat',
   '/candidat/onboarding',
+  '/candidat/offres',
   '/candidat/identite',
   '/candidat/recommandations',
 ];
 
 const BLOCKED_CANDIDATE_ROUTES = [
   '/candidat/test',
-  '/candidat/offres',
   '/candidat/candidatures',
   '/candidat/demandes',
 ];
@@ -99,6 +99,20 @@ assert.match(candidateDashboardSource, /Disponibilité quotidienne/);
 assert.match(candidateDashboardSource, /Contrats recherchés/);
 assert.match(candidateDashboardSource, /formatDesiredContractTypeLabels/);
 assert.doesNotMatch(candidateDashboardSource, mojibakePattern);
+
+const candidateOffersPageSource = readSource('app/candidat/offres/page.tsx');
+assert.match(candidateOffersPageSource, /CandidateOffersList/);
+assert.doesNotMatch(candidateOffersPageSource, /CandidateFeatureComingSoon/);
+
+const candidateOfferDetailPageSource = readSource('app/candidat/offres/[offerId]/page.tsx');
+assert.match(candidateOfferDetailPageSource, /CandidateOfferDetail/);
+assert.doesNotMatch(candidateOfferDetailPageSource, /CandidateFeatureComingSoon/);
+
+const candidateOffersListSource = readSource('components/candidate/CandidateOffersList.tsx');
+assert.match(candidateOffersListSource, /listCandidateOffersClient/);
+assert.match(candidateOffersListSource, /\/candidat\/offres\/\$\{encodeURIComponent\(offer\.offerId\)\}/);
+assert.match(candidateOffersListSource, /Modifier mes métiers/);
+assert.doesNotMatch(candidateOffersListSource, /companyUid|candidateUid|Firebase UID/);
 assert.match(candidateDashboardSource, /\/candidat\/test/);
 assert.doesNotMatch(
   candidateDashboardSource,
