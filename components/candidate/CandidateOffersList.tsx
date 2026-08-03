@@ -211,7 +211,7 @@ export function CandidateOffersList() {
                 ].filter((value): value is string => Boolean(value));
 
                 return (
-                  <SevenoPanel key={offer.offerId} tone={offer.applicationId ? 'blue' : 'neutral'} className="flex h-full flex-col">
+                  <SevenoPanel key={offer.offerId} tone={offer.applicationId ? 'cyan' : 'neutral'} className="flex h-full flex-col">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/75">{offer.companyName}</p>

@@ -112,6 +112,7 @@ const candidateOffersListSource = readSource('components/candidate/CandidateOffe
 assert.match(candidateOffersListSource, /listCandidateOffersClient/);
 assert.match(candidateOffersListSource, /\/candidat\/offres\/\$\{encodeURIComponent\(offer\.offerId\)\}/);
 assert.match(candidateOffersListSource, /Modifier mes métiers/);
+assert.match(candidateOffersListSource, /tone=\{offer\.applicationId \? 'cyan' : 'neutral'\}/);
 assert.doesNotMatch(candidateOffersListSource, /companyUid|candidateUid|Firebase UID/);
 assert.match(candidateDashboardSource, /\/candidat\/test/);
 assert.doesNotMatch(
