@@ -14,6 +14,8 @@ export const COMPANY_NAVIGATION: SidebarNavigationItemConfig[] = [
   { href: '/entreprise/onboarding', label: 'Mon entreprise' },
   { href: '/entreprise/offres', label: 'Mes offres' },
   { href: '/entreprise/demandes', label: 'Mises en relation' },
+  { href: '/entreprise/facturation', label: 'Facturation et crédits' },
+  { href: '/entreprise/membres', label: 'Membres' },
 ];
 
 export const ADMIN_NAVIGATION: SidebarNavigationItemConfig[] = [
@@ -27,4 +29,5 @@ export const ADMIN_NAVIGATION: SidebarNavigationItemConfig[] = [
   { href: '/admin/prerequis', label: 'Prerequis' },
   { href: '/admin/mises-en-relation', label: 'Mises en relation' },
   { href: '/admin/journal', label: 'Journal' },
+  { href: '/admin/facturation', label: 'Facturation' },
 ];

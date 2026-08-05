@@ -8,6 +8,7 @@ import type {
   CompanyQuestionnaireInput,
 } from '@/types/seveno-company-questionnaires';
 import type { SerializedJobOffer } from '@/types/seveno-job-offers';
+import { companyHeaders } from '@/lib/seveno-billing-client';
 
 export function getCompanyQuestionnaireClient(authUser: User, offerId: string) {
   return fetchSevenoMatchApi<{
@@ -17,7 +18,7 @@ export function getCompanyQuestionnaireClient(authUser: User, offerId: string) {
   }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/questionnaire`,
-    { cache: 'no-store' },
+    { cache: 'no-store', headers: companyHeaders() },
   );
 }
 
@@ -25,7 +26,7 @@ export function saveCompanyQuestionnaireClient(authUser: User, offerId: string, 
   return fetchSevenoMatchApi<{ questionnaire: CompanyQuestionnaireEditorProjection }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/questionnaire`,
-    { method: 'PUT', body: JSON.stringify(input) },
+    { method: 'PUT', body: JSON.stringify(input), headers: companyHeaders() },
   );
 }
 
@@ -33,7 +34,7 @@ export function activateCompanyQuestionnaireClient(authUser: User, offerId: stri
   return fetchSevenoMatchApi<{ questionnaire: CompanyQuestionnaireEditorProjection }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/questionnaire/activate`,
-    { method: 'POST' },
+    { method: 'POST', headers: companyHeaders() },
   );
 }
 
@@ -41,5 +42,6 @@ export function listCompanyQuestionnairesClient(authUser: User) {
   return fetchSevenoMatchApi<{ questionnaires: CompanyQuestionnaireListItem[] }>(
     authUser,
     '/api/seveno/company-questionnaires',
+    { headers: companyHeaders() },
   );
 }

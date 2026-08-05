@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
+import { CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
+import { SevenoBillingError } from '@/lib/seveno-billing-server';
 
 export async function readOfferJsonBody(request: NextRequest) {
   try {
@@ -12,7 +14,7 @@ export async function readOfferJsonBody(request: NextRequest) {
 }
 
 export function toJobOfferApiError(error: unknown) {
-  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobOfferError) {
+  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobOfferError || error instanceof CompanyMembershipError || error instanceof SevenoBillingError) {
     return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
   }
   console.error('[SevenO job offers] Unexpected server error', error);

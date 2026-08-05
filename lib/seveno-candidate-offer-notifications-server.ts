@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
 import { getApp, getApps } from 'firebase-admin/app';
-import { FieldPath, Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { FieldPath, Timestamp, type DocumentSnapshot, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
@@ -161,11 +161,12 @@ export async function prepareCandidateOfferFanout(
     jobRoleId: string;
     contractType: JobOfferContractType;
     now: Timestamp;
+    existingSnapshot?: DocumentSnapshot;
   },
 ) {
   const fanoutId = buildCandidateOfferFanoutId(input.offerId);
   const ref = firestore.collection(OFFER_NOTIFICATION_FANOUTS_COLLECTION).doc(fanoutId);
-  const existing = await transaction.get(ref);
+  const existing = input.existingSnapshot ?? await transaction.get(ref);
   if (existing.exists) {
     if (
       existing.get('offerId') !== input.offerId

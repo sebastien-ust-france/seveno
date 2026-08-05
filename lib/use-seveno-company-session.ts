@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { getCurrentAuthUser } from '@/lib/auth';
-import { getCompanyProfile } from '@/lib/seveno-companies';
 import { ensureSevenoUser } from '@/lib/seveno-users';
+import { ACTIVE_COMPANY_STORAGE_KEY, getCompanyContextClient } from '@/lib/seveno-billing-client';
 import type { CompanyProfile } from '@/types/seveno';
 
 export function useSevenoCompanySession() {
@@ -35,12 +35,10 @@ export function useSevenoCompanySession() {
           setError('Ce compte n a pas le role entreprise. Acces aux offres refuse.');
           return;
         }
-        const companyProfile = await getCompanyProfile(sevenoUser.uid);
+        const companyContext = await getCompanyContextClient(firebaseUser);
+        const companyProfile = companyContext.activeProfile;
         if (!active) return;
-        if (!companyProfile) {
-          router.replace('/entreprise/onboarding');
-          return;
-        }
+        window.localStorage.setItem(ACTIVE_COMPANY_STORAGE_KEY, companyContext.activeCompanyId);
         setAuthUser(firebaseUser);
         setProfile(companyProfile);
         if (!sevenoUser.emailVerified) {

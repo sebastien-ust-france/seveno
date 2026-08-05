@@ -2,6 +2,7 @@
 
 import type { User } from 'firebase/auth';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
+import { companyHeaders } from '@/lib/seveno-billing-client';
 import type {
   CompanyApplicationPrioritySelection,
   CandidateOfferListPage,
@@ -89,6 +90,7 @@ export function listCompanyApplicationsClient(
   }>(
     authUser,
     `/api/seveno/applications/company?${params.toString()}`,
+    { headers: companyHeaders() },
   );
 }
 
@@ -99,7 +101,7 @@ export function createCompanyInvitationClient(
   return fetchSevenoMatchApi<{ application: SerializedCandidateJobApplication }>(
     authUser,
     '/api/seveno/applications/company',
-    { method: 'POST', body: JSON.stringify(input) },
+    { method: 'POST', body: JSON.stringify(input), headers: companyHeaders() },
   );
 }
 
@@ -123,7 +125,7 @@ export function reviewCompanyJobApplicationClient(
   return fetchSevenoMatchApi<{ application: SerializedCandidateJobApplication }>(
     authUser,
     `/api/seveno/applications/${encodeURIComponent(applicationId)}/company-decision`,
-    { method: 'POST', body: JSON.stringify({ decision }) },
+    { method: 'POST', body: JSON.stringify({ decision }), headers: companyHeaders() },
   );
 }
 

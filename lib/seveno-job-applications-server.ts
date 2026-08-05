@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { admitQualifiedApplication } from '@/lib/seveno-recruitment-campaigns-server';
+
 import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, type Query } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
@@ -1054,11 +1056,12 @@ async function loadConversationMessages(applicationId: string) {
 
 export async function createCompanyApplicationInvitation(input: {
   companyUid: string;
+  actorUid?: string;
   offerId: string;
   publicCandidateId: string;
   message?: string;
 }) {
-  await assertVerifiedCompanyAccount(input.companyUid);
+  await assertVerifiedCompanyAccount(input.actorUid ?? input.companyUid);
   const companyProfile = await loadCompanyProfileByUid(input.companyUid);
   ensureCompanyProfileComplete(companyProfile);
 
@@ -1179,8 +1182,9 @@ export async function createCompanyApplicationInvitation(input: {
 export async function listCompanyApplications(
   companyUid: string,
   options: { limit?: number; cursor?: string; publicCandidateId?: string; offerId?: string } = {},
+  actorUid = companyUid,
 ) {
-  await assertVerifiedCompanyAccount(companyUid);
+  await assertVerifiedCompanyAccount(actorUid);
   const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, options.limit ?? DEFAULT_PAGE_LIMIT));
   let query: Query = requireDatabase().collection(APPLICATIONS_COLLECTION)
     .where('companyUid', '==', companyUid);
@@ -1197,7 +1201,7 @@ export async function listCompanyApplications(
     query = query.startAfter(Timestamp.fromMillis(cursor.timestamp), cursor.id);
   }
   const snapshot = await query.limit(limit + 1).get();
-  const documents = snapshot.docs.slice(0, limit);
+  const documents = snapshot.docs.filter((item) => item.get('campaignDeliveryStatus') !== 'queued').slice(0, limit);
   const last = documents.at(-1);
   const updatedAt = last?.get('updatedAt');
   let prioritySelection: CompanyApplicationPrioritySelection | null = null;
@@ -1209,7 +1213,9 @@ export async function listCompanyApplications(
       .orderBy('updatedAt', 'desc')
       .orderBy('id', 'asc')
       .get();
-    const allOfferApplications = selectionSnapshot.docs.map((item) => serializeApplication(item.id, item.data() as FirestoreRecord));
+    const allOfferApplications = selectionSnapshot.docs
+      .filter((item) => item.get('campaignDeliveryStatus') !== 'queued')
+      .map((item) => serializeApplication(item.id, item.data() as FirestoreRecord));
     prioritySelection = selectCompanyQuestionnairePriorityApplications(allOfferApplications);
   }
   return {
@@ -1359,8 +1365,9 @@ export async function reviewCompanyJobApplication(
   companyUid: string,
   applicationId: string,
   decision: 'interested' | 'declined',
+  actorUid = companyUid,
 ) {
-  await assertVerifiedCompanyAccount(companyUid);
+  await assertVerifiedCompanyAccount(actorUid);
   const firestore = requireDatabase();
   const ref = applicationRef(applicationId);
   return firestore.runTransaction(async (transaction) => {
@@ -1916,6 +1923,7 @@ export async function submitJobApplication(uid: string, applicationId: string) {
   });
 
   const notificationEventId = buildApplicationSubmittedNotificationEventId(ref.id);
+  await admitQualifiedApplication(ref.id);
   try {
     await dispatchCompanyNotificationEvent(notificationEventId);
   } catch (error) {

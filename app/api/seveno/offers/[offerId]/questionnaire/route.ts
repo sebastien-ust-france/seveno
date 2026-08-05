@@ -6,13 +6,14 @@ import {
   SevenoCompanyQuestionnaireError,
 } from '@/lib/seveno-company-questionnaires-server';
 import { SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
+import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 type RouteContext = { params: Promise<{ offerId: string }> };
 
 function errorResponse(error: unknown) {
-  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobOfferError || error instanceof SevenoCompanyQuestionnaireError) {
+  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobOfferError || error instanceof SevenoCompanyQuestionnaireError || error instanceof CompanyMembershipError) {
     return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
   }
   console.error('[SevenO company questionnaire] Unexpected server error', error);
@@ -22,8 +23,9 @@ function errorResponse(error: unknown) {
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const token = await requireSevenoApiToken(request);
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
     const { offerId } = await context.params;
-    return NextResponse.json(await getCompanyQuestionnairePromptContext(token.uid, offerId));
+    return NextResponse.json(await getCompanyQuestionnairePromptContext(membership.companyId, offerId));
   } catch (error) {
     return errorResponse(error);
   }
@@ -32,12 +34,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const token = await requireSevenoApiToken(request);
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
     const { offerId } = await context.params;
     const body = await request.json().catch(() => null) as unknown;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new SevenoCompanyQuestionnaireError('invalid_questionnaire', 400, 'Le questionnaire est invalide.');
     }
-    return NextResponse.json({ questionnaire: await saveCompanyQuestionnaire(token.uid, offerId, body) });
+    return NextResponse.json({ questionnaire: await saveCompanyQuestionnaire(membership.companyId, offerId, body) });
   } catch (error) {
     return errorResponse(error);
   }

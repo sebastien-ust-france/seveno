@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { admitQualifiedApplication } from '@/lib/seveno-recruitment-campaigns-server';
+
 import { Timestamp } from 'firebase-admin/firestore';
 import {
   COMPANY_QUESTION_POINTS,
@@ -1543,6 +1545,7 @@ export async function submitCandidateApplicationQuestionnaire(
       throw new SevenoApplicationQuestionnaireError('submission_failed', 409, 'La soumission du questionnaire a echoue.');
     }
 
+    await admitQualifiedApplication(applicationId);
     await dispatchQuestionnaireCompletedNotification(transactionResult.notificationEventId);
     return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
   }
@@ -1740,6 +1743,7 @@ export async function submitCandidateApplicationQuestionnaire(
     throw new SevenoApplicationQuestionnaireError('submission_failed', 409, 'La soumission du questionnaire a echoue.');
   }
 
+  await admitQualifiedApplication(applicationId);
   await dispatchQuestionnaireCompletedNotification(transactionResult.notificationEventId);
   return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
 }

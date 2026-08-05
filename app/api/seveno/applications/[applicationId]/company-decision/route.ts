@@ -5,6 +5,8 @@ import {
   SevenoJobApplicationError,
 } from '@/lib/seveno-job-applications-server';
 import { readApplicationBody, toApplicationApiError } from '../../_shared';
+import { releaseCampaignCandidateSlot } from '@/lib/seveno-recruitment-campaigns-server';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,9 +27,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new SevenoJobApplicationError('invalid_decision', 400, 'La decision doit etre positive ou negative.');
     }
 
-    return NextResponse.json({
-      application: await reviewCompanyJobApplication(token.uid, applicationId, decision),
-    });
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
+    const application = await reviewCompanyJobApplication(membership.companyId, applicationId, decision, token.uid);
+    await releaseCampaignCandidateSlot({ applicationId, actorUid: token.uid, reason: decision === 'interested' ? 'contact_requested' : 'company_declined' });
+    return NextResponse.json({ application });
   } catch (error) {
     return toApplicationApiError(error);
   }

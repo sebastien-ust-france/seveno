@@ -7,6 +7,7 @@ import {
 } from '@/lib/seveno-job-applications-server';
 import { readApplicationBody, toApplicationApiError } from '../_shared';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,6 @@ export async function GET(request: NextRequest) {
     if (!actor || actor.role !== 'company') {
       throw new SevenoJobApplicationError('forbidden_role', 403, 'Seules les entreprises peuvent consulter ces relations.');
     }
-
     const limit = Number(request.nextUrl.searchParams.get('limit') ?? 20);
     if (!Number.isInteger(limit) || limit < 1 || limit > 30) {
       throw new SevenoJobApplicationError('invalid_limit', 400, 'La limite demandee est invalide.');
@@ -26,12 +26,13 @@ export async function GET(request: NextRequest) {
 
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
     const offerId = request.nextUrl.searchParams.get('offerId')?.trim() ?? '';
-    const payload = await listCompanyApplications(token.uid, {
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
+    const payload = await listCompanyApplications(membership.companyId, {
       limit,
       cursor: request.nextUrl.searchParams.get('cursor') ?? undefined,
       ...(publicCandidateId ? { publicCandidateId } : {}),
       ...(offerId ? { offerId } : {}),
-    });
+    }, token.uid);
 
     return NextResponse.json(payload);
   } catch (error) {
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
     if (!actor || actor.role !== 'company') {
       throw new SevenoJobApplicationError('forbidden_role', 403, 'Seules les entreprises peuvent creer une invitation.');
     }
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
 
     const body = await readApplicationBody(request);
     if (!body) {
@@ -64,7 +66,8 @@ export async function POST(request: NextRequest) {
     }
 
     const application = await createCompanyApplicationInvitation({
-      companyUid: token.uid,
+      companyUid: membership.companyId,
+      actorUid: token.uid,
       offerId,
       publicCandidateId,
       ...(message ? { message } : {}),

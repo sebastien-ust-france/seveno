@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { SevenoJobApplicationError } from '@/lib/seveno-job-applications-server';
+import { CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 
 export async function readApplicationBody(request: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function readApplicationBody(request: NextRequest) {
 }
 
 export function toApplicationApiError(error: unknown) {
-  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobApplicationError) {
+  if (error instanceof SevenoApiAuthError || error instanceof SevenoJobApplicationError || error instanceof CompanyMembershipError) {
     return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
   }
   console.error('[SevenO job applications] Unexpected server error', error);

@@ -8,7 +8,6 @@ import {
   countActiveCandidateFilesForOffer,
 } from '@/lib/seveno-active-candidate-files-server';
 import { syncPrerequisiteSuggestionsForOffer } from '@/lib/seveno-prerequisite-suggestions-server';
-import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import {
   buildOfferPrerequisiteSnapshots,
   assertOfferPrerequisiteLimits,
@@ -34,9 +33,13 @@ import type {
 } from '@/types/seveno-prerequisites';
 import { resolvePrerequisiteFamily } from '@/lib/seveno-prerequisite-families';
 import {
+  buildCandidateOfferFanoutId,
+  OFFER_NOTIFICATION_FANOUTS_COLLECTION,
   prepareCandidateOfferFanout,
   processCandidateOfferFanout,
 } from '@/lib/seveno-candidate-offer-notifications-server';
+import { activateCampaignInTransaction } from '@/lib/seveno-billing-server';
+import type { CompanyMembershipRole } from '@/types/seveno-billing';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
@@ -331,18 +334,9 @@ function deterministicCompanyPublicId(uid: string) {
 
 async function loadCompanyContext(companyUid: string, requirePublishable = false): Promise<CompanyContext> {
   const firestore = requireDatabase();
-  const [user, profileSnapshot] = await Promise.all([
-    getSevenoUserByUid(companyUid),
-    firestore.collection(COMPANY_PROFILES_COLLECTION).doc(companyUid).get(),
-  ]);
-  if (!user || user.role !== 'company') {
-    throw new SevenoJobOfferError('forbidden_role', 403, 'Seules les entreprises peuvent gerer des offres.');
-  }
-  if (!user.emailVerified) {
-    throw new SevenoJobOfferError('email_not_verified', 403, 'Verifiez votre adresse email avant de gerer une offre.');
-  }
+  const profileSnapshot = await firestore.collection(COMPANY_PROFILES_COLLECTION).doc(companyUid).get();
   const data = profileSnapshot.data();
-  if (!profileSnapshot.exists || !data || data.uid !== companyUid || typeof data.companyName !== 'string') {
+  if (!profileSnapshot.exists || !data || typeof data.companyName !== 'string') {
     throw new SevenoJobOfferError('company_profile_missing', 404, 'Profil entreprise introuvable.');
   }
   const profileStatus = data.profileStatus;
@@ -471,6 +465,10 @@ function serializeOffer(id: string, data: FirestoreRecord): SerializedJobOffer {
   return {
     id,
     companyUid: String(data.companyUid ?? ''),
+    companyId: String(data.companyId ?? data.companyUid ?? ''),
+    createdByUid: String(data.createdByUid ?? data.createdBy ?? data.companyUid ?? ''),
+    updatedByUid: String(data.updatedByUid ?? data.createdByUid ?? data.createdBy ?? data.companyUid ?? ''),
+    activeCampaignId: typeof data.activeCampaignId === 'string' && data.activeCampaignId ? data.activeCampaignId : null,
     companyPublicId: String(data.companyPublicId ?? ''),
     companyNameSnapshot: String(data.companyNameSnapshot ?? ''),
     title: String(data.title ?? ''),
@@ -578,7 +576,7 @@ async function buildSnapshots(
   }
 }
 
-export async function createJobOffer(companyUid: string, raw: unknown) {
+export async function createJobOffer(companyUid: string, raw: unknown, actorUid = companyUid) {
   const context = await loadCompanyContext(companyUid);
   const input = validateJobOfferInput(raw);
   const id = randomUUID();
@@ -588,6 +586,10 @@ export async function createJobOffer(companyUid: string, raw: unknown) {
   const stored: FirestoreRecord = {
     id,
     companyUid,
+    companyId: companyUid,
+    createdByUid: actorUid,
+    updatedByUid: actorUid,
+    activeCampaignId: null,
     companyPublicId: context.companyPublicId,
     companyNameSnapshot: context.companyName,
     title: input.title,
@@ -916,7 +918,7 @@ export async function listJobOffers(companyUid: string, options: {
   };
 }
 
-export async function changeJobOfferStatus(companyUid: string, offerId: string, action: JobOfferStatusAction) {
+export async function changeJobOfferStatus(companyUid: string, offerId: string, action: JobOfferStatusAction, actor?: { uid: string; membershipRole: CompanyMembershipRole }) {
   const context = await loadCompanyContext(companyUid, action === 'publish' || action === 'reactivate');
   const firestore = requireDatabase();
   const ref = firestore.collection(COLLECTION).doc(cleanText(offerId, 100, true));
@@ -957,6 +959,30 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
       }
     }
     const now = Timestamp.now();
+    const fanoutSnapshot = isFirstPublication
+      ? await transaction.get(
+          firestore.collection(OFFER_NOTIFICATION_FANOUTS_COLLECTION).doc(buildCandidateOfferFanoutId(current.id)),
+        )
+      : undefined;
+    const lifecycleCampaignRef = current.activeCampaignId
+      ? firestore.collection('recruitment_campaigns').doc(current.activeCampaignId)
+      : null;
+    const lifecycleCampaign = lifecycleCampaignRef ? await transaction.get(lifecycleCampaignRef) : null;
+    if (action === 'reactivate' && lifecycleCampaign?.exists) {
+      const endsAt = lifecycleCampaign.get('endsAt');
+      if (!(endsAt instanceof Timestamp) || endsAt.toMillis() <= now.toMillis()) {
+        throw new SevenoJobOfferError('campaign_expired', 409, 'La campagne est expirée. Une prolongation est nécessaire.');
+      }
+    }
+    const campaign = isFirstPublication
+      ? await activateCampaignInTransaction(transaction, firestore, {
+          companyId: current.companyId || companyUid,
+          offerId: current.id,
+          actorUid: actor?.uid ?? companyUid,
+          actorMembershipRole: actor?.membershipRole ?? 'owner',
+          now,
+        })
+      : null;
     const stored = {
       ...(snapshot.data() as FirestoreRecord),
       status,
@@ -970,6 +996,9 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
       questionnaireVersion,
       questionnaireTitleSnapshot,
       questionnaireQuestionCountSnapshot,
+      companyId: current.companyId || companyUid,
+      updatedByUid: actor?.uid ?? companyUid,
+      ...(campaign ? { activeCampaignId: campaign.campaignId } : {}),
     };
     const fanout = isFirstPublication
       ? await prepareCandidateOfferFanout(transaction, firestore, {
@@ -978,6 +1007,7 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
           jobRoleId: current.jobRoleId,
           contractType: current.contractType as JobOfferContractType,
           now,
+          existingSnapshot: fanoutSnapshot,
         })
       : null;
     if (status === 'published') {
@@ -986,6 +1016,11 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
         offerVersion: current.version,
         recordedAt: now,
       });
+    }
+    if (lifecycleCampaignRef && lifecycleCampaign?.exists) {
+      if (action === 'pause') transaction.update(lifecycleCampaignRef, { status: 'paused', lastUpdatedByUid: actor?.uid ?? companyUid, updatedAt: now });
+      if (action === 'reactivate') transaction.update(lifecycleCampaignRef, { status: 'active', lastUpdatedByUid: actor?.uid ?? companyUid, updatedAt: now });
+      if (action === 'close' || action === 'archive') transaction.update(lifecycleCampaignRef, { status: 'closed', lastUpdatedByUid: actor?.uid ?? companyUid, updatedAt: now });
     }
     transaction.set(ref, stored);
     return {
@@ -1029,6 +1064,9 @@ export function resolveJobOfferStatus(status: JobOfferStatus, action: JobOfferSt
 export function toPublicJobOffer(offer: SerializedJobOffer): PublicJobOffer {
   const publicOffer: Partial<SerializedJobOffer> = { ...offer };
   delete publicOffer.companyUid;
+  delete publicOffer.companyId;
+  delete publicOffer.createdByUid;
+  delete publicOffer.updatedByUid;
   return publicOffer as PublicJobOffer;
 }
 

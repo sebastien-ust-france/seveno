@@ -10,6 +10,7 @@ import type {
   SerializedJobOffer,
 } from '@/types/seveno-job-offers';
 import type { CompanyPrerequisiteCreationInput, CompanyPrerequisiteDefinition } from '@/types/seveno-prerequisites';
+import { companyHeaders } from '@/lib/seveno-billing-client';
 
 export async function listCompanyJobOffers(
   authUser: User,
@@ -18,13 +19,13 @@ export async function listCompanyJobOffers(
   const params = new URLSearchParams({ limit: '30' });
   if (options.status) params.set('status', options.status);
   if (options.cursor) params.set('cursor', options.cursor);
-  return fetchSevenoMatchApi<JobOfferListPage>(authUser, `/api/seveno/offers?${params.toString()}`);
+  return fetchSevenoMatchApi<JobOfferListPage>(authUser, `/api/seveno/offers?${params.toString()}`, { headers: companyHeaders() });
 }
 
 export async function getCompanyJobOffer(authUser: User, offerId: string) {
   return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(
     authUser,
-    `/api/seveno/offers/${encodeURIComponent(offerId)}`,
+    `/api/seveno/offers/${encodeURIComponent(offerId)}`, { headers: companyHeaders() },
   );
 }
 
@@ -32,7 +33,7 @@ export async function saveCompanyJobOffer(authUser: User, input: JobOfferInput, 
   return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(
     authUser,
     offerId ? `/api/seveno/offers/${encodeURIComponent(offerId)}` : '/api/seveno/offers',
-    { method: offerId ? 'PATCH' : 'POST', body: JSON.stringify(input) },
+    { method: offerId ? 'PATCH' : 'POST', body: JSON.stringify(input), headers: companyHeaders() },
   );
 }
 
@@ -44,7 +45,7 @@ export async function changeCompanyJobOfferStatus(
   return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/status`,
-    { method: 'POST', body: JSON.stringify({ action }) },
+    { method: 'POST', body: JSON.stringify({ action }), headers: companyHeaders() },
   );
 }
 
@@ -52,7 +53,7 @@ export async function duplicateCompanyJobOffer(authUser: User, offerId: string) 
   return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}/duplicate`,
-    { method: 'POST' },
+    { method: 'POST', headers: companyHeaders() },
   );
 }
 
@@ -60,7 +61,7 @@ export async function deleteCompanyJobOffer(authUser: User, offerId: string) {
   return fetchSevenoMatchApi<{ deleted: true }>(
     authUser,
     `/api/seveno/offers/${encodeURIComponent(offerId)}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', headers: companyHeaders() },
   );
 }
 

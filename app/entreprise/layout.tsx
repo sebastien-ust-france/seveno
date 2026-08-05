@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { AuthenticatedAppShell } from '@/components/navigation/AuthenticatedAppShell';
 import { CompanyNotificationCenter } from '@/components/entreprise/CompanyNotificationCenter';
+import { CompanyContextSelector } from '@/components/entreprise/CompanyContextSelector';
 import { COMPANY_NAVIGATION } from '@/lib/seveno-navigation';
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function EntrepriseLayout({ children }: { children: ReactNode }) 
       role="company"
       footerNote="Les données privées des candidats restent toujours hors de portée avant acceptation explicite."
     >
+      <CompanyContextSelector />
       <CompanyNotificationCenter />
       {children}
     </AuthenticatedAppShell>

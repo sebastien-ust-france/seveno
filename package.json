@@ -12,6 +12,8 @@
     "test:prerequisite-suggestions": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/prerequisite-suggestions-smoke-test.mts",
     "test:prerequisite-suggestions:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/prerequisite-suggestions-emulator-test.mts",
     "promote:admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/promote-admin-role.mts",
+    "migrate:company-ownership": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/migrate-company-ownership.mts",
+    "test:commercial-foundation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/commercial-foundation-emulator-test.mts",
     "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
     "test:offer-lifecycle": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offer-lifecycle-smoke-test.mts",
     "test:applications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-applications-smoke-test.mts",

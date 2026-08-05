@@ -1181,6 +1181,29 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    // Company identity, billing, immutable ledger, orders and campaigns are server-managed.
+    match /company_memberships/{membershipId} {
+      allow read, create, update, delete: if false;
+    }
+    match /billing_catalogs/{catalogId} {
+      allow read, create, update, delete: if false;
+    }
+    match /company_billing_accounts/{companyId} {
+      allow read, create, update, delete: if false;
+      match /credit_ledger/{entryId} {
+        allow read, create, update, delete: if false;
+      }
+    }
+    match /billing_orders/{orderId} {
+      allow read, create, update, delete: if false;
+    }
+    match /recruitment_campaigns/{campaignId} {
+      allow read, create, update, delete: if false;
+      match /candidate_deliveries/{applicationId} {
+        allow read, create, update, delete: if false;
+      }
+    }
+
     match /candidate_prerequisite_answers/{uid} {
       allow read, create, update, delete: if false;
 

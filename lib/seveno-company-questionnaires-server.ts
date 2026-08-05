@@ -532,8 +532,8 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
   });
 }
 
-export async function listCompanyQuestionnaires(companyUid: string) {
-  await assertCompanyQuestionnaireOwner(companyUid);
+export async function listCompanyQuestionnaires(companyUid: string, actorUid = companyUid) {
+  await assertCompanyQuestionnaireOwner(actorUid);
   const snapshot = await requireDatabase()
     .collection(COLLECTION)
     .where('companyUid', '==', companyUid)

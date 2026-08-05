@@ -55,6 +55,10 @@ export interface JobOfferInput {
 export interface JobOffer {
   id: string;
   companyUid: string;
+  companyId: string;
+  createdByUid: string;
+  updatedByUid: string;
+  activeCampaignId: string | null;
   companyPublicId: string;
   companyNameSnapshot: string;
   title: string;
@@ -98,4 +102,4 @@ export interface JobOfferListPage {
 }
 
 /** Future public projection. Internal company ownership is intentionally excluded. */
-export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid'>;
+export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid' | 'companyId' | 'createdByUid' | 'updatedByUid'>;
