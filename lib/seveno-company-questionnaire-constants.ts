@@ -1,4 +1,4 @@
-export const COMPANY_QUESTION_TIME_LIMIT_SECONDS = 15;
+export const COMPANY_QUESTION_TIME_LIMIT_SECONDS = 30;
 // Difficulty describes reasoning depth only; every company questionnaire question has the same weight.
 export const COMPANY_QUESTION_POINTS = 1;
 export const COMPANY_QUESTIONNAIRE_QUESTION_COUNT = 20;

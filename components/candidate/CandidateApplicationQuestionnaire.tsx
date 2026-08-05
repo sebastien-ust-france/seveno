@@ -378,7 +378,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Preparation</p>
                 <h3 className="mt-2 text-2xl font-semibold text-white">Questionnaire pret</h3>
                 <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-                  Ce questionnaire doit etre realise en une seule session. Chaque question dispose de 15 secondes.
+                  Ce questionnaire doit etre realise en une seule session. Chaque question dispose de {currentQuestionTimeSeconds} secondes.
                   Il n y a ni pause ni reprise. Si vous quittez la page ou depassez le temps imparti, vous devrez
                   recommencer depuis le debut.
                 </p>

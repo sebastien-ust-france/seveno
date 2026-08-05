@@ -7,6 +7,7 @@ import {
   COMPANY_QUESTIONNAIRE_DIFFICULTY_DISTRIBUTION,
   COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
 } from '@/lib/seveno-company-questionnaire-constants';
+
 import {
   SevenoCompanyQuestionnaireError,
   toCompanyQuestionEditorProjection,
@@ -15,6 +16,8 @@ import {
 import { buildPublicQuestion, shuffleQuestionIds } from '@/lib/seveno-application-questionnaires-server';
 import type { CompanyQuestion } from '@/types/seveno-company-questionnaires';
 import type { SerializedJobOffer } from '@/types/seveno-job-offers';
+
+assert.equal(COMPANY_QUESTION_TIME_LIMIT_SECONDS, 30);
 
 function hasCode(code: string) {
   return (error: unknown) => error instanceof SevenoCompanyQuestionnaireError && error.code === code;
@@ -419,6 +422,6 @@ assert.equal(prompt.includes('correctionMode = manual'), false);
 assert.equal(prompt.includes('type text'), false);
 assert.equal(prompt.includes('"points"'), false);
 assert.equal(prompt.includes('Aucune compétence métier renseignée.'), true);
-assert.equal(prompt.includes('5 minutes maximum'), true);
+assert.equal(prompt.includes('10 minutes maximum'), true);
 
 console.log('Company questionnaire validation smoke tests: OK');

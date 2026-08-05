@@ -10,7 +10,7 @@ export function CompanyCandidateQuestionnaire() {
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
         <div className="space-y-5">
           <p className="max-w-4xl text-lg leading-8 text-slate-300">
-            Le questionnaire entreprise contient 20 questions. Elles sont présentées une par une, avec 15 secondes
+            Le questionnaire entreprise contient 20 questions. Elles sont présentées une par une, avec 30 secondes
             pour répondre à chacune.
           </p>
           <p className="max-w-4xl text-lg leading-8 text-slate-300">
@@ -27,7 +27,7 @@ export function CompanyCandidateQuestionnaire() {
           <div className="relative flex min-h-[260px] flex-col justify-between gap-5">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-100/90">20 QUESTIONS</span>
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-violet-100/90">15 SECONDES</span>
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-violet-100/90">30 SECONDES</span>
             </div>
 
             <div className="flex flex-1 items-center justify-center">
@@ -37,7 +37,7 @@ export function CompanyCandidateQuestionnaire() {
               >
                 <div className="absolute left-5 top-4 h-3 w-16 rounded-full bg-cyan-200/70" />
                 <div className="absolute right-5 top-4 flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/80 bg-white text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  15 s
+                  30 s
                 </div>
 
                 <div className="mt-7 space-y-4">

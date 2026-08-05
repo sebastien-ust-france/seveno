@@ -1403,6 +1403,9 @@ export async function submitCandidateApplicationQuestionnaire(
       }
 
       const questionExpiresAt = toTimestamp(session.questionExpiresAt);
+      const currentQuestionTimeSeconds = typeof session.questionTimeSeconds === 'number' && session.questionTimeSeconds > 0
+        ? session.questionTimeSeconds
+        : COMPANY_QUESTION_TIME_LIMIT_SECONDS;
       const timedOut = payload.timeout === true
         || Boolean(questionExpiresAt && questionExpiresAt.toMillis() <= now.toMillis());
       const normalizedAnswer = timedOut ? null : normalizeAnswerValue(question, providedAnswer);
@@ -1432,7 +1435,8 @@ export async function submitCandidateApplicationQuestionnaire(
           currentQuestionIndex: currentQuestionIndex + 1,
           currentQuestionId: nextQuestion.id,
           questionStartedAt: now,
-          questionExpiresAt: Timestamp.fromMillis(now.toMillis() + COMPANY_QUESTION_TIME_LIMIT_SECONDS * 1000),
+          questionExpiresAt: Timestamp.fromMillis(now.toMillis() + currentQuestionTimeSeconds * 1000),
+          questionTimeSeconds: currentQuestionTimeSeconds,
           updatedAt: now,
         });
         return { committed: true, notificationEventId: null };
@@ -1443,7 +1447,7 @@ export async function submitCandidateApplicationQuestionnaire(
       const startedAt = toTimestamp(session.startedAt) ?? now;
       const submittedAt = now;
       const questionnaireVersion = summary.questionnaireVersion;
-      const totalDurationSeconds = sessionQuestions.length > 0 ? COMPANY_QUESTION_TIME_LIMIT_SECONDS * sessionQuestions.length : 0;
+      const totalDurationSeconds = sessionQuestions.length > 0 ? currentQuestionTimeSeconds * sessionQuestions.length : 0;
       const scorePercent = assessment.finalScore ?? assessment.automaticScorePercent ?? 0;
       const resultPayload = {
         uid: candidateUid,

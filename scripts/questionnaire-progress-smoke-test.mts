@@ -259,6 +259,11 @@ async function main() {
     const startedView = await startCandidateApplicationQuestionnaire(candidateUid, applicationId);
     assert.equal(startedView.questionnaire?.questions.length, 20);
     assert.equal(startedView.attempt?.currentQuestionIndex, 0);
+    assert.equal(startedView.attempt?.questionTimeSeconds, 30);
+    assert.equal(
+      Date.parse(startedView.attempt?.currentQuestionExpiresAt ?? '') - Date.parse(startedView.attempt?.currentQuestionStartedAt ?? ''),
+      30000,
+    );
     assert.equal('expectedAnswer' in (startedView.questionnaire?.questions[0] ?? {}), false);
 
     const firstQuestion = startedView.questionnaire?.questions[0];
@@ -273,6 +278,14 @@ async function main() {
     });
     assert.equal(afterFirstAnswer.attempt?.currentQuestionIndex, 1);
     assert.equal(afterFirstAnswer.attempt?.currentQuestionId, afterFirstAnswer.questionnaire?.questions[1]?.id ?? null);
+    assert.equal(afterFirstAnswer.attempt?.questionTimeSeconds, 30);
+
+    const legacyQuestionStartedAt = Timestamp.now();
+    await firestore.collection('test_sessions').doc(afterFirstAnswer.attempt?.sessionId ?? '').update({
+      questionTimeSeconds: 15,
+      questionStartedAt: legacyQuestionStartedAt,
+      questionExpiresAt: Timestamp.fromMillis(legacyQuestionStartedAt.toMillis() + 15000),
+    });
 
     const secondQuestion = afterFirstAnswer.questionnaire?.questions[1];
     assert.ok(secondQuestion);
@@ -285,6 +298,11 @@ async function main() {
       finish: false,
     });
     assert.equal(afterSecondAnswer.attempt?.currentQuestionIndex, 2);
+    assert.equal(afterSecondAnswer.attempt?.questionTimeSeconds, 15);
+    assert.equal(
+      Date.parse(afterSecondAnswer.attempt?.currentQuestionExpiresAt ?? '') - Date.parse(afterSecondAnswer.attempt?.currentQuestionStartedAt ?? ''),
+      15000,
+    );
 
     const thirdQuestion = afterSecondAnswer.questionnaire?.questions[2];
     assert.ok(thirdQuestion);

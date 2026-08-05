@@ -42,7 +42,7 @@ export interface CompanyQuestionnaireInput {
   instructions: string;
   creationMode?: CompanyQuestionnaireCreationMode;
   minimumPassingScorePercent?: number;
-  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 30 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestionInput[];
 }
@@ -68,7 +68,7 @@ export interface CompanyQuestionnaire {
   creationMode: CompanyQuestionnaireCreationMode;
   status: CompanyQuestionnaireStatus;
   minimumPassingScorePercent: number;
-  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 30 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestion[];
   version: number;
@@ -86,7 +86,7 @@ export interface CompanyQuestionnaireEditorProjection {
   creationMode: CompanyQuestionnaireCreationMode;
   status: CompanyQuestionnaireStatus;
   minimumPassingScorePercent: number;
-  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 15 seconds per question. */
+  /** @deprecated Legacy global duration kept for compatibility. New questionnaires use 30 seconds per question. */
   durationMinutes: number | null;
   questions: CompanyQuestionEditorProjection[];
   version: number;

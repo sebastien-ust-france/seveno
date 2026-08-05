@@ -51,7 +51,7 @@ const LEGACY_SEVENO_GENERAL_BANK_DURATION_SECONDS =
   LEGACY_SEVENO_GENERAL_BANK_TEMPLATE.durationSeconds ?? SEVENO_TEST_DEFAULT_DURATION_SECONDS;
 const LEGACY_SEVENO_GENERAL_BANK_THRESHOLD =
   LEGACY_SEVENO_GENERAL_BANK_TEMPLATE.threshold ?? SEVENO_TEST_DEFAULT_THRESHOLD;
-const SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS = 15;
+const SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS = 30;
 
 export class SevenoTestError extends Error {
   code: string;
@@ -1214,7 +1214,7 @@ async function advanceSevenoGeneralAssessmentQuestion(
 
   if (!isLastQuestion) {
     const nextQuestionStartedAt = now;
-    const nextQuestionExpiresAt = Timestamp.fromMillis(now.toMillis() + SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS * 1000);
+    const nextQuestionExpiresAt = Timestamp.fromMillis(now.toMillis() + currentQuestionTimeSeconds * 1000);
     const nextSession: TestSession = {
       ...session,
       professionalAssessmentVersionId: professionalVersion.id,
@@ -1223,7 +1223,7 @@ async function advanceSevenoGeneralAssessmentQuestion(
       currentQuestionIndex: currentQuestionIndex + 1,
       questionStartedAt: nextQuestionStartedAt,
       questionExpiresAt: nextQuestionExpiresAt,
-      questionTimeSeconds: SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS,
+      questionTimeSeconds: currentQuestionTimeSeconds,
       answers: nextAnswers,
       answersCount,
       lastQuestionId: currentQuestionId,
@@ -1282,7 +1282,7 @@ async function advanceSevenoGeneralAssessmentQuestion(
         currentQuestionIndex: currentQuestionIndex + 1,
         questionStartedAt: nextQuestionStartedAt,
         questionExpiresAt: nextQuestionExpiresAt,
-        questionTimeSeconds: SEVENO_PROFESSIONAL_ASSESSMENT_QUESTION_TIME_SECONDS,
+        questionTimeSeconds: currentQuestionTimeSeconds,
         answers: nextAnswers,
         answersCount,
         lastQuestionId: currentQuestionId,

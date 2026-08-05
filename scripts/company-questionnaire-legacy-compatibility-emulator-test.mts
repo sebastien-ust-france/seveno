@@ -447,6 +447,11 @@ await adminDb.collection('job_applications').doc(applicationId).set({
 const started = await startCandidateApplicationQuestionnaire(candidateUid, applicationId);
 assert.equal(started.questionnaire?.questions.length, 20);
 assert.equal(started.attempt?.totalQuestions, 20);
+assert.equal(started.attempt?.questionTimeSeconds, 30);
+assert.equal(
+  Date.parse(started.attempt?.currentQuestionExpiresAt ?? '') - Date.parse(started.attempt?.currentQuestionStartedAt ?? ''),
+  30000,
+);
 const sessions = await adminDb.collection('test_sessions').where('applicationId', '==', applicationId).get();
 assert.equal(sessions.size, 1);
 assert.equal(sessions.docs[0]?.get('questionnaireId'), questionnaireId);

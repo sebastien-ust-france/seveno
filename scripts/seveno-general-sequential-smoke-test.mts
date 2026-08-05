@@ -214,11 +214,11 @@ async function main() {
   assert.ok(startSession);
   assert.equal(startSession.professionalAssessmentVersionId, activeVersion.id);
   assert.equal(startSession.currentQuestionIndex, 0);
-  assert.equal(startSession.questionTimeSeconds, 15);
+  assert.equal(startSession.questionTimeSeconds, 30);
   assert.equal(startSession.questions.length, 40);
   assert.equal(
     Date.parse(startSession.questionExpiresAt ?? '') - Date.parse(startSession.questionStartedAt),
-    15000,
+    30000,
   );
   const attemptSeed1 = startSession.attemptSeed ?? '';
   const sessionId1 = startSession.sessionId ?? '';
@@ -235,16 +235,17 @@ async function main() {
   assert.ok('session' in afterFirstAnswer);
   assert.equal(afterFirstAnswer.session?.currentQuestionIndex, 1);
   assert.equal(afterFirstAnswer.session?.attemptSeed, attemptSeed1);
-  assert.equal(afterFirstAnswer.session?.questionTimeSeconds, 15);
+  assert.equal(afterFirstAnswer.session?.questionTimeSeconds, 30);
   assert.equal(
     Date.parse(afterFirstAnswer.session?.questionExpiresAt ?? '') - Date.parse(afterFirstAnswer.session.questionStartedAt),
-    15000,
+    30000,
   );
 
   const expiredSessionRef = firestore.collection('test_sessions').doc(sessionId1);
   const forcedExpiredAt = Timestamp.fromMillis(Date.now() - 1000);
   const forcedStartedAt = Timestamp.fromMillis(Date.now() - 16000);
   await expiredSessionRef.update({
+    questionTimeSeconds: 15,
     questionStartedAt: forcedStartedAt,
     questionExpiresAt: forcedExpiredAt,
   });
@@ -259,6 +260,11 @@ async function main() {
   });
   assert.ok('session' in afterTimeout);
   assert.equal(afterTimeout.session?.currentQuestionIndex, 2);
+  assert.equal(afterTimeout.session?.questionTimeSeconds, 15);
+  assert.equal(
+    Date.parse(afterTimeout.session?.questionExpiresAt ?? '') - Date.parse(afterTimeout.session?.questionStartedAt ?? ''),
+    15000,
+  );
 
   const storedAfterTimeout = await expiredSessionRef.get();
   assert.equal(storedAfterTimeout.exists, true);
@@ -272,7 +278,7 @@ async function main() {
   assert.equal(secondStart.currentQuestionIndex, 0);
   assert.equal(
     Date.parse(secondStart.questionExpiresAt ?? '') - Date.parse(secondStart.questionStartedAt),
-    15000,
+    30000,
   );
 
   const oldSessionAfterRestart = await expiredSessionRef.get();

@@ -574,7 +574,7 @@ async function main() {
   assert.match(prompt, /Le questionnaire est général et indépendant de tout métier\./);
   assert.match(prompt, /Chaque question doit pouvoir être comprise et traitée équitablement par une personne travaillant dans la logistique, la vente, la restauration, l’entretien, l’industrie, le bâtiment, la santé, l’administration, l’informatique ou les services\./);
   assert.match(prompt, /Aucune question ne doit nécessiter de connaissance professionnelle ou sectorielle\./);
-  assert.match(prompt, /Le candidat dispose de 15 secondes pour lire la question, lire les quatre réponses, réfléchir et choisir\./);
+  assert.match(prompt, /Le candidat dispose de 30 secondes pour lire la question, lire les quatre réponses, réfléchir et choisir\./);
   assert.match(prompt, /La partie visible de la question est composée de `situation` et `instruction`\./);
   assert.match(prompt, /La somme des mots de `situation` et `instruction` ne doit pas dépasser 18 mots\./);
   assert.match(prompt, /Chaque label de réponse ne doit pas dépasser 12 mots\./);
