@@ -1,6 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { processCompanyNotificationOutboxBatch } from '@/lib/seveno-company-notifications-server';
+import {
+  processCandidateOfferFanoutBatch,
+  processCandidateOfferNotificationOutboxBatch,
+} from '@/lib/seveno-candidate-offer-notifications-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +26,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const result = await processCompanyNotificationOutboxBatch({ limit: 20 });
-  return NextResponse.json(result);
+  const [fanouts, companyEvents, candidateEvents] = await Promise.all([
+    processCandidateOfferFanoutBatch({ limit: 3 }),
+    processCompanyNotificationOutboxBatch({ limit: 20 }),
+    processCandidateOfferNotificationOutboxBatch({ limit: 20 }),
+  ]);
+  return NextResponse.json({ fanouts, companyEvents, candidateEvents });
 }

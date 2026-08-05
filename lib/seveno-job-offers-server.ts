@@ -33,6 +33,10 @@ import type {
   PrerequisiteCriterionValue,
 } from '@/types/seveno-prerequisites';
 import { resolvePrerequisiteFamily } from '@/lib/seveno-prerequisite-families';
+import {
+  prepareCandidateOfferFanout,
+  processCandidateOfferFanout,
+} from '@/lib/seveno-candidate-offer-notifications-server';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
@@ -916,11 +920,20 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
   const context = await loadCompanyContext(companyUid, action === 'publish' || action === 'reactivate');
   const firestore = requireDatabase();
   const ref = firestore.collection(COLLECTION).doc(cleanText(offerId, 100, true));
-  return firestore.runTransaction(async (transaction) => {
+  const result = await firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const current = snapshot.exists ? serializeOffer(snapshot.id, snapshot.data() as FirestoreRecord) : null;
     assertOfferOwner(current, companyUid);
+    const publishedVersionSnapshot = action === 'publish'
+      ? await transaction.get(ref.collection('versions').doc(String(current.version)))
+      : null;
     const status = resolveJobOfferStatus(current.status, action);
+    const isFirstPublication = isFirstCandidateOfferPublication(
+      current.status,
+      action,
+      snapshot.get('publishedAt') != null
+        || Boolean(publishedVersionSnapshot?.exists && publishedVersionSnapshot.get('status') === 'published'),
+    );
 
     if (status === 'published') assertPublishable(current, context);
     let questionnaireId = current.questionnaireId;
@@ -958,6 +971,15 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
       questionnaireTitleSnapshot,
       questionnaireQuestionCountSnapshot,
     };
+    const fanout = isFirstPublication
+      ? await prepareCandidateOfferFanout(transaction, firestore, {
+          offerId: current.id,
+          companyUid,
+          jobRoleId: current.jobRoleId,
+          contractType: current.contractType as JobOfferContractType,
+          now,
+        })
+      : null;
     if (status === 'published') {
       transaction.set(ref.collection('versions').doc(String(current.version)), {
         ...stored,
@@ -966,8 +988,23 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
       });
     }
     transaction.set(ref, stored);
-    return hydrateQuestionnaireSnapshot(companyUid, serializeOffer(ref.id, stored));
+    return {
+      offer: await hydrateQuestionnaireSnapshot(companyUid, serializeOffer(ref.id, stored)),
+      fanout,
+    };
   });
+  if (result.fanout?.created) {
+    await processCandidateOfferFanout(result.fanout.fanoutId).catch(() => undefined);
+  }
+  return result.offer;
+}
+
+export function isFirstCandidateOfferPublication(
+  status: JobOfferStatus,
+  action: JobOfferStatusAction,
+  hasPublishedAt: boolean,
+) {
+  return action === 'publish' && status === 'draft' && !hasPublishedAt;
 }
 
 export function resolveJobOfferStatus(status: JobOfferStatus, action: JobOfferStatusAction): JobOfferStatus {

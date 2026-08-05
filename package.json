@@ -23,6 +23,8 @@
     "test:company-notifications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-notifications-smoke-test.mts",
     "test:company-notifications:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-notifications-emulator-test.mts",
     "test:company-questionnaire-notifications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaire-completed-notifications-emulator-test.mts",
+    "test:candidate-offer-notifications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-offer-notifications-smoke-test.mts",
+    "test:candidate-offer-notifications:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-offer-notifications-emulator-test.mts",
     "test:candidate-profile-presentation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-profile-presentation-smoke-test.mts",
     "test:candidate-launch-readiness": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-launch-readiness-smoke-test.mts",
     "test:public-site": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-site-smoke-test.mts",

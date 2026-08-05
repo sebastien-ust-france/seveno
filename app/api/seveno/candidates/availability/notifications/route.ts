@@ -8,6 +8,11 @@ import {
   setCandidateAvailabilityNotifications,
 } from '@/lib/seveno-candidate-availability-server';
 import type { AvailabilityNotificationSource } from '@/types/seveno';
+import {
+  getCandidateMatchingOfferAlerts,
+  setCandidateMatchingOfferAlerts,
+  SevenoCandidateOfferNotificationError,
+} from '@/lib/seveno-candidate-offer-notifications-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +22,7 @@ function toAvailabilityErrorResponse(error: unknown) {
     error instanceof SevenoApiAuthError
     || error instanceof SevenoMatchRequestError
     || error instanceof SevenoAvailabilityError
+    || error instanceof SevenoCandidateOfferNotificationError
   ) {
     return NextResponse.json(
       { error: error.code, message: error.message },
@@ -33,6 +39,19 @@ function toAvailabilityErrorResponse(error: unknown) {
   );
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const decodedToken = await requireSevenoApiToken(request);
+    const actor = await getSevenoUserByUid(decodedToken.uid);
+    if (!actor || actor.role !== 'candidate') {
+      throw new SevenoMatchRequestError('forbidden_role', 403, 'Seuls les candidats peuvent gérer leurs notifications.');
+    }
+    return NextResponse.json(await getCandidateMatchingOfferAlerts(decodedToken.uid));
+  } catch (error) {
+    return toAvailabilityErrorResponse(error);
+  }
+}
+
 function isPermission(value: unknown): value is 'default' | 'granted' | 'denied' {
   return value === 'default' || value === 'granted' || value === 'denied';
 }
@@ -46,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => null)) as {
-      action?: 'enable' | 'disable' | 'register_device' | 'unregister_device';
+      action?: 'enable' | 'disable' | 'register_device' | 'unregister_device' | 'enable_offer_alerts' | 'disable_offer_alerts';
       source?: AvailabilityNotificationSource;
       permission?: unknown;
       deviceId?: unknown;
@@ -75,6 +94,13 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ profile: result });
+    }
+
+    if (action === 'enable_offer_alerts' || action === 'disable_offer_alerts') {
+      return NextResponse.json(await setCandidateMatchingOfferAlerts(
+        decodedToken.uid,
+        action === 'enable_offer_alerts',
+      ));
     }
 
     if (action === 'register_device') {
@@ -122,4 +148,3 @@ export async function POST(request: NextRequest) {
     return toAvailabilityErrorResponse(error);
   }
 }
-

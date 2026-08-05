@@ -39,6 +39,7 @@ export async function getCandidateProfile(uid: string): Promise<CandidateProfile
   return {
     ...data,
     desiredContractTypeCodes: normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes),
+    matchingOfferAlertsEnabled: data.matchingOfferAlertsEnabled === true,
   };
 }
 

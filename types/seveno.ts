@@ -218,6 +218,7 @@ export interface CandidateProfile {
   availabilityTimezone?: string | null;
   availabilityPushPermission?: 'default' | 'granted' | 'denied' | null;
   hasActiveAvailabilityPushSubscription?: boolean;
+  matchingOfferAlertsEnabled?: boolean;
   createdAt: FirestoreDateValue;
   updatedAt: FirestoreDateValue;
 }

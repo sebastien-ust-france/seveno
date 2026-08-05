@@ -412,6 +412,7 @@ service cloud.firestore {
         'jobFamilyId',
         'sectorId',
         'desiredContractTypeCodes',
+        'matchingOfferAlertsEnabled',
         'availability',
         'availabilityAvailableFromAt',
         'availabilityConfirmedAt',
@@ -493,6 +494,7 @@ service cloud.firestore {
           ])
         )
       )
+      && (!data.keys().hasAny(['matchingOfferAlertsEnabled']) || data.matchingOfferAlertsEnabled is bool)
       && isNonEmptyString(data.sectorId, 160)
       && isNonEmptyString(data.jobFamilyId, 200)
       && isNonEmptyString(data.jobRoleId, 200)
@@ -992,6 +994,18 @@ service cloud.firestore {
 
     match /notification_outbox/{eventId} {
       allow read, write: if false;
+    }
+
+    match /offer_notification_fanouts/{fanoutId} {
+      allow read, write: if false;
+    }
+
+    match /candidate_offer_alert_quotas/{uid} {
+      allow read, write: if false;
+
+      match /deliveries/{deliveryId} {
+        allow read, write: if false;
+      }
     }
 
     match /company_profiles/{uid} {

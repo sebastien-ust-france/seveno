@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   isActionableAvailabilityForegroundNotification,
+  isActionableCandidateOfferForegroundNotification,
   parseCandidateForegroundNotification,
 } from '@/lib/seveno-candidate-availability-foreground';
 
@@ -52,6 +53,21 @@ function main() {
   assert.equal(emptyStrings.requestId, null);
   assert.equal(emptyStrings.token, null);
   assert.equal(isActionableAvailabilityForegroundNotification(emptyStrings), false);
+
+  const offer = parseCandidateForegroundNotification({
+    kind: 'candidate_matching_offer_published',
+    offerId: 'offer-1',
+    clickUrl: '/candidat/offres/offer-1',
+  }, { title: 'Nouvelle offre disponible', body: 'Une offre est disponible.' });
+  assert.equal(isActionableCandidateOfferForegroundNotification(offer), true);
+  assert.equal(isActionableAvailabilityForegroundNotification(offer), false);
+
+  const externalOffer = parseCandidateForegroundNotification({
+    kind: 'candidate_matching_offer_published',
+    offerId: 'offer-1',
+    clickUrl: 'https://example.com/candidat/offres/offer-1',
+  }, undefined);
+  assert.equal(isActionableCandidateOfferForegroundNotification(externalOffer), false);
 
   console.log('Candidate foreground notification parsing smoke test: OK');
 }

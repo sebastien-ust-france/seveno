@@ -35,6 +35,8 @@ export async function GET() {
   const companyApplicationNotificationBodyLiteral = toJavaScriptLiteral('Un candidat vient de postuler à l’une de vos offres.');
   const companyQuestionnaireNotificationTitleLiteral = toJavaScriptLiteral('Questionnaire candidat terminé');
   const companyQuestionnaireNotificationBodyLiteral = toJavaScriptLiteral('Un candidat a terminé le questionnaire lié à l’une de vos offres.');
+  const candidateOfferNotificationTitleLiteral = toJavaScriptLiteral('Nouvelle offre disponible');
+  const candidateOfferNotificationBodyLiteral = toJavaScriptLiteral('Une nouvelle offre correspondant à l’un de vos métiers recherchés vient d’être publiée.');
   const script = `
     importScripts(${firebaseAppCompatUrl});
     importScripts(${firebaseMessagingCompatUrl});
@@ -50,6 +52,8 @@ export async function GET() {
     const companyApplicationNotificationBody = ${companyApplicationNotificationBodyLiteral};
     const companyQuestionnaireNotificationTitle = ${companyQuestionnaireNotificationTitleLiteral};
     const companyQuestionnaireNotificationBody = ${companyQuestionnaireNotificationBodyLiteral};
+    const candidateOfferNotificationTitle = ${candidateOfferNotificationTitleLiteral};
+    const candidateOfferNotificationBody = ${candidateOfferNotificationBodyLiteral};
     const firebaseConfig = ${JSON.stringify(config)};
 
     function buildFallbackUrl(data, decision) {
@@ -108,6 +112,14 @@ export async function GET() {
       return data.clickUrl === expectedPath ? expectedPath : null;
     }
 
+    function getSafeCandidateOfferUrl(data) {
+      if (!data || data.kind !== 'candidate_matching_offer_published' || !data.offerId || !data.clickUrl) {
+        return null;
+      }
+      const expectedPath = '/candidat/offres/' + encodeURIComponent(String(data.offerId));
+      return data.clickUrl === expectedPath ? expectedPath : null;
+    }
+
     if (
       firebaseConfig
       && firebaseConfig.apiKey
@@ -122,19 +134,38 @@ export async function GET() {
         const data = payload && payload.data ? payload.data : {};
         const notification = payload && payload.notification ? payload.notification : null;
         const isTestNotification = data && data.kind === 'test';
+        const isAvailabilityNotification = data && data.kind === 'availability';
         const isCompanyApplicationNotification = data && data.kind === 'company_application_submitted';
         const isCompanyQuestionnaireNotification = data && data.kind === 'company_questionnaire_completed';
         const isCompanyNotification = isCompanyApplicationNotification || isCompanyQuestionnaireNotification;
+        const isCandidateOfferNotification = data && data.kind === 'candidate_matching_offer_published';
+        if (!isTestNotification && !isAvailabilityNotification && !isCompanyNotification && !isCandidateOfferNotification) {
+          return;
+        }
         const title = notification && notification.title
           ? notification.title
           : isCompanyNotification
             ? isCompanyQuestionnaireNotification
               ? companyQuestionnaireNotificationTitle
               : companyApplicationNotificationTitle
-            : isTestNotification
+            : isCandidateOfferNotification
+              ? candidateOfferNotificationTitle
+              : isTestNotification
               ? testNotificationTitle
               : availabilityNotificationTitle;
-        const options = isCompanyNotification
+        const options = isCandidateOfferNotification
+          ? {
+              body: notification && notification.body ? notification.body : candidateOfferNotificationBody,
+              icon: '/images/favicon-seveno.png',
+              badge: '/images/favicon-seveno.png',
+              data: {
+                kind: data.kind,
+                offerId: data.offerId || '',
+                clickUrl: getSafeCandidateOfferUrl(data),
+                payloadVersion: data.payloadVersion || '',
+              },
+            }
+          : isCompanyNotification
           ? {
               body: notification && notification.body
                 ? notification.body
@@ -206,6 +237,24 @@ export async function GET() {
           if (clients.openWindow) {
             await clients.openWindow(companyApplicationUrl);
           }
+          return;
+        }
+
+        const candidateOfferUrl = getSafeCandidateOfferUrl(data);
+        if (candidateOfferUrl) {
+          const existingClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const client of existingClients) {
+            if ('navigate' in client) await client.navigate(candidateOfferUrl);
+            if ('focus' in client) {
+              await client.focus();
+              return;
+            }
+          }
+          if (clients.openWindow) await clients.openWindow(candidateOfferUrl);
+          return;
+        }
+
+        if (data.kind !== 'availability' && data.kind !== 'test') {
           return;
         }
 

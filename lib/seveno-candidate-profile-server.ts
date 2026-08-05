@@ -485,6 +485,7 @@ export async function createOrUpdateCandidateProfileServer(
       availabilityTimezone: existingAvailabilityTimezone,
       ...(existingAvailabilityPushPermission ? { availabilityPushPermission: existingAvailabilityPushPermission } : {}),
       hasActiveAvailabilityPushSubscription: existingHasActiveAvailabilityPushSubscription,
+      matchingOfferAlertsEnabled: existing?.matchingOfferAlertsEnabled === true,
       updatedAt: now,
     };
 

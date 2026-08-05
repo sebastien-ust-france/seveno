@@ -367,6 +367,23 @@ export async function updateCandidateAvailabilityNotifications(
   );
 }
 
+export async function updateCandidateMatchingOfferAlerts(
+  authUser: User,
+  enabled: boolean,
+) {
+  return fetchSevenoMatchApi<{ matchingOfferAlertsEnabled: boolean }>(
+    authUser,
+    '/api/seveno/candidates/availability/notifications',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action: enabled ? 'enable_offer_alerts' : 'disable_offer_alerts',
+      }),
+    },
+    'matching_offer_alerts_update',
+  );
+}
+
 export async function sendCandidateAvailabilityTestNotification(
   authUser: User,
   input: {

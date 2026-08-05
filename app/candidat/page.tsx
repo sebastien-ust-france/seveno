@@ -22,11 +22,15 @@ import {
   respondToAvailabilityRequest,
   subscribeToCandidateAvailabilityForegroundNotifications,
   updateCandidateAvailabilityNotifications,
+  updateCandidateMatchingOfferAlerts,
   buildCandidatePushReadinessFromLiveSupport,
   getPassiveCandidatePushReadinessSnapshot,
 } from '@/lib/seveno-candidate-availability-client';
 import { describeCandidatePushReadinessForCandidate, type CandidatePushReadiness } from '@/lib/seveno-candidate-push-readiness';
-import { isActionableAvailabilityForegroundNotification } from '@/lib/seveno-candidate-availability-foreground';
+import {
+  isActionableAvailabilityForegroundNotification,
+  isActionableCandidateOfferForegroundNotification,
+} from '@/lib/seveno-candidate-availability-foreground';
 import {
   getCandidateAvailabilityView,
   isProfileVisibleToCompanies as isCandidateProfileVisibleToCompanies,
@@ -194,7 +198,8 @@ export default function CandidateDashboardPage() {
   const [user, setUser] = useState<SevenoUser | null>(null);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [availabilityAction, setAvailabilityAction] = useState<
-    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications' | null
+    'confirm_yes' | 'confirm_no' | 'declare_immediate' | 'enable_notifications' | 'disable_notifications'
+    | 'enable_offer_alerts' | 'disable_offer_alerts' | null
   >(null);
   const [availabilityNotice, setAvailabilityNotice] = useState<string | null>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -206,6 +211,11 @@ export default function CandidateDashboardPage() {
   } | null>(null);
   const [foregroundActionPending, setForegroundActionPending] = useState(false);
   const [foregroundActionError, setForegroundActionError] = useState<string | null>(null);
+  const [foregroundOffer, setForegroundOffer] = useState<{
+    title: string;
+    body: string;
+    clickUrl: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -292,6 +302,15 @@ export default function CandidateDashboardPage() {
         kind: message.kind,
       });
 
+      if (isActionableCandidateOfferForegroundNotification(message)) {
+        setForegroundOffer({
+          title: message.title,
+          body: message.body,
+          clickUrl: message.clickUrl,
+        });
+        return;
+      }
+
       if (!isActionableAvailabilityForegroundNotification(message)) {
         // Les messages de test ou sans identifiant de demande ne doivent jamais
         // déclencher d'action sur le tableau de bord candidat.
@@ -364,6 +383,7 @@ export default function CandidateDashboardPage() {
     : false;
   const immediateAvailabilityConfirmed = availabilityView?.isImmediateAvailabilityConfirmed ?? false;
   const availabilityNotificationsEnabled = profile?.dailyAvailabilityConfirmationEnabled === true;
+  const matchingOfferAlertsEnabled = profile?.matchingOfferAlertsEnabled === true;
   const profileActivationAction = profile && profileComplete && profile.profileStatus === 'draft'
     ? {
         href: '/candidat/onboarding',
@@ -466,6 +486,41 @@ export default function CandidateDashboardPage() {
       );
     } catch (thrownError) {
       setAvailabilityError(thrownError instanceof Error ? thrownError.message : 'La configuration des notifications a echoue.');
+    } finally {
+      setAvailabilityAction(null);
+    }
+  }
+
+  async function handleMatchingOfferAlerts(action: 'enable_offer_alerts' | 'disable_offer_alerts') {
+    if (!authUser || !profile || !user) return;
+    setAvailabilityAction(action);
+    setAvailabilityError(null);
+    setAvailabilityNotice(null);
+    try {
+      if (action === 'enable_offer_alerts') {
+        const support = await requestCandidateAvailabilityPushToken();
+        setPushReadiness(buildCandidatePushReadinessFromLiveSupport(support, profile));
+        if (support.permission !== 'granted' || !support.token) {
+          throw new Error('Autorisez les notifications dans votre navigateur pour activer les alertes de nouvelles offres.');
+        }
+        const registrationResult = await registerCandidateAvailabilityDevice(authUser, {
+          deviceId: support.deviceId,
+          token: support.token,
+          permission: support.permission,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+          platform: navigator.platform,
+          userAgent: navigator.userAgent,
+          source: 'dashboard',
+        });
+        setPushReadiness(buildCandidatePushReadinessFromLiveSupport(support, profile, registrationResult.hasActiveDevice));
+      }
+      await updateCandidateMatchingOfferAlerts(authUser, action === 'enable_offer_alerts');
+      setProfile(await getCandidateProfile(user.uid));
+      setAvailabilityNotice(action === 'enable_offer_alerts'
+        ? 'Les alertes de nouvelles offres sont activées sur cet appareil.'
+        : 'Les alertes de nouvelles offres sont désactivées.');
+    } catch (thrownError) {
+      setAvailabilityError(thrownError instanceof Error ? thrownError.message : 'La configuration des alertes a échoué.');
     } finally {
       setAvailabilityAction(null);
     }
@@ -799,6 +854,7 @@ export default function CandidateDashboardPage() {
                     <p>Navigateur : {candidatePushSummary?.browserLabel}</p>
                     <p>Cet appareil : {candidatePushSummary?.deviceLabel}</p>
                     <p>Confirmations quotidiennes : {candidatePushSummary?.dailyPreferenceLabel}</p>
+                    <p>Nouvelles offres : {matchingOfferAlertsEnabled ? 'Activées' : 'Désactivées'}</p>
                   </div>
                 ) : null}
               </div>
@@ -835,6 +891,19 @@ export default function CandidateDashboardPage() {
                   </Link>
                 </div>
               </div>
+            ) : null}
+
+            {foregroundOffer ? (
+                <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                  <p className="font-semibold">{foregroundOffer.title}</p>
+                  <p className="mt-1">{foregroundOffer.body}</p>
+                  <Link
+                    href={foregroundOffer.clickUrl}
+                    className="mt-3 inline-flex items-center justify-center rounded-full bg-cyan-400/20 px-4 py-2 font-semibold text-cyan-50 transition hover:bg-cyan-400/30"
+                  >
+                    Voir l’offre
+                  </Link>
+                </div>
             ) : null}
 
             {availabilityNotice ? (
@@ -885,6 +954,18 @@ export default function CandidateDashboardPage() {
                 {availabilityNotificationsEnabled
                   ? 'Désactiver les confirmations quotidiennes'
                   : 'Activer les confirmations quotidiennes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleMatchingOfferAlerts(
+                  matchingOfferAlertsEnabled ? 'disable_offer_alerts' : 'enable_offer_alerts',
+                )}
+                disabled={availabilityAction !== null}
+                className="inline-flex items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {matchingOfferAlertsEnabled
+                  ? 'Désactiver les alertes de nouvelles offres'
+                  : 'Activer les alertes de nouvelles offres'}
               </button>
             </div>
 

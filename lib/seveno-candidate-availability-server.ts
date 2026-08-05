@@ -189,6 +189,7 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
     ? data.availabilityPushPermission
     : null;
   const hasActiveAvailabilityPushSubscription = data.hasActiveAvailabilityPushSubscription === true;
+  const matchingOfferAlertsEnabled = data.matchingOfferAlertsEnabled === true;
   const createdAt = toTimestamp(data.createdAt);
   const updatedAt = toTimestamp(data.updatedAt);
 
@@ -248,6 +249,7 @@ function normalizeCandidateProfile(data: unknown): CandidateProfile | null {
     ...(availabilityTimezone ? { availabilityTimezone } : {}),
     ...(availabilityPushPermission ? { availabilityPushPermission } : {}),
     hasActiveAvailabilityPushSubscription,
+    matchingOfferAlertsEnabled,
     createdAt,
     updatedAt,
   };
@@ -483,7 +485,7 @@ export async function setCandidateAvailabilityNotifications(
     availabilityTimezone: timezone,
     hasActiveAvailabilityPushSubscription: input.enabled
       ? profile.hasActiveAvailabilityPushSubscription ?? false
-      : false,
+      : profile.hasActiveAvailabilityPushSubscription ?? false,
     ...(input.permission ? { availabilityPushPermission: input.permission } : {}),
   });
   return loadCandidateProfile(uid);
@@ -533,7 +535,7 @@ export async function registerCandidateAvailabilityDevice(
   const devices = await loadDevices(uid);
   const hasActiveDevice = devices.some((device) => device.enabled && device.permission === 'granted');
   await updateCandidateAvailabilityProfile(uid, {
-    dailyAvailabilityConfirmationEnabled: profile.dailyAvailabilityConfirmationEnabled ?? true,
+    dailyAvailabilityConfirmationEnabled: profile.dailyAvailabilityConfirmationEnabled ?? false,
     availabilityTimezone: payload.timezone ?? normalizeAvailabilityTimezone(profile.availabilityTimezone),
     hasActiveAvailabilityPushSubscription: hasActiveDevice,
     availabilityPushPermission: permission,
