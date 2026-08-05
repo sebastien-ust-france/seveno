@@ -40,6 +40,7 @@
     "test:seveno-assessment-content": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-assessment-content-smoke-test.mts",
     "test:seveno-assessment-calibration": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-assessment-v1-calibration.mts",
     "test:questionnaires": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaires-smoke-test.mts",
+    "test:questionnaires:legacy-compatibility": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaire-legacy-compatibility-emulator-test.mts",
     "test:company-questionnaire-uniform-scoring": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-questionnaire-uniform-scoring-smoke-test.mts",
     "test:questionnaire-offer-context": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/questionnaire-offer-context-smoke-test.mts",
     "test:questionnaire-prerequisite-filter": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/questionnaire-prerequisite-filter-smoke-test.mts",

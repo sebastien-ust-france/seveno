@@ -13,6 +13,10 @@ import {
   COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
 } from '@/lib/seveno-company-questionnaire-constants';
 import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
+import {
+  resolveCompanyQuestionnaireForOffer,
+  SevenoCompanyQuestionnaireResolutionError,
+} from '@/lib/seveno-company-questionnaire-resolver';
 import type {
   CompanyQuestion,
   CompanyQuestionCorrectionMode,
@@ -366,24 +370,33 @@ async function assertCompanyQuestionnaireOwner(companyUid: string) {
   }
 }
 
+async function resolveQuestionnaireDocument(
+  offer: Awaited<ReturnType<typeof getJobOffer>>,
+  companyUid: string,
+) {
+  try {
+    return await resolveCompanyQuestionnaireForOffer({
+      firestore: requireDatabase(),
+      offerId: offer.id,
+      companyUid,
+      offer,
+    });
+  } catch (error) {
+    if (error instanceof SevenoCompanyQuestionnaireResolutionError) {
+      throw new SevenoCompanyQuestionnaireError(error.code, error.status, error.message);
+    }
+    throw error;
+  }
+}
+
 export async function getCompanyQuestionnaire(companyUid: string, offerId: string) {
   return (await getCompanyQuestionnairePromptContext(companyUid, offerId)).questionnaire;
 }
 
 export async function getCompanyQuestionnairePromptContext(companyUid: string, offerId: string) {
   const offer = await getJobOffer(companyUid, offerId);
-  const snapshot = await requireDatabase().collection(COLLECTION).doc(offer.id).get();
-  let questionnaire: CompanyQuestionnaireEditorProjection | null = null;
-  if (snapshot.exists) {
-    if (snapshot.id !== offer.id || snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== offer.id) {
-      throw new SevenoCompanyQuestionnaireError(
-        'questionnaire_offer_mismatch',
-        409,
-        'Le questionnaire chargé n’est pas associé à l’offre actuellement ouverte. La génération a été interrompue.',
-      );
-    }
-    questionnaire = toProjection(snapshot.id, snapshot.data() as FirestoreRecord);
-  }
+  const resolved = await resolveQuestionnaireDocument(offer, companyUid);
+  const questionnaire = resolved ? toProjection(resolved.questionnaireId, resolved.data) : null;
   const groups = classifyOfferPrerequisites([...offer.requiredPrerequisites, ...offer.preferredPrerequisites]);
   const promptOffer = {
     ...offer,
@@ -422,7 +435,8 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
     throw new SevenoCompanyQuestionnaireError('offer_not_editable', 409, 'Le questionnaire d une offre fermee ne peut plus etre modifie.');
   }
   const firestore = requireDatabase();
-  const ref = firestore.collection(COLLECTION).doc(offer.id);
+  const resolved = await resolveQuestionnaireDocument(offer, companyUid);
+  const ref = resolved?.ref ?? firestore.collection(COLLECTION).doc(offer.id);
   const offerRef = firestore.collection(OFFERS_COLLECTION).doc(offer.id);
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -452,7 +466,7 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
     };
     transaction.set(ref, stored);
     transaction.update(offerRef, {
-      questionnaireId: offer.id,
+      questionnaireId: ref.id,
       questionnaireVersion: version,
       questionnaireTitleSnapshot: input.title,
       questionnaireQuestionCountSnapshot: input.questions.length,
@@ -465,7 +479,11 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
 export async function activateCompanyQuestionnaire(companyUid: string, offerId: string) {
   const offer = await getJobOffer(companyUid, offerId);
   const firestore = requireDatabase();
-  const ref = firestore.collection(COLLECTION).doc(offer.id);
+  const resolved = await resolveQuestionnaireDocument(offer, companyUid);
+  if (!resolved) {
+    throw new SevenoCompanyQuestionnaireError('questionnaire_not_found', 404, 'Questionnaire introuvable.');
+  }
+  const ref = resolved.ref;
   const offerRef = firestore.collection(OFFERS_COLLECTION).doc(offer.id);
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -473,6 +491,9 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
       throw new SevenoCompanyQuestionnaireError('questionnaire_not_found', 404, 'Questionnaire introuvable.');
     }
     const data = snapshot.data() as FirestoreRecord;
+    if (data.status === 'archived') {
+      throw new SevenoCompanyQuestionnaireError('questionnaire_archived', 409, 'Un questionnaire archive ne peut pas etre envoye.');
+    }
     const questions = Array.isArray(data.questions) ? data.questions as CompanyQuestion[] : [];
     if (!cleanText(data.title, 200)) {
       throw new SevenoCompanyQuestionnaireError('questionnaire_incomplete', 409, 'Completez le titre avant activation.');
@@ -491,7 +512,7 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
     const stored = { ...data, offerVersion: offer.version, status: 'active', updatedAt: now, publishedAt: now };
     transaction.set(ref, stored);
     transaction.update(offerRef, {
-      questionnaireId: offer.id,
+      questionnaireId: ref.id,
       questionnaireVersion: data.version,
       questionnaireTitleSnapshot: cleanText(data.title, 200, true),
       questionnaireQuestionCountSnapshot: questions.length,
@@ -519,7 +540,7 @@ export async function listCompanyQuestionnaires(companyUid: string) {
         try {
           const data = doc.data() as FirestoreRecord;
           const projection = toProjection(doc.id, data);
-          if (projection.questions.length === 0 || projection.offerId !== doc.id) {
+          if (projection.questions.length === 0 || !projection.offerId) {
             return null;
           }
           return toListItem(doc.id, data);

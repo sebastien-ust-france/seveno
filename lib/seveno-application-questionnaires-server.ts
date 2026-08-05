@@ -5,6 +5,7 @@ import {
   COMPANY_QUESTION_POINTS,
   COMPANY_QUESTION_TIME_LIMIT_SECONDS,
   COMPANY_QUESTIONNAIRE_MINIMUM_PASSING_SCORE_PERCENT_DEFAULT,
+  COMPANY_QUESTIONNAIRE_QUESTION_COUNT,
 } from '@/lib/seveno-company-questionnaire-constants';
 import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-company-questionnaire-thresholds';
 import { calculateCompanyQuestionnaireScorePercent } from '@/lib/seveno-company-questionnaire-scoring';
@@ -16,6 +17,11 @@ import {
   prepareApplicationQuestionnaireCompletedNotificationEvent,
 } from '@/lib/seveno-company-notifications-server';
 import { toCompanyQuestionEditorProjection } from '@/lib/seveno-company-questionnaires-server';
+import {
+  resolveCompanyQuestionnaireForOffer,
+  SevenoCompanyQuestionnaireResolutionError,
+  type ResolvedCompanyQuestionnaire,
+} from '@/lib/seveno-company-questionnaire-resolver';
 import type { CompanyQuestion } from '@/types/seveno-company-questionnaires';
 import type {
   CompanyApplicationQuestionnaireAnswerRecord,
@@ -65,7 +71,6 @@ type AssessmentMetrics = {
 
 const APPLICATIONS_COLLECTION = 'job_applications';
 const OFFERS_COLLECTION = 'job_offers';
-const QUESTIONNAIRES_COLLECTION = 'company_questionnaires';
 const SESSIONS_COLLECTION = 'test_sessions';
 const RESULTS_COLLECTION = 'test_results';
 const ALLOWED_APPLICATION_STATUSES = new Set([
@@ -421,18 +426,47 @@ async function loadCompanyApplication(applicationId: string, companyUid: string)
 async function loadQuestionnaireBundle(application: QuestionnaireApplicationRecord) {
   const firestore = requireDatabase();
   const offerSnapshot = await firestore.collection(OFFERS_COLLECTION).doc(application.offerId).get();
-  const liveOffer = offerSnapshot.exists && offerSnapshot.data()?.companyUid === application.companyUid
-    ? offerSnapshot.data() as FirestoreRecord
-    : null;
-  const questionnaireId = cleanText(
-    (typeof liveOffer?.questionnaireId === 'string' ? liveOffer.questionnaireId : null)
-      ?? application.offerSnapshot.questionnaireId
-      ?? application.offerId,
-    100,
-  );
-  const questionnaireVersionValue = typeof liveOffer?.questionnaireVersion === 'number'
+  if (!offerSnapshot.exists || offerSnapshot.data()?.companyUid !== application.companyUid) {
+    throw new SevenoApplicationQuestionnaireError(
+      'questionnaire_forbidden',
+      403,
+      'L offre associee au questionnaire est introuvable.',
+    );
+  }
+  const liveOffer = offerSnapshot.data() as FirestoreRecord;
+  const explicitQuestionnaireId = typeof liveOffer.questionnaireId === 'string'
+    ? liveOffer.questionnaireId
+    : application.offerSnapshot.questionnaireId;
+  let resolved: ResolvedCompanyQuestionnaire | null;
+  try {
+    resolved = await resolveCompanyQuestionnaireForOffer({
+      firestore,
+      offerId: application.offerId,
+      companyUid: application.companyUid,
+      offer: {
+        id: application.offerId,
+        companyUid: liveOffer.companyUid,
+        questionnaireId: explicitQuestionnaireId,
+      },
+    });
+  } catch (error) {
+    if (error instanceof SevenoCompanyQuestionnaireResolutionError) {
+      throw new SevenoApplicationQuestionnaireError(error.code, error.status, error.message);
+    }
+    throw error;
+  }
+  if (!resolved) {
+    throw new SevenoApplicationQuestionnaireError(
+      'questionnaire_not_configured',
+      409,
+      'Cette candidature ne dispose pas de questionnaire entreprise actif.',
+    );
+  }
+  const questionnaireId = resolved.questionnaireId;
+  const questionnaireVersionValue = typeof liveOffer.questionnaireVersion === 'number'
+    && explicitQuestionnaireId === questionnaireId
     ? liveOffer.questionnaireVersion
-    : application.offerSnapshot.questionnaireVersion;
+    : resolved.data.version ?? application.offerSnapshot.questionnaireVersion;
   const questionnaireVersion = typeof questionnaireVersionValue === 'number'
     ? String(questionnaireVersionValue)
     : '';
@@ -444,11 +478,9 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
     );
   }
 
-  const questionnaireRef = firestore.collection(QUESTIONNAIRES_COLLECTION).doc(questionnaireId);
-  const [currentSnapshot, versionSnapshot] = await Promise.all([
-    questionnaireRef.get(),
-    questionnaireRef.collection('versions').doc(questionnaireVersion).get(),
-  ]);
+  const questionnaireRef = resolved.ref;
+  const currentSnapshot = resolved.snapshot;
+  const versionSnapshot = await questionnaireRef.collection('versions').doc(questionnaireVersion).get();
   if (!versionSnapshot.exists) {
     throw new SevenoApplicationQuestionnaireError(
       'questionnaire_version_missing',
@@ -465,6 +497,23 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
     );
   }
 
+  const versionQuestions = Array.isArray(versionData.questions) ? versionData.questions as CompanyQuestion[] : [];
+  if (
+    versionQuestions.length !== COMPANY_QUESTIONNAIRE_QUESTION_COUNT
+    || versionQuestions.some((question) => (
+      !question
+      || typeof question.id !== 'string'
+      || !question.id.trim()
+      || (question.correctionMode === 'automatic' && question.expectedAnswer === undefined)
+    ))
+  ) {
+    throw new SevenoApplicationQuestionnaireError(
+      'questionnaire_invalid',
+      409,
+      'Le questionnaire entreprise n est pas exploitable.',
+    );
+  }
+
   const currentData = currentSnapshot.exists ? currentSnapshot.data() as FirestoreRecord : null;
   return {
     questionnaireId,
@@ -478,9 +527,7 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
     })(),
     currentStatus: currentData?.status === 'active' || currentData?.status === 'archived' ? currentData.status as 'active' | 'archived' : 'draft',
     projection: buildQuestionnaireProjection(questionnaireVersion, versionData),
-    rawQuestions: Array.isArray(versionData.questions)
-      ? (versionData.questions as CompanyQuestion[]).map((question) => ({ ...question, points: COMPANY_QUESTION_POINTS }))
-      : [],
+    rawQuestions: versionQuestions.map((question) => ({ ...question, points: COMPANY_QUESTION_POINTS })),
   };
 }
 
