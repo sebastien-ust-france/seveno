@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { JobApplicationConversationThread } from '@/components/application/JobApplicationConversationThread';
+import { JobApplicationContactSharing } from '@/components/application/JobApplicationContactSharing';
 import { CompanyApplicationQuestionnaireReview } from '@/components/entreprise/CompanyApplicationQuestionnaireReview';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
 import { findFamilyLabel, findRoleLabel, findSectorLabel } from '@/lib/job-taxonomy';
@@ -276,7 +277,7 @@ export default function CompanyApplicationDetailPage() {
     ? (application.status === 'submitted' || application.status === 'questionnaire_completed')
       && (!questionnaireRequired || questionnaireCompleted)
     : false;
-  const canShowConversation = application?.conversationStatus === 'open';
+  const canShowConversation = application?.status === 'conversation_open' && application.conversationStatus === 'open';
   const proposalPending = application?.status === 'contact_requested';
   const proposalRefused = application?.status === 'candidate_declined';
 
@@ -516,18 +517,21 @@ export default function CompanyApplicationDetailPage() {
             </SevenoPanel>
 
             {canShowConversation && authUser ? (
-              <div id="conversation-securisee">
-                <JobApplicationConversationThread
-                  authUser={authUser}
-                  applicationId={application.id}
-                  applicationStatus={application.status}
-                  conversationStatus={application.conversationStatus}
-                  title="Conversation sécurisée"
-                  description="Les échanges deviennent disponibles après acceptation explicite du dossier."
-                  emptyMessage="Aucun message n’a encore été envoyé."
-                  onApplicationChange={setApplication}
-                />
-              </div>
+              <>
+                <JobApplicationContactSharing authUser={authUser} applicationId={application.id} actor="company" />
+                <div id="conversation-securisee">
+                  <JobApplicationConversationThread
+                    authUser={authUser}
+                    applicationId={application.id}
+                    applicationStatus={application.status}
+                    conversationStatus={application.conversationStatus}
+                    title="Conversation sécurisée"
+                    description="Les échanges deviennent disponibles après acceptation explicite du dossier."
+                    emptyMessage="Aucun message n’a encore été envoyé."
+                    onApplicationChange={setApplication}
+                  />
+                </div>
+              </>
             ) : (
               <SevenoPanel tone="neutral" className="p-5 text-sm leading-7 text-slate-300">
                 <p className="font-medium text-white">Conversation fermée</p>

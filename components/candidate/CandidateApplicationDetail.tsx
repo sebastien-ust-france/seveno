@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { JobApplicationConversationThread } from '@/components/application/JobApplicationConversationThread';
+import { JobApplicationContactSharing } from '@/components/application/JobApplicationContactSharing';
 import { CandidatePrivacyNotice } from '@/components/candidate/CandidatePrivacyNotice';
 import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
@@ -166,7 +167,7 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
   const submittedAt = assessment?.submittedAt ?? null;
   const isInvitation = application?.origin === 'company' && application?.status === 'invited';
   const isProposal = application?.status === 'contact_requested';
-  const canShowConversation = application?.conversationStatus === 'open';
+  const canShowConversation = application?.status === 'conversation_open' && application.conversationStatus === 'open';
 
   async function handleInvitationDecision(decision: 'accepted' | 'declined') {
     if (!authUser || !application || (!isInvitation && !isProposal)) {
@@ -421,18 +422,21 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
             </div>
 
             {canShowConversation && authUser ? (
-              <div id="conversation-securisee">
-                <JobApplicationConversationThread
-                  authUser={authUser}
-                  applicationId={application.id}
-                  applicationStatus={application.status}
-                  conversationStatus={application.conversationStatus}
-                  title="Conversation avec l entreprise"
-                  description="Les échanges deviennent disponibles une fois la relation ouverte des deux côtés."
-                  emptyMessage="Aucun message n a encore été envoyé."
-                  onApplicationChange={setApplication}
-                />
-              </div>
+              <>
+                <JobApplicationContactSharing authUser={authUser} applicationId={application.id} actor="candidate" />
+                <div id="conversation-securisee">
+                  <JobApplicationConversationThread
+                    authUser={authUser}
+                    applicationId={application.id}
+                    applicationStatus={application.status}
+                    conversationStatus={application.conversationStatus}
+                    title="Conversation avec l entreprise"
+                    description="Les échanges deviennent disponibles une fois la relation ouverte des deux côtés."
+                    emptyMessage="Aucun message n a encore été envoyé."
+                    onApplicationChange={setApplication}
+                  />
+                </div>
+              </>
             ) : null}
           </>
         ) : null}

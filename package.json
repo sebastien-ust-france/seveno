@@ -15,6 +15,8 @@
     "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
     "test:offer-lifecycle": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offer-lifecycle-smoke-test.mts",
     "test:applications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-applications-smoke-test.mts",
+    "test:contact-sharing": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/contact-sharing-smoke-test.mts",
+    "test:contact-sharing:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/contact-sharing-emulator-test.mts",
     "test:availability": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/availability-visibility-smoke-test.mts",
     "test:availability-reminders:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-availability-reminders-smoke-test.mts",
     "test:push-readiness": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/candidate-push-readiness-smoke-test.mts",

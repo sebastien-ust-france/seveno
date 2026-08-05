@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
-import { Timestamp, type Query } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type Query } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import {
@@ -35,6 +35,8 @@ import type {
   SerializedCandidateJobApplication,
   SerializedJobApplicationPrerequisiteAnswer,
   SerializedJobApplicationConversationMessage,
+  JobApplicationContactSharingView,
+  SerializedJobApplicationContactSharing,
   CompanyApplicationPrioritySelection,
 } from '@/types/seveno-job-applications';
 import type { SerializedCompanyApplicationAssessmentSummary } from '@/types/seveno-application-questionnaires';
@@ -49,6 +51,8 @@ const REUSABLE_COLLECTION = 'candidate_prerequisite_answers';
 const APPLICATION_MESSAGES_SUBCOLLECTION = 'messages';
 const CANDIDATE_PROFILES_COLLECTION = 'candidate_profiles';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
+const USERS_COLLECTION = 'users';
+const CANDIDATE_PRIVATE_DATA_COLLECTION = 'candidate_private_data';
 const DEFAULT_PAGE_LIMIT = 20;
 const MAX_PAGE_LIMIT = 30;
 const IMPLEMENTED_STATUSES: ImplementedJobApplicationStatus[] = [
@@ -175,6 +179,15 @@ function toTimestamp(value: unknown) {
 
 function timestampToIso(value: unknown) {
   return value instanceof Timestamp ? value.toDate().toISOString() : null;
+}
+
+export function serializeJobApplicationContactSharing(value: unknown): SerializedJobApplicationContactSharing {
+  const data = isPlainObject(value) ? value : {};
+  return {
+    shared: data.shared === true,
+    sharedAt: timestampToIso(data.sharedAt),
+    sharedByUid: typeof data.sharedByUid === 'string' && data.sharedByUid ? data.sharedByUid : null,
+  };
 }
 
 function cloneValue(value: PrerequisiteAnswerValue): PrerequisiteAnswerValue {
@@ -726,6 +739,8 @@ function serializeApplication(id: string, data: FirestoreRecord): SerializedCand
     conversationLastMessageAuthorRole: data.conversationLastMessageAuthorRole === 'candidate' || data.conversationLastMessageAuthorRole === 'company'
       ? data.conversationLastMessageAuthorRole
       : null,
+    candidateContactSharing: serializeJobApplicationContactSharing(data.candidateContactSharing),
+    companyContactSharing: serializeJobApplicationContactSharing(data.companyContactSharing),
     createdAt: timestampToIso(data.createdAt) ?? '',
     updatedAt: timestampToIso(data.updatedAt) ?? '',
     submittedAt: timestampToIso(data.submittedAt),
@@ -883,6 +898,8 @@ export async function beginJobApplication(uid: string, offerId: string) {
       conversationLastMessageAt: null,
       conversationLastMessagePreview: null,
       conversationLastMessageAuthorRole: null,
+      candidateContactSharing: { shared: false, sharedAt: null, sharedByUid: null },
+      companyContactSharing: { shared: false, sharedAt: null, sharedByUid: null },
       createdAt: now,
       updatedAt: now,
       submittedAt: null,
@@ -1470,6 +1487,113 @@ export async function getJobApplicationConversation(applicationId: string, parti
 
   const messages = await loadConversationMessages(applicationId);
   return { application, messages };
+}
+
+type ContactSharingParticipant = { uid: string; role: 'candidate' | 'company' };
+
+function assertContactSharingParticipant(record: FirestoreRecord, participant: ContactSharingParticipant) {
+  const participantUid = participant.role === 'candidate' ? record.candidateUid : record.companyUid;
+  if (String(participantUid ?? '') !== participant.uid) {
+    throw new SevenoJobApplicationError('forbidden_application', 403, 'Cette relation ne vous appartient pas.');
+  }
+}
+
+export function isJobApplicationContactSharingAvailable(application: { conversationStatus?: unknown; status?: unknown }) {
+  return application.conversationStatus === 'open' && application.status === 'conversation_open';
+}
+
+function assertContactSharingAvailable(application: { conversationStatus?: unknown; status?: unknown }) {
+  if (!isJobApplicationContactSharingAvailable(application)) {
+    throw new SevenoJobApplicationError(
+      'contact_sharing_unavailable',
+      409,
+      'Le partage de coordonnées est disponible après acceptation de la mise en relation.',
+    );
+  }
+}
+
+function contactValue(data: FirestoreRecord, key: string) {
+  const value = data[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+async function buildContactSharingView(snapshot: FirebaseFirestore.DocumentSnapshot, participant: ContactSharingParticipant) {
+  const record = snapshot.data() as FirestoreRecord;
+  assertContactSharingParticipant(record, participant);
+  assertContactSharingAvailable(record);
+
+  const candidateSharing = serializeJobApplicationContactSharing(record.candidateContactSharing);
+  const companySharing = serializeJobApplicationContactSharing(record.companyContactSharing);
+  const firestore = requireDatabase();
+  const [candidateUser, candidatePrivateData, companyUser, companyProfile] = await firestore.getAll(
+    firestore.collection(USERS_COLLECTION).doc(String(record.candidateUid ?? '')),
+    firestore.collection(CANDIDATE_PRIVATE_DATA_COLLECTION).doc(String(record.candidateUid ?? '')),
+    firestore.collection(USERS_COLLECTION).doc(String(record.companyUid ?? '')),
+    firestore.collection(COMPANY_PROFILES_COLLECTION).doc(String(record.companyUid ?? '')),
+  );
+  const candidateData = candidateUser.exists ? candidateUser.data() as FirestoreRecord : {};
+  const candidatePrivate = candidatePrivateData.exists ? candidatePrivateData.data() as FirestoreRecord : {};
+  const companyData = companyUser.exists ? companyUser.data() as FirestoreRecord : {};
+  const companyDataProfile = companyProfile.exists ? companyProfile.data() as FirestoreRecord : {};
+  const displayName = [
+    contactValue(candidateData, 'firstName') ?? contactValue(candidatePrivate, 'firstName'),
+    contactValue(candidateData, 'lastName') ?? contactValue(candidatePrivate, 'lastName'),
+  ].filter(Boolean).join(' ') || contactValue(candidateData, 'displayName');
+  const candidateEmail = contactValue(candidateData, 'email') ?? contactValue(candidatePrivate, 'email');
+  const candidatePhone = contactValue(candidateData, 'phone') ?? contactValue(candidatePrivate, 'phone');
+  const companyName = contactValue(companyDataProfile, 'companyName') || contactValue(record, 'companyNameSnapshot');
+
+  return {
+    candidate: {
+      ...candidateSharing,
+      contact: candidateSharing.shared ? {
+        ...(displayName ? { displayName } : {}),
+        ...(candidateEmail ? { email: candidateEmail } : {}),
+        ...(candidatePhone ? { phone: candidatePhone } : {}),
+      } : null,
+    },
+    company: {
+      ...companySharing,
+      contact: companySharing.shared ? {
+        ...(companyName ? { companyName } : {}),
+        ...(contactValue(companyData, 'displayName') ? { contactName: contactValue(companyData, 'displayName') } : {}),
+        ...(contactValue(companyData, 'email') ? { email: contactValue(companyData, 'email') } : {}),
+        ...(contactValue(companyDataProfile, 'phone') ? { phone: contactValue(companyDataProfile, 'phone') } : {}),
+      } : null,
+    },
+  } satisfies JobApplicationContactSharingView;
+}
+
+export async function getJobApplicationContactSharing(applicationId: string, participant: ContactSharingParticipant) {
+  const snapshot = await loadApplicationSnapshot(applicationId);
+  return buildContactSharingView(snapshot, participant);
+}
+
+export async function shareJobApplicationContact(applicationId: string, participant: ContactSharingParticipant) {
+  const firestore = requireDatabase();
+  const ref = applicationRef(applicationId);
+  await firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) {
+      throw new SevenoJobApplicationError('application_not_found', 404, 'Candidature introuvable.');
+    }
+    const record = snapshot.data() as FirestoreRecord;
+    assertContactSharingParticipant(record, participant);
+    assertContactSharingAvailable(record);
+    const sharingField = participant.role === 'candidate' ? 'candidateContactSharing' : 'companyContactSharing';
+    if (serializeJobApplicationContactSharing(record[sharingField]).shared) {
+      return;
+    }
+    transaction.update(ref, {
+      [sharingField]: {
+        shared: true,
+        sharedAt: FieldValue.serverTimestamp(),
+        sharedByUid: participant.uid,
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return getJobApplicationContactSharing(applicationId, participant);
 }
 
 export async function sendJobApplicationConversationMessage(

@@ -7,6 +7,7 @@ import type {
   CandidateOfferListPage,
   CandidateOfferProjection,
   PrerequisiteAnswerInput,
+  JobApplicationContactSharingView,
   SerializedCandidateJobApplication,
   SerializedJobApplicationConversationMessage,
 } from '@/types/seveno-job-applications';
@@ -159,5 +160,20 @@ export function markJobApplicationConversationReadClient(authUser: User, applica
     authUser,
     `/api/seveno/applications/${encodeURIComponent(applicationId)}/conversation/read`,
     { method: 'POST' },
+  );
+}
+
+export function getJobApplicationContactSharingClient(authUser: User, applicationId: string) {
+  return fetchSevenoMatchApi<JobApplicationContactSharingView>(
+    authUser,
+    `/api/seveno/applications/${encodeURIComponent(applicationId)}/contact-sharing`,
+  );
+}
+
+export function shareJobApplicationContactClient(authUser: User, applicationId: string) {
+  return fetchSevenoMatchApi<JobApplicationContactSharingView>(
+    authUser,
+    `/api/seveno/applications/${encodeURIComponent(applicationId)}/contact-sharing`,
+    { method: 'POST', body: JSON.stringify({ action: 'share' }) },
   );
 }

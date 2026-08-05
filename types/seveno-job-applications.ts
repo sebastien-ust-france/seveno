@@ -40,6 +40,22 @@ export type ImplementedJobApplicationStatus = JobApplicationStatus;
 export type JobApplicationOrigin = 'candidate' | 'company';
 export type JobApplicationConversationStatus = 'open' | 'closed';
 export type JobApplicationConversationAuthorRole = 'candidate' | 'company';
+export type JobApplicationContactSharing = {
+  shared: boolean;
+  sharedAt: FirestoreDateValue | null;
+  sharedByUid: string | null;
+};
+export type SerializedJobApplicationContactSharing = Omit<JobApplicationContactSharing, 'sharedAt'> & {
+  sharedAt: string | null;
+};
+export type JobApplicationContactSharingView = {
+  candidate: SerializedJobApplicationContactSharing & {
+    contact: { displayName?: string; email?: string; phone?: string } | null;
+  };
+  company: SerializedJobApplicationContactSharing & {
+    contact: { companyName?: string; contactName?: string; email?: string; phone?: string } | null;
+  };
+};
 export type PrerequisiteAnswerResult = 'satisfied' | 'unsatisfied' | 'unanswered';
 export type PrerequisiteAnswerSource = 'application' | 'reusable_profile';
 export type PrerequisiteAnswerValue = PrerequisiteCriterionValue | null;
@@ -186,6 +202,8 @@ export interface JobApplication {
   conversationLastMessageAt: FirestoreDateValue | null;
   conversationLastMessagePreview: string | null;
   conversationLastMessageAuthorRole: JobApplicationConversationAuthorRole | null;
+  candidateContactSharing: JobApplicationContactSharing;
+  companyContactSharing: JobApplicationContactSharing;
   createdAt: FirestoreDateValue;
   updatedAt: FirestoreDateValue;
   submittedAt: FirestoreDateValue | null;
@@ -206,6 +224,8 @@ export interface SerializedCandidateJobApplication extends Omit<
   | 'candidateDecisionAt'
   | 'companyDecisionAt'
   | 'conversationLastMessageAt'
+  | 'candidateContactSharing'
+  | 'companyContactSharing'
 > {
   sevenoAssessmentSnapshot: SerializedApplicationSevenoAssessmentSnapshot;
   companyAssessment?: SerializedCompanyApplicationAssessmentSummary | null;
@@ -213,6 +233,8 @@ export interface SerializedCandidateJobApplication extends Omit<
   candidateDecisionAt: string | null;
   companyDecisionAt: string | null;
   conversationLastMessageAt: string | null;
+  candidateContactSharing: SerializedJobApplicationContactSharing;
+  companyContactSharing: SerializedJobApplicationContactSharing;
   createdAt: string;
   updatedAt: string;
   submittedAt: string | null;
