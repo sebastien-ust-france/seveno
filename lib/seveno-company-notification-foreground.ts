@@ -1,5 +1,5 @@
 export interface CompanyApplicationForegroundNotification {
-  kind: 'company_application_submitted';
+  kind: 'company_application_submitted' | 'company_questionnaire_completed';
   title: string;
   body: string;
   applicationId: string;
@@ -28,7 +28,7 @@ export function parseCompanyApplicationForegroundNotification(
   data: Record<string, unknown> | undefined,
   notification: { title?: string | null; body?: string | null } | undefined,
 ): CompanyApplicationForegroundNotification | null {
-  if (data?.kind !== 'company_application_submitted') {
+  if (data?.kind !== 'company_application_submitted' && data?.kind !== 'company_questionnaire_completed') {
     return null;
   }
 
@@ -41,9 +41,13 @@ export function parseCompanyApplicationForegroundNotification(
   }
 
   return {
-    kind: 'company_application_submitted',
-    title: cleanText(notification?.title) || 'Nouvelle candidature reçue',
-    body: cleanText(notification?.body) || 'Un candidat vient de postuler à l’une de vos offres.',
+    kind: data.kind,
+    title: cleanText(notification?.title) || (data.kind === 'company_questionnaire_completed'
+      ? 'Questionnaire candidat terminé'
+      : 'Nouvelle candidature reçue'),
+    body: cleanText(notification?.body) || (data.kind === 'company_questionnaire_completed'
+      ? 'Un candidat a terminé le questionnaire lié à l’une de vos offres.'
+      : 'Un candidat vient de postuler à l’une de vos offres.'),
     applicationId,
     offerId,
     clickUrl,

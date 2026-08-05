@@ -10,6 +10,11 @@ import { normalizeQuestionnaireMinimumPassingScorePercent } from '@/lib/seveno-c
 import { calculateCompanyQuestionnaireScorePercent } from '@/lib/seveno-company-questionnaire-scoring';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import {
+  buildApplicationQuestionnaireCompletedNotificationEventId,
+  dispatchCompanyNotificationEvent,
+  prepareApplicationQuestionnaireCompletedNotificationEvent,
+} from '@/lib/seveno-company-notifications-server';
 import { toCompanyQuestionEditorProjection } from '@/lib/seveno-company-questionnaires-server';
 import type { CompanyQuestion } from '@/types/seveno-company-questionnaires';
 import type {
@@ -1204,6 +1209,22 @@ export async function startCandidateApplicationQuestionnaire(
   return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
 }
 
+async function dispatchQuestionnaireCompletedNotification(eventId: string | null) {
+  if (!eventId) {
+    return;
+  }
+  try {
+    await dispatchCompanyNotificationEvent(eventId);
+  } catch (error) {
+    console.error('[SevenO company notifications] Questionnaire completion delivery deferred', {
+      eventId,
+      code: error instanceof Error && 'code' in error
+        ? String((error as { code?: unknown }).code ?? 'unknown')
+        : 'unknown',
+    });
+  }
+}
+
 export async function submitCandidateApplicationQuestionnaire(
   candidateUid: string,
   applicationId: string,
@@ -1230,7 +1251,7 @@ export async function submitCandidateApplicationQuestionnaire(
     const questionId = cleanText(payload.questionId, 120);
     const providedAnswer = 'answer' in payload ? payload.answer : null;
 
-    const committed = await firestore.runTransaction(async (transaction) => {
+    const transactionResult = await firestore.runTransaction(async (transaction) => {
       const [appSnapshot, sessionSnapshot, resultSnapshot] = await Promise.all([
         transaction.get(appRef),
         transaction.get(sessionRef),
@@ -1265,7 +1286,10 @@ export async function submitCandidateApplicationQuestionnaire(
           );
         }
         if ((session.status === 'submitted' || session.status === 'completed') && resultSnapshot.exists) {
-          return true;
+          return {
+            committed: true,
+            notificationEventId: buildApplicationQuestionnaireCompletedNotificationEventId(applicationId, sessionId),
+          };
         }
         throw new SevenoApplicationQuestionnaireError('session_not_active', 409, 'Cette tentative de questionnaire n est plus active.');
       }
@@ -1360,7 +1384,7 @@ export async function submitCandidateApplicationQuestionnaire(
           questionExpiresAt: Timestamp.fromMillis(now.toMillis() + COMPANY_QUESTION_TIME_LIMIT_SECONDS * 1000),
           updatedAt: now,
         });
-        return true;
+        return { committed: true, notificationEventId: null };
       }
 
       const fullAnswers = new Map(Object.entries(storedAnswers));
@@ -1413,6 +1437,17 @@ export async function submitCandidateApplicationQuestionnaire(
         verifiedAt: submittedAt,
       };
 
+      const notificationEvent = await prepareApplicationQuestionnaireCompletedNotificationEvent(
+        transaction,
+        firestore,
+        {
+          applicationId,
+          offerId: cleanText(appData.offerId, 120),
+          companyUid: cleanText(appData.companyUid, 120),
+          resultId: resultRef.id,
+          now: submittedAt,
+        },
+      );
       transaction.create(resultRef, resultPayload);
       transaction.update(sessionRef, {
         status: assessment.status,
@@ -1446,19 +1481,20 @@ export async function submitCandidateApplicationQuestionnaire(
         ),
         updatedAt: submittedAt,
       });
-      return true;
+      return { committed: true, notificationEventId: notificationEvent.eventId };
     });
 
-    if (!committed) {
+    if (!transactionResult.committed) {
       throw new SevenoApplicationQuestionnaireError('submission_failed', 409, 'La soumission du questionnaire a echoue.');
     }
 
+    await dispatchQuestionnaireCompletedNotification(transactionResult.notificationEventId);
     return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
   }
 
   const providedAnswers = normalizeSubmissionAnswers(rawAnswers, questions);
 
-  const committed = await firestore.runTransaction(async (transaction) => {
+  const transactionResult = await firestore.runTransaction(async (transaction) => {
     const [appSnapshot, sessionSnapshot, resultSnapshot] = await Promise.all([
       transaction.get(appRef),
       transaction.get(sessionRef),
@@ -1476,7 +1512,10 @@ export async function submitCandidateApplicationQuestionnaire(
     }
 
     if (resultSnapshot.exists && sessionSnapshot.exists && (sessionSnapshot.get('status') === 'submitted' || sessionSnapshot.get('status') === 'completed')) {
-      return true;
+      return {
+        committed: true,
+        notificationEventId: buildApplicationQuestionnaireCompletedNotificationEventId(applicationId, sessionId),
+      };
     }
 
     if (!sessionSnapshot.exists) {
@@ -1496,7 +1535,10 @@ export async function submitCandidateApplicationQuestionnaire(
         );
       }
       if ((session.status === 'submitted' || session.status === 'completed') && resultSnapshot.exists) {
-        return true;
+        return {
+          committed: true,
+          notificationEventId: buildApplicationQuestionnaireCompletedNotificationEventId(applicationId, sessionId),
+        };
       }
       throw new SevenoApplicationQuestionnaireError('session_not_active', 409, 'Cette tentative de questionnaire n est plus active.');
     }
@@ -1597,6 +1639,17 @@ export async function submitCandidateApplicationQuestionnaire(
       verifiedAt: submittedAt,
     };
 
+    const notificationEvent = await prepareApplicationQuestionnaireCompletedNotificationEvent(
+      transaction,
+      firestore,
+      {
+        applicationId,
+        offerId: cleanText(appData.offerId, 120),
+        companyUid: cleanText(appData.companyUid, 120),
+        resultId: resultRef.id,
+        now: submittedAt,
+      },
+    );
     transaction.create(resultRef, resultPayload);
       transaction.update(sessionRef, {
         status: assessment.status,
@@ -1625,12 +1678,13 @@ export async function submitCandidateApplicationQuestionnaire(
       ),
       updatedAt: submittedAt,
     });
-    return true;
+    return { committed: true, notificationEventId: notificationEvent.eventId };
   });
 
-  if (!committed) {
+  if (!transactionResult.committed) {
     throw new SevenoApplicationQuestionnaireError('submission_failed', 409, 'La soumission du questionnaire a echoue.');
   }
 
+  await dispatchQuestionnaireCompletedNotification(transactionResult.notificationEventId);
   return getCandidateApplicationQuestionnaireView(candidateUid, applicationId);
 }

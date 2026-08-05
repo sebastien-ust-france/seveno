@@ -74,9 +74,24 @@ const ready = computeCompanyNotificationReadiness({
   },
 });
 assert.equal(ready.ready, true);
+assert.equal(ready.questionnaireReady, false);
 assert.equal(COMPANY_NOTIFICATION_BROWSER_LABELS[ready.browser], 'Autorisé');
 assert.equal(COMPANY_NOTIFICATION_DEVICE_LABELS[ready.device], 'Enregistré');
 assert.equal(COMPANY_NOTIFICATION_PREFERENCE_LABELS[ready.applicationReceived], 'Activées');
+
+const questionnaireReady = computeCompanyNotificationReadiness({
+  supported: true,
+  permission: 'granted',
+  serviceWorkerActive: true,
+  serverState: {
+    ...disabledServerState,
+    questionnaireCompletedEnabled: true,
+    currentDeviceRegistered: true,
+    hasActiveDevice: true,
+  },
+});
+assert.equal(questionnaireReady.ready, false);
+assert.equal(questionnaireReady.questionnaireReady, true);
 
 const applicationId = 'application-1';
 const validForeground = parseCompanyApplicationForegroundNotification({
@@ -88,6 +103,15 @@ const validForeground = parseCompanyApplicationForegroundNotification({
 }, { title: 'Nouvelle candidature reçue', body: 'Un candidat vient de postuler.' });
 assert.equal(validForeground?.applicationId, applicationId);
 assert.equal(validForeground?.clickUrl, '/entreprise/demandes/application-1');
+const questionnaireForeground = parseCompanyApplicationForegroundNotification({
+  kind: 'company_questionnaire_completed',
+  applicationId,
+  offerId: 'offer-1',
+  clickUrl: buildCompanyApplicationClickUrl(applicationId),
+  payloadVersion: '1',
+}, undefined);
+assert.equal(questionnaireForeground?.kind, 'company_questionnaire_completed');
+assert.equal(questionnaireForeground?.title, 'Questionnaire candidat terminé');
 assert.equal(parseCompanyApplicationForegroundNotification({ kind: 'test' }, undefined), null);
 assert.equal(parseCompanyApplicationForegroundNotification({ kind: 'availability' }, undefined), null);
 assert.equal(parseCompanyApplicationForegroundNotification({ kind: 'unknown' }, undefined), null);
@@ -107,9 +131,9 @@ assert.equal(parseCompanyApplicationForegroundNotification({
 
 const ui = source('components/entreprise/CompanyNotificationCenter.tsx');
 assert.equal(ui.includes('Tester une notification'), false);
-assert.equal(count(ui, /<button\s/g), 2, 'Un contrôle principal et un bouton Fermer sont attendus.');
-assert.equal(count(ui, /onClick=\{\(\) => void handleToggle\(\)\}/g), 1);
-for (const label of ['Navigateur :', 'Cet appareil :', 'Nouvelles candidatures :', 'Voir la candidature']) {
+assert.equal(count(ui, /<button\s/g), 3, 'Deux préférences et un bouton Fermer sont attendus.');
+assert.equal(count(ui, /onClick=\{\(\) => void handleToggle\(/g), 2);
+for (const label of ['Navigateur :', 'Cet appareil :', 'Nouvelles candidatures :', 'Questionnaires terminés :', 'Voir la candidature', 'Voir le résultat']) {
   assert.equal(ui.includes(label), true, `Libellé manquant: ${label}`);
 }
 for (const jargon of ['FCM', 'VAPID', 'service worker', 'deviceId', 'collection Firestore', 'endpoint']) {
@@ -123,8 +147,10 @@ const serviceWorkerIndex = client.indexOf('ensureSevenoMessagingServiceWorker()'
 const permissionIndex = client.indexOf('requestSevenoNotificationPermission()');
 const tokenIndex = client.indexOf('createSevenoPushToken(serviceWorkerRegistration)');
 const registerIndex = client.indexOf('registerCompanyNotificationDevice(authUser');
-const preferenceIndex = client.indexOf('setCompanyApplicationNotifications(authUser, true)');
+const preferenceIndex = client.indexOf('setCompanyNotificationPreference(authUser, notificationType, true)');
 assert.equal(serviceWorkerIndex < permissionIndex && permissionIndex < tokenIndex && tokenIndex < registerIndex && registerIndex < preferenceIndex, true);
+assert.equal(client.includes("activateCompanyNotifications(authUser, 'questionnaire_completed')"), true);
+assert.equal(client.includes("setCompanyNotificationPreference(authUser, 'questionnaire_completed', enabled)"), true);
 
 const submitServer = source('lib/seveno-job-applications-server.ts');
 const transactionIndex = submitServer.indexOf('firestore.runTransaction');
@@ -138,7 +164,7 @@ for (const forbiddenPayloadField of ['candidateName', 'candidateEmail', 'candida
   assert.equal(notificationServer.includes(forbiddenPayloadField), false, `Donnée candidat interdite: ${forbiddenPayloadField}`);
 }
 for (const requiredPayloadField of [
-  "kind: 'company_application_submitted'",
+  "kind: questionnaireCompleted ? 'company_questionnaire_completed' : 'company_application_submitted'",
   'applicationId: event.applicationId',
   'offerId: event.offerId',
   'clickUrl,',
@@ -146,9 +172,18 @@ for (const requiredPayloadField of [
 ]) {
   assert.equal(notificationServer.includes(requiredPayloadField), true, `Champ payload manquant: ${requiredPayloadField}`);
 }
+for (const requiredQuestionnaireField of [
+  "COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE = 'application_questionnaire_completed'",
+  "kind: questionnaireCompleted ? 'company_questionnaire_completed' : 'company_application_submitted'",
+  "title: questionnaireCompleted ? 'Questionnaire candidat terminé' : 'Nouvelle candidature reçue'",
+  'preferences.questionnaire_completed',
+]) {
+  assert.equal(notificationServer.includes(requiredQuestionnaireField), true, `Branchement Phase 2 manquant: ${requiredQuestionnaireField}`);
+}
 
 const serviceWorker = source('app/firebase-messaging-sw.js/route.ts');
 assert.equal(serviceWorker.includes("data.kind === 'company_application_submitted'"), true);
+assert.equal(serviceWorker.includes("data.kind === 'company_questionnaire_completed'"), true);
 assert.equal(serviceWorker.includes('getSafeCompanyApplicationUrl'), true);
 assert.equal(serviceWorker.includes('client.navigate(companyApplicationUrl)'), true);
 assert.equal(serviceWorker.includes("action === 'availability_yes'"), true);

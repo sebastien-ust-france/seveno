@@ -13,11 +13,13 @@ export const COMPANY_PUSH_SUBSCRIPTIONS_COLLECTION = 'company_push_subscriptions
 export const NOTIFICATION_OUTBOX_COLLECTION = 'notification_outbox';
 export const COMPANY_NOTIFICATION_PAYLOAD_VERSION = 1;
 export const COMPANY_APPLICATION_EVENT_TYPE = 'application_submitted';
+export const COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE = 'application_questionnaire_completed';
 
 const COMPANY_PUSH_DEVICES_COLLECTION = 'devices';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
 const APPLICATIONS_COLLECTION = 'job_applications';
 const OFFERS_COLLECTION = 'job_offers';
+const RESULTS_COLLECTION = 'test_results';
 const USERS_COLLECTION = 'users';
 const MAX_DELIVERY_ATTEMPTS = 5;
 const PROCESSING_LEASE_MINUTES = 5;
@@ -42,8 +44,7 @@ export interface CompanyPushDevice {
   userAgent?: string;
 }
 
-export interface ApplicationSubmittedNotificationEvent {
-  eventType: typeof COMPANY_APPLICATION_EVENT_TYPE;
+interface CompanyNotificationEventBase {
   idempotencyKey: string;
   recipientUid: string;
   recipientRole: 'company';
@@ -64,6 +65,19 @@ export interface ApplicationSubmittedNotificationEvent {
   successCount: number;
   failureCount: number;
 }
+
+export interface ApplicationSubmittedNotificationEvent extends CompanyNotificationEventBase {
+  eventType: typeof COMPANY_APPLICATION_EVENT_TYPE;
+}
+
+export interface ApplicationQuestionnaireCompletedNotificationEvent extends CompanyNotificationEventBase {
+  eventType: typeof COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE;
+  resultId: string;
+}
+
+type CompanyNotificationEvent =
+  | ApplicationSubmittedNotificationEvent
+  | ApplicationQuestionnaireCompletedNotificationEvent;
 
 export interface CompanyMulticastSenderResult {
   successCount: number;
@@ -164,6 +178,49 @@ export function buildApplicationSubmittedNotificationEvent(input: {
   };
 }
 
+export function buildApplicationQuestionnaireCompletedNotificationEventId(
+  applicationId: string,
+  sessionId: string,
+) {
+  return `${COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE}:${cleanText(applicationId)}:${cleanText(sessionId)}`;
+}
+
+export function buildApplicationQuestionnaireCompletedNotificationEvent(input: {
+  applicationId: string;
+  offerId: string;
+  companyUid: string;
+  resultId: string;
+  now: Timestamp;
+}): ApplicationQuestionnaireCompletedNotificationEvent {
+  const idempotencyKey = buildApplicationQuestionnaireCompletedNotificationEventId(
+    input.applicationId,
+    input.resultId,
+  );
+  return {
+    eventType: COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE,
+    idempotencyKey,
+    recipientUid: input.companyUid,
+    recipientRole: 'company',
+    applicationId: input.applicationId,
+    offerId: input.offerId,
+    companyUid: input.companyUid,
+    resultId: input.resultId,
+    status: 'pending',
+    attempts: 0,
+    createdAt: input.now,
+    updatedAt: input.now,
+    nextAttemptAt: input.now,
+    sentAt: null,
+    lastErrorCode: null,
+    payloadVersion: COMPANY_NOTIFICATION_PAYLOAD_VERSION,
+    processingToken: null,
+    processingStartedAt: null,
+    processingLeaseExpiresAt: null,
+    successCount: 0,
+    failureCount: 0,
+  };
+}
+
 export async function prepareApplicationSubmittedNotificationEvent(
   transaction: Transaction,
   firestore: Firestore,
@@ -192,6 +249,42 @@ export async function prepareApplicationSubmittedNotificationEvent(
   }
 
   transaction.create(eventRef, buildApplicationSubmittedNotificationEvent(input));
+  return { eventId, created: true };
+}
+
+export async function prepareApplicationQuestionnaireCompletedNotificationEvent(
+  transaction: Transaction,
+  firestore: Firestore,
+  input: {
+    applicationId: string;
+    offerId: string;
+    companyUid: string;
+    resultId: string;
+    now: Timestamp;
+  },
+) {
+  const eventId = buildApplicationQuestionnaireCompletedNotificationEventId(
+    input.applicationId,
+    input.resultId,
+  );
+  const eventRef = firestore.collection(NOTIFICATION_OUTBOX_COLLECTION).doc(eventId);
+  const snapshot = await transaction.get(eventRef);
+  if (snapshot.exists) {
+    const existing = snapshot.data();
+    if (
+      existing?.eventType !== COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE
+      || existing?.applicationId !== input.applicationId
+      || existing?.offerId !== input.offerId
+      || existing?.companyUid !== input.companyUid
+      || existing?.recipientUid !== input.companyUid
+      || existing?.resultId !== input.resultId
+    ) {
+      throw new SevenoCompanyNotificationError('notification_event_conflict', 409, 'L’événement de notification est incohérent.');
+    }
+    return { eventId, created: false };
+  }
+
+  transaction.create(eventRef, buildApplicationQuestionnaireCompletedNotificationEvent(input));
   return { eventId, created: true };
 }
 
@@ -336,7 +429,7 @@ export async function setCompanyNotificationPreference(
   enabled: boolean,
 ) {
   await ensureCompanyContext(companyUid);
-  if (notificationType !== 'application_received') {
+  if (notificationType !== 'application_received' && notificationType !== 'questionnaire_completed') {
     throw new SevenoCompanyNotificationError('notification_type_not_available', 400, 'Ce type de notification n’est pas disponible.');
   }
   if (enabled && (await loadActiveCompanyDevices(companyUid)).length === 0) {
@@ -373,8 +466,12 @@ export async function disableCompanyNotificationDevice(companyUid: string, devic
   return getCompanyNotificationState(companyUid, normalizedDeviceId);
 }
 
-function normalizeEvent(id: string, data: unknown): ApplicationSubmittedNotificationEvent | null {
-  if (!isPlainObject(data) || data.eventType !== COMPANY_APPLICATION_EVENT_TYPE) {
+function normalizeEvent(id: string, data: unknown): CompanyNotificationEvent | null {
+  if (
+    !isPlainObject(data)
+    || (data.eventType !== COMPANY_APPLICATION_EVENT_TYPE
+      && data.eventType !== COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE)
+  ) {
     return null;
   }
   const status = ['pending', 'processing', 'sent', 'partial', 'failed', 'skipped'].includes(String(data.status))
@@ -392,8 +489,7 @@ function normalizeEvent(id: string, data: unknown): ApplicationSubmittedNotifica
     return null;
   }
 
-  return {
-    eventType: COMPANY_APPLICATION_EVENT_TYPE,
+  const common: CompanyNotificationEventBase = {
     idempotencyKey: id,
     recipientUid: cleanText(data.recipientUid),
     recipientRole: 'company',
@@ -413,6 +509,23 @@ function normalizeEvent(id: string, data: unknown): ApplicationSubmittedNotifica
     processingLeaseExpiresAt: toTimestamp(data.processingLeaseExpiresAt),
     successCount: typeof data.successCount === 'number' ? data.successCount : 0,
     failureCount: typeof data.failureCount === 'number' ? data.failureCount : 0,
+  };
+
+  if (data.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE) {
+    const resultId = cleanText(data.resultId);
+    if (!resultId) {
+      return null;
+    }
+    return {
+      ...common,
+      eventType: COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE,
+      resultId,
+    };
+  }
+
+  return {
+    ...common,
+    eventType: COMPANY_APPLICATION_EVENT_TYPE,
   };
 }
 
@@ -459,7 +572,7 @@ async function claimNotificationEvent(eventId: string, now: Timestamp) {
 async function completeClaimedEvent(
   eventId: string,
   processingToken: string,
-  patch: Partial<ApplicationSubmittedNotificationEvent>,
+  patch: Partial<CompanyNotificationEventBase>,
 ) {
   const firestore = requireDatabase();
   const ref = firestore.collection(NOTIFICATION_OUTBOX_COLLECTION).doc(eventId);
@@ -489,11 +602,18 @@ function defaultSender(message: MulticastMessage): Promise<CompanyMulticastSende
   return getMessaging(getApp()).sendEachForMulticast(message);
 }
 
-function buildNotificationBody(title: string) {
+function buildApplicationNotificationBody(title: string) {
   const normalizedTitle = cleanText(title);
   return normalizedTitle
     ? `Un candidat vient de postuler à votre offre « ${normalizedTitle} ».`
     : 'Un candidat vient de postuler à l’une de vos offres.';
+}
+
+function buildQuestionnaireCompletedNotificationBody(title: string) {
+  const normalizedTitle = cleanText(title);
+  return normalizedTitle
+    ? `Un candidat a terminé le questionnaire lié à votre offre « ${normalizedTitle} ».`
+    : 'Un candidat a terminé le questionnaire lié à l’une de vos offres.';
 }
 
 async function skipEvent(eventId: string, processingToken: string, code: string) {
@@ -508,33 +628,58 @@ async function skipEvent(eventId: string, processingToken: string, code: string)
 
 async function deliverClaimedEvent(
   eventId: string,
-  event: ApplicationSubmittedNotificationEvent,
+  event: CompanyNotificationEvent,
   processingToken: string,
   sender: CompanyMulticastSender,
 ) {
   const firestore = requireDatabase();
-  const [user, companyProfile, application, offer, subscription] = await Promise.all([
+  const [user, companyProfile, application, offer, subscription, result] = await Promise.all([
     firestore.collection(USERS_COLLECTION).doc(event.companyUid).get(),
     firestore.collection(COMPANY_PROFILES_COLLECTION).doc(event.companyUid).get(),
     firestore.collection(APPLICATIONS_COLLECTION).doc(event.applicationId).get(),
     firestore.collection(OFFERS_COLLECTION).doc(event.offerId).get(),
     firestore.collection(COMPANY_PUSH_SUBSCRIPTIONS_COLLECTION).doc(event.companyUid).get(),
+    event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE
+      ? firestore.collection(RESULTS_COLLECTION).doc(event.resultId).get()
+      : Promise.resolve(null),
   ]);
   if (!user.exists || user.get('role') !== 'company' || !companyProfile.exists) {
     return skipEvent(eventId, processingToken, 'company_unavailable');
   }
-  if (
-    !application.exists
-    || application.get('companyUid') !== event.companyUid
-    || application.get('offerId') !== event.offerId
-    || !['submitted', 'viewed', 'questionnaire_pending', 'questionnaire_completed', 'shortlisted'].includes(String(application.get('status') ?? ''))
-  ) {
+  const applicationStatus = String(application.get('status') ?? '');
+  const applicationAvailable = application.exists
+    && application.get('companyUid') === event.companyUid
+    && application.get('offerId') === event.offerId
+    && (event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE
+      ? applicationStatus === 'questionnaire_completed'
+      : ['submitted', 'viewed', 'questionnaire_pending', 'questionnaire_completed', 'shortlisted'].includes(applicationStatus));
+  if (!applicationAvailable) {
     return skipEvent(eventId, processingToken, 'application_unavailable');
   }
   if (!offer.exists || offer.get('companyUid') !== event.companyUid) {
     return skipEvent(eventId, processingToken, 'offer_unavailable');
   }
-  if (!normalizePreferences(subscription.get('preferences')).application_received) {
+  if (event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE) {
+    const assessment = application.get('companyAssessment');
+    if (
+      !result?.exists
+      || result.get('assessmentType') !== 'company_application'
+      || result.get('status') !== 'completed'
+      || result.get('applicationId') !== event.applicationId
+      || result.get('offerId') !== event.offerId
+      || result.get('companyUid') !== event.companyUid
+      || !isPlainObject(assessment)
+      || cleanText(assessment.resultId) !== event.resultId
+    ) {
+      return skipEvent(eventId, processingToken, 'questionnaire_result_unavailable');
+    }
+  }
+
+  const preferences = normalizePreferences(subscription.get('preferences'));
+  const preferenceEnabled = event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE
+    ? preferences.questionnaire_completed
+    : preferences.application_received;
+  if (!preferenceEnabled) {
     return skipEvent(eventId, processingToken, 'preference_disabled');
   }
 
@@ -551,14 +696,17 @@ async function deliverClaimedEvent(
   const offerSnapshot = application.get('offerSnapshot');
   const offerTitle = isPlainObject(offerSnapshot) ? cleanText(offerSnapshot.title) : cleanText(offer.get('title'));
   const clickUrl = buildCompanyApplicationClickUrl(event.applicationId);
+  const questionnaireCompleted = event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE;
   const message: MulticastMessage = {
     tokens,
     notification: {
-      title: 'Nouvelle candidature reçue',
-      body: buildNotificationBody(offerTitle),
+      title: questionnaireCompleted ? 'Questionnaire candidat terminé' : 'Nouvelle candidature reçue',
+      body: questionnaireCompleted
+        ? buildQuestionnaireCompletedNotificationBody(offerTitle)
+        : buildApplicationNotificationBody(offerTitle),
     },
     data: {
-      kind: 'company_application_submitted',
+      kind: questionnaireCompleted ? 'company_questionnaire_completed' : 'company_application_submitted',
       applicationId: event.applicationId,
       offerId: event.offerId,
       clickUrl,

@@ -6,7 +6,9 @@ export interface CompanyNotificationReadiness {
   browser: CompanyNotificationBrowserState;
   device: CompanyNotificationDeviceState;
   applicationReceived: CompanyApplicationNotificationPreference;
+  questionnaireCompleted: CompanyApplicationNotificationPreference;
   ready: boolean;
+  questionnaireReady: boolean;
 }
 
 export interface CompanyNotificationServerState {
@@ -38,12 +40,18 @@ export function computeCompanyNotificationReadiness(input: {
   const applicationReceived: CompanyApplicationNotificationPreference = input.serverState.applicationReceivedEnabled
     ? 'enabled'
     : 'disabled';
+  const questionnaireCompleted: CompanyApplicationNotificationPreference = input.serverState.questionnaireCompletedEnabled
+    ? 'enabled'
+    : 'disabled';
+  const deviceReady = browser === 'authorized' && device === 'registered';
 
   return {
     browser,
     device,
     applicationReceived,
-    ready: browser === 'authorized' && device === 'registered' && applicationReceived === 'enabled',
+    questionnaireCompleted,
+    ready: deviceReady && applicationReceived === 'enabled',
+    questionnaireReady: deviceReady && questionnaireCompleted === 'enabled',
   };
 }
 

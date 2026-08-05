@@ -33,6 +33,8 @@ export async function GET() {
   const availabilityNoActionTitleLiteral = toJavaScriptLiteral('Non');
   const companyApplicationNotificationTitleLiteral = toJavaScriptLiteral('Nouvelle candidature reçue');
   const companyApplicationNotificationBodyLiteral = toJavaScriptLiteral('Un candidat vient de postuler à l’une de vos offres.');
+  const companyQuestionnaireNotificationTitleLiteral = toJavaScriptLiteral('Questionnaire candidat terminé');
+  const companyQuestionnaireNotificationBodyLiteral = toJavaScriptLiteral('Un candidat a terminé le questionnaire lié à l’une de vos offres.');
   const script = `
     importScripts(${firebaseAppCompatUrl});
     importScripts(${firebaseMessagingCompatUrl});
@@ -46,6 +48,8 @@ export async function GET() {
     const testNotificationClickPath = ${testNotificationClickPathLiteral};
     const companyApplicationNotificationTitle = ${companyApplicationNotificationTitleLiteral};
     const companyApplicationNotificationBody = ${companyApplicationNotificationBodyLiteral};
+    const companyQuestionnaireNotificationTitle = ${companyQuestionnaireNotificationTitleLiteral};
+    const companyQuestionnaireNotificationBody = ${companyQuestionnaireNotificationBodyLiteral};
     const firebaseConfig = ${JSON.stringify(config)};
 
     function buildFallbackUrl(data, decision) {
@@ -91,7 +95,12 @@ export async function GET() {
     }
 
     function getSafeCompanyApplicationUrl(data) {
-      if (!data || data.kind !== 'company_application_submitted' || !data.applicationId || !data.clickUrl) {
+      if (
+        !data
+        || (data.kind !== 'company_application_submitted' && data.kind !== 'company_questionnaire_completed')
+        || !data.applicationId
+        || !data.clickUrl
+      ) {
         return null;
       }
 
@@ -114,20 +123,28 @@ export async function GET() {
         const notification = payload && payload.notification ? payload.notification : null;
         const isTestNotification = data && data.kind === 'test';
         const isCompanyApplicationNotification = data && data.kind === 'company_application_submitted';
+        const isCompanyQuestionnaireNotification = data && data.kind === 'company_questionnaire_completed';
+        const isCompanyNotification = isCompanyApplicationNotification || isCompanyQuestionnaireNotification;
         const title = notification && notification.title
           ? notification.title
-          : isCompanyApplicationNotification
-            ? companyApplicationNotificationTitle
+          : isCompanyNotification
+            ? isCompanyQuestionnaireNotification
+              ? companyQuestionnaireNotificationTitle
+              : companyApplicationNotificationTitle
             : isTestNotification
               ? testNotificationTitle
               : availabilityNotificationTitle;
-        const options = isCompanyApplicationNotification
+        const options = isCompanyNotification
           ? {
-              body: notification && notification.body ? notification.body : companyApplicationNotificationBody,
+              body: notification && notification.body
+                ? notification.body
+                : isCompanyQuestionnaireNotification
+                  ? companyQuestionnaireNotificationBody
+                  : companyApplicationNotificationBody,
               icon: '/images/favicon-seveno.png',
               badge: '/images/favicon-seveno.png',
               data: {
-                kind: 'company_application_submitted',
+                kind: data.kind,
                 applicationId: data.applicationId || '',
                 offerId: data.offerId || '',
                 clickUrl: getSafeCompanyApplicationUrl(data),

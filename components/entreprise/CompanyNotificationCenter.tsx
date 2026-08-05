@@ -5,9 +5,11 @@ import { useEffect, useState } from 'react';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
 import {
   activateCompanyApplicationNotifications,
+  activateCompanyQuestionnaireNotifications,
   getCompanyNotificationState,
   getPassiveCompanyNotificationReadiness,
   setCompanyApplicationNotifications,
+  setCompanyQuestionnaireNotifications,
   subscribeToCompanyApplicationForegroundNotifications,
 } from '@/lib/seveno-company-notifications-client';
 import {
@@ -22,7 +24,7 @@ import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
 export function CompanyNotificationCenter() {
   const { authUser, profile, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
   const [readiness, setReadiness] = useState<CompanyNotificationReadiness | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingPreference, setLoadingPreference] = useState<'application_received' | 'questionnaire_completed' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [foregroundNotification, setForegroundNotification] = useState<CompanyApplicationForegroundNotification | null>(null);
@@ -87,63 +89,105 @@ export function CompanyNotificationCenter() {
     setReadiness(await getPassiveCompanyNotificationReadiness(serverState));
   }
 
-  async function handleToggle() {
-    if (!authUser || loading) {
+  async function handleToggle(notificationType: 'application_received' | 'questionnaire_completed') {
+    if (!authUser || loadingPreference) {
       return;
     }
-    setLoading(true);
+    setLoadingPreference(notificationType);
     setError(null);
     setNotice(null);
     try {
-      if (readiness?.applicationReceived === 'enabled') {
-        await setCompanyApplicationNotifications(authUser, false);
+      const isQuestionnaire = notificationType === 'questionnaire_completed';
+      const enabled = isQuestionnaire
+        ? readiness?.questionnaireCompleted === 'enabled'
+        : readiness?.applicationReceived === 'enabled';
+      if (enabled) {
+        if (isQuestionnaire) {
+          await setCompanyQuestionnaireNotifications(authUser, false);
+        } else {
+          await setCompanyApplicationNotifications(authUser, false);
+        }
         await refreshReadiness();
-        setNotice('Les notifications de nouvelles candidatures sont désactivées.');
+        setNotice(isQuestionnaire
+          ? 'Les notifications de questionnaires terminés sont désactivées.'
+          : 'Les notifications de nouvelles candidatures sont désactivées.');
       } else {
-        const activatedReadiness = await activateCompanyApplicationNotifications(authUser);
+        const activatedReadiness = isQuestionnaire
+          ? await activateCompanyQuestionnaireNotifications(authUser)
+          : await activateCompanyApplicationNotifications(authUser);
         setReadiness(activatedReadiness);
-        if (!activatedReadiness.ready) {
+        if (isQuestionnaire ? !activatedReadiness.questionnaireReady : !activatedReadiness.ready) {
           throw new Error('L’activation n’a pas pu être confirmée sur cet appareil.');
         }
-        setNotice('Les notifications de nouvelles candidatures sont activées sur cet appareil.');
+        setNotice(isQuestionnaire
+          ? 'Les notifications de questionnaires terminés sont activées sur cet appareil.'
+          : 'Les notifications de nouvelles candidatures sont activées sur cet appareil.');
       }
     } catch (thrownError) {
       setError(thrownError instanceof Error ? thrownError.message : 'La configuration des notifications a échoué.');
       await refreshReadiness().catch(() => undefined);
     } finally {
-      setLoading(false);
+      setLoadingPreference(null);
     }
   }
 
   const browserLabel = readiness ? COMPANY_NOTIFICATION_BROWSER_LABELS[readiness.browser] : 'Chargement…';
   const deviceLabel = readiness ? COMPANY_NOTIFICATION_DEVICE_LABELS[readiness.device] : 'Chargement…';
-  const preferenceLabel = readiness ? COMPANY_NOTIFICATION_PREFERENCE_LABELS[readiness.applicationReceived] : 'Chargement…';
+  const applicationPreferenceLabel = readiness
+    ? COMPANY_NOTIFICATION_PREFERENCE_LABELS[readiness.applicationReceived]
+    : 'Chargement…';
+  const questionnairePreferenceLabel = readiness
+    ? COMPANY_NOTIFICATION_PREFERENCE_LABELS[readiness.questionnaireCompleted]
+    : 'Chargement…';
 
   return (
     <div className="px-4 pt-4 sm:px-6 lg:px-8">
       <SevenoPanel tone="neutral" className="p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Notifications entreprise</p>
-            <h2 className="mt-2 text-lg font-semibold text-white">Nouvelles candidatures</h2>
+            <h2 className="mt-2 text-lg font-semibold text-white">Suivi des candidatures</h2>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-300">
               <p>Navigateur : <span className="font-medium text-white">{browserLabel}</span></p>
               <p>Cet appareil : <span className="font-medium text-white">{deviceLabel}</span></p>
-              <p>Nouvelles candidatures : <span className="font-medium text-white">{preferenceLabel}</span></p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleToggle()}
-            disabled={loading || !readiness}
-            className="inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading
-              ? 'Mise à jour…'
-              : readiness?.applicationReceived === 'enabled'
-                ? 'Désactiver les notifications'
-                : 'Activer les notifications'}
-          </button>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-300">
+                Nouvelles candidatures : <span className="font-medium text-white">{applicationPreferenceLabel}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleToggle('application_received')}
+                disabled={Boolean(loadingPreference) || !readiness}
+                className="inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingPreference === 'application_received'
+                  ? 'Mise à jour…'
+                  : readiness?.applicationReceived === 'enabled'
+                    ? 'Désactiver'
+                    : 'Activer'}
+              </button>
+            </div>
+            <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-300">
+                Questionnaires terminés : <span className="font-medium text-white">{questionnairePreferenceLabel}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleToggle('questionnaire_completed')}
+                disabled={Boolean(loadingPreference) || !readiness}
+                className="inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingPreference === 'questionnaire_completed'
+                  ? 'Mise à jour…'
+                  : readiness?.questionnaireCompleted === 'enabled'
+                    ? 'Désactiver'
+                    : 'Activer'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {notice ? <p className="mt-4 text-sm text-cyan-100">{notice}</p> : null}
@@ -159,7 +203,9 @@ export function CompanyNotificationCenter() {
                 onClick={() => setForegroundNotification(null)}
                 className="inline-flex rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
               >
-                Voir la candidature
+                {foregroundNotification.kind === 'company_questionnaire_completed'
+                  ? 'Voir le résultat'
+                  : 'Voir la candidature'}
               </Link>
               <button
                 type="button"

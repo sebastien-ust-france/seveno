@@ -23,6 +23,7 @@ import {
 
 const COMPANY_DEVICE_STORAGE_KEY = 'seveno.company.notifications.deviceId';
 const COMPANY_NOTIFICATION_API_PATH = '/api/seveno/company-notifications';
+type CompanyNotificationType = 'application_received' | 'questionnaire_completed';
 
 export function getCompanyNotificationDeviceId() {
   return getOrCreateSevenoPushDeviceId(COMPANY_DEVICE_STORAGE_KEY);
@@ -52,11 +53,23 @@ export async function registerCompanyNotificationDevice(
   });
 }
 
-export async function setCompanyApplicationNotifications(authUser: User, enabled: boolean) {
+async function setCompanyNotificationPreference(
+  authUser: User,
+  notificationType: CompanyNotificationType,
+  enabled: boolean,
+) {
   return fetchSevenoMatchApi<CompanyNotificationServerState>(authUser, COMPANY_NOTIFICATION_API_PATH, {
     method: 'POST',
-    body: JSON.stringify({ action: enabled ? 'enable' : 'disable', notificationType: 'application_received' }),
+    body: JSON.stringify({ action: enabled ? 'enable' : 'disable', notificationType }),
   });
+}
+
+export function setCompanyApplicationNotifications(authUser: User, enabled: boolean) {
+  return setCompanyNotificationPreference(authUser, 'application_received', enabled);
+}
+
+export function setCompanyQuestionnaireNotifications(authUser: User, enabled: boolean) {
+  return setCompanyNotificationPreference(authUser, 'questionnaire_completed', enabled);
 }
 
 export async function getPassiveCompanyNotificationReadiness(
@@ -71,7 +84,7 @@ export async function getPassiveCompanyNotificationReadiness(
   });
 }
 
-export async function activateCompanyApplicationNotifications(authUser: User) {
+async function activateCompanyNotifications(authUser: User, notificationType: CompanyNotificationType) {
   if (!detectSevenoPushBrowserSupport()) {
     throw new Error('Ce navigateur ne prend pas en charge les notifications.');
   }
@@ -101,7 +114,7 @@ export async function activateCompanyApplicationNotifications(authUser: User) {
     platform: navigator.platform,
     userAgent: navigator.userAgent,
   });
-  await setCompanyApplicationNotifications(authUser, true);
+  await setCompanyNotificationPreference(authUser, notificationType, true);
   const serverState = await getCompanyNotificationState(authUser);
 
   return computeCompanyNotificationReadiness({
@@ -110,6 +123,14 @@ export async function activateCompanyApplicationNotifications(authUser: User) {
     serviceWorkerActive: Boolean(serviceWorkerRegistration.active),
     serverState,
   });
+}
+
+export function activateCompanyApplicationNotifications(authUser: User) {
+  return activateCompanyNotifications(authUser, 'application_received');
+}
+
+export function activateCompanyQuestionnaireNotifications(authUser: User) {
+  return activateCompanyNotifications(authUser, 'questionnaire_completed');
 }
 
 export async function subscribeToCompanyApplicationForegroundNotifications(
