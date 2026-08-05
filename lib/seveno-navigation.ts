@@ -4,6 +4,7 @@ export const CANDIDATE_NAVIGATION: SidebarNavigationItemConfig[] = [
   { href: '/candidat', label: 'Tableau de bord', match: 'exact' },
   { href: '/candidat/onboarding', label: 'Mon profil' },
   { href: '/candidat/offres', label: 'Offres' },
+  { href: '/candidat/candidatures', label: 'Mes candidatures' },
   { href: '/candidat/identite', label: 'Mon identité' },
   { href: '/candidat/recommandations', label: 'Recommandations' },
 ];

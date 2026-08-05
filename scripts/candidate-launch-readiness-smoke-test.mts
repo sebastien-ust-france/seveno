@@ -19,13 +19,13 @@ const OPEN_CANDIDATE_ROUTES = [
   '/candidat',
   '/candidat/onboarding',
   '/candidat/offres',
+  '/candidat/candidatures',
   '/candidat/identite',
   '/candidat/recommandations',
 ];
 
 const BLOCKED_CANDIDATE_ROUTES = [
   '/candidat/test',
-  '/candidat/candidatures',
   '/candidat/demandes',
 ];
 
@@ -107,6 +107,23 @@ assert.doesNotMatch(candidateOffersPageSource, /CandidateFeatureComingSoon/);
 const candidateOfferDetailPageSource = readSource('app/candidat/offres/[offerId]/page.tsx');
 assert.match(candidateOfferDetailPageSource, /CandidateOfferDetail/);
 assert.doesNotMatch(candidateOfferDetailPageSource, /CandidateFeatureComingSoon/);
+
+const candidateApplicationsPageSource = readSource('app/candidat/candidatures/page.tsx');
+assert.match(candidateApplicationsPageSource, /CandidateApplicationsList/);
+assert.doesNotMatch(candidateApplicationsPageSource, /CandidateFeatureComingSoon/);
+
+const candidateApplicationDetailPageSource = readSource('app/candidat/candidatures/[applicationId]/page.tsx');
+assert.match(candidateApplicationDetailPageSource, /CandidateApplicationDetail/);
+assert.doesNotMatch(candidateApplicationDetailPageSource, /CandidateFeatureComingSoon/);
+
+const candidateApplicationQuestionnairePageSource = readSource('app/candidat/candidatures/[applicationId]/questionnaire/page.tsx');
+assert.match(candidateApplicationQuestionnairePageSource, /CandidateApplicationQuestionnaire/);
+assert.doesNotMatch(candidateApplicationQuestionnairePageSource, /CandidateFeatureComingSoon/);
+
+const candidateApplicationsListSource = readSource('components/candidate/CandidateApplicationsList.tsx');
+assert.match(candidateApplicationsListSource, /listApplicationsClient/);
+assert.match(candidateApplicationsListSource, /\/candidat\/candidatures\/\$\{encodeURIComponent\(application\.id\)\}/);
+assert.doesNotMatch(candidateApplicationsListSource, /CandidateFeatureComingSoon/);
 
 const candidateOffersListSource = readSource('components/candidate/CandidateOffersList.tsx');
 assert.match(candidateOffersListSource, /listCandidateOffersClient/);
