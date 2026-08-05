@@ -251,7 +251,8 @@ export default function CompanyApplicationDetailPage() {
   const questionnaireHasData = Boolean(questionnaire);
   const questionnaireEditorLink = application ? `/entreprise/offres/${application.offerId}/questionnaire` : null;
   const questionnaireSummary = formatQuestionnaireSummary(application?.companyAssessment ?? null);
-  const questionnaireSendLabel = application?.companyAssessment
+  const questionnaireSendLabel = application?.companyAssessment?.status
+    && application.companyAssessment.status !== 'not_started'
     ? 'Renvoyer le questionnaire'
     : 'Envoyer le questionnaire';
   const questionnaireActionHref = questionnaireAnswered

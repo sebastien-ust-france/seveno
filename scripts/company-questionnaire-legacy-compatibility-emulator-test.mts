@@ -458,7 +458,7 @@ const companyApplicationPageSource = readFileSync(
 );
 assert.match(
   companyApplicationPageSource,
-  /const questionnaireSendLabel = application\?\.companyAssessment\s*\? 'Renvoyer le questionnaire'\s*: 'Envoyer le questionnaire';/,
+  /const questionnaireSendLabel = application\?\.companyAssessment\?\.status\s*&& application\.companyAssessment\.status !== 'not_started'\s*\? 'Renvoyer le questionnaire'\s*: 'Envoyer le questionnaire';/,
 );
 
 console.log('Company questionnaire legacy compatibility emulator test: OK');
