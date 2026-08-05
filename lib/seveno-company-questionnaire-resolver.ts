@@ -6,6 +6,7 @@ type FirestoreRecord = Record<string, unknown>;
 
 export type CompanyQuestionnaireResolutionSource =
   | 'explicit_reference'
+  | 'explicit_legacy_reference'
   | 'offer_id'
   | 'offer_id_fallback';
 
@@ -14,6 +15,7 @@ export type ResolvedCompanyQuestionnaire = {
   source: CompanyQuestionnaireResolutionSource;
   conflictDetected: boolean;
   explicitReferenceMissing: boolean;
+  legacySourceOfferId: string | null;
   ref: DocumentReference;
   snapshot: DocumentSnapshot;
   data: FirestoreRecord;
@@ -42,10 +44,12 @@ function cleanId(value: unknown) {
   return id;
 }
 
-function assertQuestionnaireOwnership(
+async function resolveQuestionnaireOwnership(
+  firestore: Firestore,
   snapshot: DocumentSnapshot,
   offerId: string,
   companyUid: string,
+  allowLegacyExplicitReference: boolean,
 ) {
   const data = snapshot.data() as FirestoreRecord;
   if (data.companyUid !== companyUid) {
@@ -55,14 +59,34 @@ function assertQuestionnaireOwnership(
       'Ce questionnaire ne correspond pas a cette entreprise.',
     );
   }
-  if (data.offerId !== offerId) {
-    throw new SevenoCompanyQuestionnaireResolutionError(
-      'questionnaire_offer_mismatch',
-      409,
-      'Ce questionnaire ne correspond pas a cette offre.',
-    );
+  if (data.offerId === offerId) {
+    return { data, legacySourceOfferId: null };
   }
-  return data;
+
+  const legacySourceOfferId = cleanId(data.offerId);
+  if (allowLegacyExplicitReference && legacySourceOfferId === snapshot.id) {
+    const sourceOfferSnapshot = await firestore.collection('job_offers').doc(legacySourceOfferId).get();
+    const sourceOffer = sourceOfferSnapshot.data() as FirestoreRecord | undefined;
+    if (
+      sourceOfferSnapshot.exists
+      && sourceOffer?.companyUid === companyUid
+      && cleanId(sourceOffer.questionnaireId) === snapshot.id
+    ) {
+      console.warn('[SevenO questionnaire resolution]', {
+        code: 'questionnaire_legacy_source_offer_reference_used',
+        offerId,
+        questionnaireId: snapshot.id,
+        legacySourceOfferId,
+      });
+      return { data, legacySourceOfferId };
+    }
+  }
+
+  throw new SevenoCompanyQuestionnaireResolutionError(
+    'questionnaire_offer_mismatch',
+    409,
+    'Ce questionnaire ne correspond pas a cette offre.',
+  );
 }
 
 export async function resolveCompanyQuestionnaireForOffer(input: {
@@ -95,7 +119,13 @@ export async function resolveCompanyQuestionnaireForOffer(input: {
       : await Promise.all([explicitRef.get(), fallbackRef.get()]);
 
     if (explicitSnapshot.exists) {
-      const data = assertQuestionnaireOwnership(explicitSnapshot, offerId, companyUid);
+      const ownership = await resolveQuestionnaireOwnership(
+        input.firestore,
+        explicitSnapshot,
+        offerId,
+        companyUid,
+        true,
+      );
       const conflictDetected = explicitQuestionnaireId !== offerId && fallbackSnapshot.exists;
       if (conflictDetected) {
         console.warn('[SevenO questionnaire resolution]', {
@@ -107,17 +137,24 @@ export async function resolveCompanyQuestionnaireForOffer(input: {
       }
       return {
         questionnaireId: explicitQuestionnaireId,
-        source: 'explicit_reference',
+        source: ownership.legacySourceOfferId ? 'explicit_legacy_reference' : 'explicit_reference',
         conflictDetected,
         explicitReferenceMissing: false,
+        legacySourceOfferId: ownership.legacySourceOfferId,
         ref: explicitRef,
         snapshot: explicitSnapshot,
-        data,
+        data: ownership.data,
       };
     }
 
     if (fallbackSnapshot.exists) {
-      const data = assertQuestionnaireOwnership(fallbackSnapshot, offerId, companyUid);
+      const ownership = await resolveQuestionnaireOwnership(
+        input.firestore,
+        fallbackSnapshot,
+        offerId,
+        companyUid,
+        false,
+      );
       console.warn('[SevenO questionnaire resolution]', {
         code: 'questionnaire_explicit_reference_missing_fallback_used',
         offerId,
@@ -129,9 +166,10 @@ export async function resolveCompanyQuestionnaireForOffer(input: {
         source: 'offer_id_fallback',
         conflictDetected: false,
         explicitReferenceMissing: true,
+        legacySourceOfferId: null,
         ref: fallbackRef,
         snapshot: fallbackSnapshot,
-        data,
+        data: ownership.data,
       };
     }
 
@@ -143,14 +181,21 @@ export async function resolveCompanyQuestionnaireForOffer(input: {
   if (!fallbackSnapshot.exists) {
     return null;
   }
-  const data = assertQuestionnaireOwnership(fallbackSnapshot, offerId, companyUid);
+  const ownership = await resolveQuestionnaireOwnership(
+    input.firestore,
+    fallbackSnapshot,
+    offerId,
+    companyUid,
+    false,
+  );
   return {
     questionnaireId: offerId,
     source: 'offer_id',
     conflictDetected: false,
     explicitReferenceMissing: false,
+    legacySourceOfferId: null,
     ref: fallbackRef,
     snapshot: fallbackSnapshot,
-    data,
+    data: ownership.data,
   };
 }

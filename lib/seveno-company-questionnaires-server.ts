@@ -403,6 +403,9 @@ export async function getCompanyQuestionnairePromptContext(companyUid: string, o
     requiredPrerequisites: groups.requiredJobSkills,
     preferredPrerequisites: groups.preferredJobSkills,
   };
+  const promptQuestionnaire = questionnaire && resolved?.legacySourceOfferId
+    ? { ...questionnaire, offerId: offer.id }
+    : questionnaire;
   if (process.env.NODE_ENV === 'development') {
     console.info('[SevenO company questionnaire context]', {
       step: 'company_questionnaire_prompt_context',
@@ -425,7 +428,7 @@ export async function getCompanyQuestionnairePromptContext(companyUid: string, o
   return {
     offer,
     questionnaire,
-    aiPrompt: buildCompanyQuestionnaireAiPrompt(promptOffer, questionnaire),
+    aiPrompt: buildCompanyQuestionnaireAiPrompt(promptOffer, promptQuestionnaire),
   };
 }
 
@@ -437,10 +440,11 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
   const firestore = requireDatabase();
   const resolved = await resolveQuestionnaireDocument(offer, companyUid);
   const ref = resolved?.ref ?? firestore.collection(COLLECTION).doc(offer.id);
+  const questionnaireOfferId = resolved?.legacySourceOfferId ?? offer.id;
   const offerRef = firestore.collection(OFFERS_COLLECTION).doc(offer.id);
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
-    if (snapshot.exists && (snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== offer.id)) {
+    if (snapshot.exists && (snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== questionnaireOfferId)) {
       throw new SevenoCompanyQuestionnaireError('forbidden_questionnaire', 403, 'Ce questionnaire ne vous appartient pas.');
     }
     const existingQuestions = snapshot.exists && Array.isArray(snapshot.data()?.questions)
@@ -454,7 +458,7 @@ export async function saveCompanyQuestionnaire(companyUid: string, offerId: stri
     const version = snapshot.exists && typeof snapshot.data()?.version === 'number' ? snapshot.data()!.version + 1 : 1;
     const stored = {
       companyUid,
-      offerId: offer.id,
+      offerId: questionnaireOfferId,
       offerVersion: offer.version,
       ...input,
       creationMode: input.creationMode ?? 'manual',
@@ -484,10 +488,11 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
     throw new SevenoCompanyQuestionnaireError('questionnaire_not_found', 404, 'Questionnaire introuvable.');
   }
   const ref = resolved.ref;
+  const questionnaireOfferId = resolved.legacySourceOfferId ?? offer.id;
   const offerRef = firestore.collection(OFFERS_COLLECTION).doc(offer.id);
   return firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
-    if (!snapshot.exists || snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== offer.id) {
+    if (!snapshot.exists || snapshot.data()?.companyUid !== companyUid || snapshot.data()?.offerId !== questionnaireOfferId) {
       throw new SevenoCompanyQuestionnaireError('questionnaire_not_found', 404, 'Questionnaire introuvable.');
     }
     const data = snapshot.data() as FirestoreRecord;

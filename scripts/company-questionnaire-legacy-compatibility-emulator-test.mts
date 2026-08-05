@@ -82,6 +82,17 @@ function buildQuestions(count = 20) {
   }));
 }
 
+function buildQuestionnaireInput(title: string) {
+  return {
+    title,
+    instructions: 'Repondez aux questions.',
+    creationMode: 'manual',
+    minimumPassingScorePercent: 60,
+    durationMinutes: null,
+    questions: buildQuestions(),
+  };
+}
+
 async function seedCompany(companyUid: string, role = 'company') {
   await adminDb.collection('users').doc(companyUid).set({
     uid: companyUid,
@@ -214,6 +225,81 @@ assert.equal((await listCompanyQuestionnaires(companyUid)).questionnaires.some((
 assert.equal((await adminDb.collection('company_questionnaires').get()).size, topLevelBefore.size);
 assert.equal((await adminDb.collection('company_questionnaires').doc(offerId).get()).exists, false);
 
+const legacySourceOfferId = `questionnaire-shared-${runId}`;
+const legacyTargetOfferId = `offer-shared-${runId}`;
+await seedOffer({
+  offerId: legacySourceOfferId,
+  companyUid,
+  questionnaireId: legacySourceOfferId,
+  questionnaireVersion: 1,
+});
+await seedQuestionnaire({
+  questionnaireId: legacySourceOfferId,
+  offerId: legacySourceOfferId,
+  companyUid,
+});
+await seedOffer({
+  offerId: legacyTargetOfferId,
+  companyUid,
+  questionnaireId: legacySourceOfferId,
+  questionnaireVersion: 1,
+});
+const sharedLegacy = await resolveCompanyQuestionnaireForOffer({
+  firestore: adminDb,
+  offerId: legacyTargetOfferId,
+  companyUid,
+  offer: { id: legacyTargetOfferId, companyUid, questionnaireId: legacySourceOfferId },
+});
+assert.equal(sharedLegacy?.questionnaireId, legacySourceOfferId);
+assert.equal(sharedLegacy?.source, 'explicit_legacy_reference');
+assert.equal(sharedLegacy?.legacySourceOfferId, legacySourceOfferId);
+assert.equal((await getCompanyQuestionnaire(companyUid, legacyTargetOfferId))?.id, legacySourceOfferId);
+const sharedLegacySaved = await saveCompanyQuestionnaire(
+  companyUid,
+  legacyTargetOfferId,
+  buildQuestionnaireInput('Questionnaire historique partage'),
+);
+assert.equal(sharedLegacySaved.id, legacySourceOfferId);
+assert.equal(sharedLegacySaved.offerId, legacySourceOfferId);
+assert.equal((await adminDb.collection('company_questionnaires').doc(legacyTargetOfferId).get()).exists, false);
+assert.equal(
+  (await adminDb.collection('job_offers').doc(legacyTargetOfferId).get()).get('questionnaireId'),
+  legacySourceOfferId,
+);
+await activateCompanyQuestionnaire(companyUid, legacyTargetOfferId);
+
+const sharedLegacyApplicationId = `application-shared-${runId}`;
+await adminDb.collection('job_applications').doc(sharedLegacyApplicationId).set({
+  id: sharedLegacyApplicationId,
+  candidateUid,
+  companyUid,
+  offerId: legacyTargetOfferId,
+  offerVersion: 1,
+  publicCandidateId: `SEV-CAND-SHARED-${runId}`,
+  jobRoleId: 'developer',
+  status: 'submitted',
+  offerSnapshot: {
+    title: 'Developpeur full stack',
+    sectorId: 'technology',
+    jobFamilyId: 'engineering',
+    jobRoleId: 'developer',
+    questionnaireRequired: true,
+    questionnaireId: legacySourceOfferId,
+    questionnaireVersion: 2,
+  },
+  requiredResult: { allSatisfied: true, total: 0, satisfied: 0, answers: [] },
+  preferredResult: { total: 0, satisfied: 0, answers: [] },
+  createdAt: now,
+  updatedAt: now,
+});
+const sharedLegacyStarted = await startCandidateApplicationQuestionnaire(candidateUid, sharedLegacyApplicationId);
+assert.equal(sharedLegacyStarted.questionnaire?.questions.length, 20);
+const sharedLegacySessions = await adminDb.collection('test_sessions')
+  .where('applicationId', '==', sharedLegacyApplicationId)
+  .get();
+assert.equal(sharedLegacySessions.size, 1);
+assert.equal(sharedLegacySessions.docs[0]?.get('questionnaireId'), legacySourceOfferId);
+
 const currentOfferId = `offer-current-${runId}`;
 await seedOffer({ offerId: currentOfferId, companyUid });
 await seedQuestionnaire({ questionnaireId: currentOfferId, offerId: currentOfferId, companyUid });
@@ -301,14 +387,7 @@ await assert.rejects(
   hasResolutionCode('questionnaire_offer_mismatch'),
 );
 
-const input = {
-  title: 'Questionnaire historique conserve',
-  instructions: 'Repondez aux questions.',
-  creationMode: 'manual',
-  minimumPassingScorePercent: 60,
-  durationMinutes: null,
-  questions: buildQuestions(),
-};
+const input = buildQuestionnaireInput('Questionnaire historique conserve');
 const saved = await saveCompanyQuestionnaire(companyUid, offerId, input);
 assert.equal(saved.id, questionnaireId);
 assert.equal(saved.version, 2);

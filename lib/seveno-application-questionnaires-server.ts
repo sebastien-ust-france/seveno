@@ -489,7 +489,11 @@ async function loadQuestionnaireBundle(application: QuestionnaireApplicationReco
     );
   }
   const versionData = versionSnapshot.data() as FirestoreRecord;
-  if (versionData.companyUid !== application.companyUid || versionData.offerId !== application.offerId) {
+  const expectedVersionOfferIds = new Set([
+    application.offerId,
+    ...(resolved.legacySourceOfferId ? [resolved.legacySourceOfferId] : []),
+  ]);
+  if (versionData.companyUid !== application.companyUid || !expectedVersionOfferIds.has(String(versionData.offerId ?? ''))) {
     throw new SevenoApplicationQuestionnaireError(
       'questionnaire_forbidden',
       403,
