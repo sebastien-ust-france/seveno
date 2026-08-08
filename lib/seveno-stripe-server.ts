@@ -11,6 +11,7 @@ import {
   SevenoBillingError,
 } from '@/lib/seveno-billing-server';
 import type { BillingProductCode, CompanyMembershipRole } from '@/types/seveno-billing';
+import { CURRENT_COMPANY_SALES_TERMS_VERSION, requireCurrentCompanySalesTermsAcceptance } from '@/lib/seveno-company-sales-terms-server';
 
 const CHECKOUT_ROLES: readonly CompanyMembershipRole[] = ['owner', 'admin', 'billing_manager'];
 export type StripeEnvironment = 'test' | 'live';
@@ -275,6 +276,7 @@ export async function getOrCreateStripeCustomer(input: Pick<CheckoutInput, 'comp
 
 export async function createStripeCheckout(input: CheckoutInput) {
   assertCheckoutRole(input.actorRole);
+  await requireCurrentCompanySalesTermsAcceptance(input.companyId);
   const config = getStripeCheckoutConfig();
   const environment = config.environment;
   const product = LAUNCH_BILLING_PRODUCTS[input.productCode];
@@ -287,13 +289,15 @@ export async function createStripeCheckout(input: CheckoutInput) {
   const now = Timestamp.now();
   await orderRef.create({
     orderId, companyId: input.companyId, createdByUid: input.actorUid, productCode: input.productCode, catalogVersion: LAUNCH_CATALOG_VERSION,
+    salesTermsVersion: CURRENT_COMPANY_SALES_TERMS_VERSION,
     status: 'pending', provider: 'stripe', providerEnvironment: environment, unitAmountExcludingTax: product.unitAmountExcludingTax, currency: 'eur',
     ...(input.campaignId ? { campaignId: input.campaignId } : {}), providerCustomerId: customerId, providerCheckoutSessionId: null,
     providerPaymentIntentId: null, providerInvoiceId: null, entitlementApplied: false, entitlementAppliedAt: null,
     idempotencyKey, createdAt: now, updatedAt: now,
   }).catch(async (error: unknown) => { if ((error as { code?: number }).code !== 6) throw error; });
   const current = await orderRef.get();
-  if (!current.exists || current.get('idempotencyKey') !== idempotencyKey || current.get('companyId') !== input.companyId) throw new SevenoStripeError('order_conflict', 409, 'La commande est en conflit.');
+  if (!current.exists || current.get('idempotencyKey') !== idempotencyKey || current.get('companyId') !== input.companyId
+    || current.get('salesTermsVersion') !== CURRENT_COMPANY_SALES_TERMS_VERSION) throw new SevenoStripeError('order_conflict', 409, 'La commande est en conflit.');
   assertStripeProviderEnvironment(current.get('providerEnvironment'), environment, 'commande Stripe');
   const existingSessionId = current.get('providerCheckoutSessionId');
   if (typeof existingSessionId === 'string' && existingSessionId) {
@@ -303,7 +307,7 @@ export async function createStripeCheckout(input: CheckoutInput) {
     if (existingSession.url && existingSession.status === 'open') return { orderId, checkoutSessionId: existingSession.id, checkoutUrl: existingSession.url };
   }
   const origin = config.publicOrigin;
-  const metadata = { integration: 'seveno', orderId, companyId: input.companyId, productCode: input.productCode, catalogVersion: LAUNCH_CATALOG_VERSION, environment };
+  const metadata = { integration: 'seveno', orderId, companyId: input.companyId, productCode: input.productCode, catalogVersion: LAUNCH_CATALOG_VERSION, salesTermsVersion: CURRENT_COMPANY_SALES_TERMS_VERSION, environment };
   const session = await config.stripe.checkout.sessions.create({
     mode: 'payment', line_items: [{ price: config.priceIds[input.productCode], quantity: 1 }], customer: customerId,
     automatic_tax: { enabled: true }, tax_id_collection: { enabled: true }, billing_address_collection: 'required',
@@ -357,10 +361,12 @@ async function processVerifiedStripePaymentEvent(sessionId: string, expectedOrde
     || session.currency !== 'eur' || session.amount_subtotal !== LAUNCH_BILLING_PRODUCTS[productCode].unitAmountExcludingTax
     || customerId !== order.get('providerCustomerId') || customerId !== account.get(`stripeCustomerIds.${environment}`) || session.payment_status !== 'paid'
     || session.metadata?.orderId !== orderId || session.metadata.companyId !== order.get('companyId') || session.metadata.productCode !== productCode
-    || session.metadata.catalogVersion !== LAUNCH_CATALOG_VERSION || session.amount_total !== session.amount_subtotal + amountTax) {
+    || session.metadata.catalogVersion !== LAUNCH_CATALOG_VERSION || session.metadata.salesTermsVersion !== order.get('salesTermsVersion')
+    || order.get('salesTermsVersion') !== CURRENT_COMPANY_SALES_TERMS_VERSION || session.amount_total !== session.amount_subtotal + amountTax) {
     throw new SevenoStripeError('stripe_payment_mismatch', 409, 'Le paiement Stripe ne correspond pas à la commande.');
   }
-  await orderRef.update({ status: 'paid', providerPaymentIntentId: stripeId(session.payment_intent), providerInvoiceId: stripeId(session.invoice), amountSubtotal: session.amount_subtotal, amountTax: session.total_details?.amount_tax ?? 0, amountTotal: session.amount_total, currency: session.currency, updatedAt: Timestamp.now() });
+  const paidAt = order.get('paidAt') instanceof Timestamp ? order.get('paidAt') as Timestamp : Timestamp.now();
+  await orderRef.update({ status: 'paid', paidAt, providerPaymentIntentId: stripeId(session.payment_intent), providerInvoiceId: stripeId(session.invoice), amountSubtotal: session.amount_subtotal, amountTax: session.total_details?.amount_tax ?? 0, amountTotal: session.amount_total, currency: session.currency, updatedAt: Timestamp.now() });
   await applyBillingEntitlement({ orderId, companyId: String(order.get('companyId')), actor: { uid: null, type: 'stripe_webhook' } });
   return { orderId, sessionId: session.id };
 }

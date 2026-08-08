@@ -73,6 +73,6 @@ assert.match(adminSource, /credential:\s*applicationDefault\(\)/);
 assert.match(adminSource, /getFirestore\(adminApp\)/);
 assert.match(adminSource, /getAuth\(adminApp\)/);
 assert.doesNotMatch(hostingSource, /FIREBASE_ADMIN_PRIVATE_KEY|FIREBASE_ADMIN_CLIENT_EMAIL|GOOGLE_APPLICATION_CREDENTIALS/);
-assert.match(hostingSource, /variable:\s*STRIPE_CHECKOUT_ENABLED\s+value:\s*["']?false["']?/);
+assert.match(hostingSource, /variable:\s*STRIPE_CHECKOUT_ENABLED\s+value:\s*["']?true["']?/);
 
 console.log('Firebase Admin ADC smoke test passed.');

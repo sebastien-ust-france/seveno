@@ -22,6 +22,11 @@ export function getRecruitmentDashboardClient(user: User) {
 export function createStripeCheckoutClient(user: User, input: { productCode: BillingProductCode; campaignId?: string; requestId: string }) {
   return fetchSevenoMatchApi<{ orderId: string; checkoutSessionId: string; checkoutUrl: string }>(user, '/api/seveno/billing/checkout', { method: 'POST', headers: companyHeaders(), body: JSON.stringify(input) });
 }
+export function acceptCompanySalesTermsClient(user: User) {
+  return fetchSevenoMatchApi<{ termsType: 'company_sales_terms'; version: '1.0'; acceptedAt: string }>(user, '/api/seveno/billing/terms', {
+    method: 'POST', headers: companyHeaders(), body: '{}',
+  });
+}
 export function getBillingOrderStatusClient(user: User, orderId: string, signal?: AbortSignal) {
   return fetchSevenoMatchApi<BillingOrderStatusView>(user, `/api/seveno/billing/orders/${encodeURIComponent(orderId)}`, { headers: companyHeaders(), signal });
 }

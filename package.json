@@ -23,6 +23,7 @@
     "test:firebase-admin-adc": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/firebase-admin-adc-smoke-test.mts",
     "test:stripe-checkout": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-smoke-test.mts",
     "test:stripe-checkout:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-emulator-test.mts",
+    "test:company-sales-terms": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-sales-terms-smoke-test.mts",
     "stripe:test-catalog:audit": "node --env-file=.env.local --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-test-catalog-audit.mts",
     "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
     "test:offer-lifecycle": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offer-lifecycle-smoke-test.mts",

@@ -29,8 +29,8 @@ function db() {
 }
 
 function keyId(value: string) { return createHash('sha256').update(value).digest('hex'); }
-function accountDefaults(companyId: string, now: Timestamp) {
-  return { companyId, availableCredits: 0, lifetimeGrantedCredits: 0, lifetimePurchasedCredits: 0, lifetimeConsumedCredits: 0, lifetimeRestoredCredits: 0, activeCampaignCount: 0, createdAt: now, updatedAt: now };
+function accountDefaults(companyId: string, now: Timestamp): RecordValue {
+  return { companyId, availableCredits: 0, lifetimeGrantedCredits: 0, lifetimePurchasedCredits: 0, lifetimeConsumedCredits: 0, lifetimeRestoredCredits: 0, lifetimeExpiredCredits: 0, activeCampaignCount: 0, createdAt: now, updatedAt: now };
 }
 
 export async function ensureLaunchBillingCatalog() {
@@ -45,9 +45,40 @@ function ledgerRef(firestore: Firestore, companyId: string, idempotencyKey: stri
   return firestore.collection('company_billing_accounts').doc(companyId).collection('credit_ledger').doc(keyId(idempotencyKey));
 }
 
+function creditLotsCollection(firestore: Firestore, companyId: string) {
+  return firestore.collection('company_billing_accounts').doc(companyId).collection('credit_lots');
+}
+
+export function addCalendarMonths(timestamp: Timestamp, months: number) {
+  const source = timestamp.toDate();
+  const targetMonthIndex = source.getUTCMonth() + months;
+  const targetYear = source.getUTCFullYear() + Math.floor(targetMonthIndex / 12);
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const result = new Date(Date.UTC(
+    targetYear,
+    targetMonth,
+    Math.min(source.getUTCDate(), lastDay),
+    source.getUTCHours(),
+    source.getUTCMinutes(),
+    source.getUTCSeconds(),
+    source.getUTCMilliseconds(),
+  ));
+  return Timestamp.fromDate(result);
+}
+
+export function resolvePurchasedCreditExpirationWarningDays(expiresAtMillis: number | null, nowMillis: number): 60 | 30 | null {
+  if (expiresAtMillis === null) return null;
+  const days = Math.ceil((expiresAtMillis - nowMillis) / 86400000);
+  if (days <= 30) return 30;
+  if (days <= 60) return 60;
+  return null;
+}
+
 async function applyCreditMovementInTransaction(transaction: Transaction, firestore: Firestore, input: {
   companyId: string; quantity: number; type: CreditLedgerType; idempotencyKey: string; actor: Actor; reason?: string;
   offerId?: string; campaignId?: string; orderId?: string; productCode?: BillingProductCode; unitAmountExcludingTax?: number;
+  creditLotId?: string;
   activeCampaignDelta?: number;
 }) {
   if (!Number.isInteger(input.quantity) || input.quantity === 0) throw new SevenoBillingError('invalid_credit_quantity', 400, 'Mouvement de crédit invalide.');
@@ -73,6 +104,7 @@ async function applyCreditMovementInTransaction(transaction: Transaction, firest
     ...(input.actor.membershipRole ? { actorMembershipRole: input.actor.membershipRole } : {}),
     ...(input.offerId ? { offerId: input.offerId } : {}), ...(input.campaignId ? { campaignId: input.campaignId } : {}),
     ...(input.orderId ? { orderId: input.orderId } : {}), ...(input.productCode ? { productCode: input.productCode } : {}),
+    ...(input.creditLotId ? { creditLotId: input.creditLotId } : {}),
     catalogVersion: LAUNCH_CATALOG_VERSION, ...(input.unitAmountExcludingTax !== undefined ? { unitAmountExcludingTax: input.unitAmountExcludingTax } : {}),
     currency: 'eur', ...(input.reason ? { reason: input.reason } : {}), idempotencyKey: input.idempotencyKey, createdAt: now,
   });
@@ -111,10 +143,92 @@ export async function activateCampaignInTransaction(transaction: Transaction, fi
     return { campaignId, ledgerEntryId: String(campaign.get('creditLedgerEntryId')), created: false };
   }
   const idempotencyKey = `campaign_activation:${input.companyId}:${input.offerId}`;
-  const movement = await applyCreditMovementInTransaction(transaction, firestore, {
-    companyId: input.companyId, quantity: -1, type: 'campaign_activation', idempotencyKey,
-    actor: { uid: input.actorUid, type: 'company_member', membershipRole: input.actorMembershipRole }, offerId: input.offerId, campaignId,
-    activeCampaignDelta: 1,
+  const accountRef = firestore.collection('company_billing_accounts').doc(input.companyId);
+  const movementRef = ledgerRef(firestore, input.companyId, idempotencyKey);
+  const expiredQuery = creditLotsCollection(firestore, input.companyId).where('expiresAt', '<=', input.now).orderBy('expiresAt', 'asc');
+  const activeQuery = creditLotsCollection(firestore, input.companyId).where('expiresAt', '>', input.now).orderBy('expiresAt', 'asc');
+  const [account, existingMovement, expiredLots, activeLots] = await Promise.all([
+    transaction.get(accountRef),
+    transaction.get(movementRef),
+    transaction.get(expiredQuery),
+    transaction.get(activeQuery),
+  ]);
+  if (existingMovement.exists) {
+    return { campaignId, ledgerEntryId: movementRef.id, created: false };
+  }
+  const expirableLots = expiredLots.docs.filter((lot) => Number(lot.get('remainingQuantity') ?? 0) > 0);
+  const expirationEntries = await Promise.all(expirableLots.map((lot) => transaction.get(
+    ledgerRef(firestore, input.companyId, `purchase_expiration:${input.companyId}:${lot.id}`),
+  )));
+  const current = account.exists ? account.data() as RecordValue : accountDefaults(input.companyId, input.now);
+  let balance = Number(current.availableCredits ?? 0);
+  let expiredQuantity = 0;
+  expirableLots.forEach((lot, index) => {
+    if (expirationEntries[index].exists) return;
+    const quantity = Number(lot.get('remainingQuantity') ?? 0);
+    if (!Number.isSafeInteger(quantity) || quantity < 1) return;
+    if (balance < quantity) throw new SevenoBillingError('billing_balance_inconsistent', 409, 'Le solde de crédits est incohérent avec les lots achetés.');
+    const before = balance;
+    balance -= quantity;
+    expiredQuantity += quantity;
+    const expirationRef = expirationEntries[index].ref;
+    transaction.create(expirationRef, {
+      entryId: expirationRef.id,
+      companyId: input.companyId,
+      type: 'purchase_expiration',
+      quantity: -quantity,
+      balanceBefore: before,
+      balanceAfter: balance,
+      actorUid: null,
+      actorType: 'system',
+      orderId: lot.get('orderId'),
+      productCode: lot.get('productCode'),
+      providerEnvironment: lot.get('providerEnvironment'),
+      creditLotId: lot.id,
+      catalogVersion: LAUNCH_CATALOG_VERSION,
+      currency: 'eur',
+      idempotencyKey: `purchase_expiration:${input.companyId}:${lot.id}`,
+      createdAt: input.now,
+    });
+    transaction.update(lot.ref, { remainingQuantity: 0, expiredAt: input.now, updatedAt: input.now });
+  });
+  if (balance < 1) throw new SevenoBillingError('insufficient_credits', 409, 'Crédit de recrutement insuffisant.');
+  const fifoLot = activeLots.docs.find((lot) => Number(lot.get('remainingQuantity') ?? 0) > 0);
+  if (fifoLot) {
+    transaction.update(fifoLot.ref, {
+      remainingQuantity: Number(fifoLot.get('remainingQuantity')) - 1,
+      updatedAt: input.now,
+    });
+  }
+  const balanceBeforeActivation = balance;
+  balance -= 1;
+  const update: RecordValue = {
+    ...current,
+    companyId: input.companyId,
+    availableCredits: balance,
+    lifetimeConsumedCredits: Number(current.lifetimeConsumedCredits ?? 0) + 1,
+    lifetimeExpiredCredits: Number(current.lifetimeExpiredCredits ?? 0) + expiredQuantity,
+    activeCampaignCount: Number(current.activeCampaignCount ?? 0) + 1,
+    updatedAt: input.now,
+  };
+  transaction.set(accountRef, update);
+  transaction.create(movementRef, {
+    entryId: movementRef.id,
+    companyId: input.companyId,
+    type: 'campaign_activation',
+    quantity: -1,
+    balanceBefore: balanceBeforeActivation,
+    balanceAfter: balance,
+    actorUid: input.actorUid,
+    actorType: 'company_member',
+    actorMembershipRole: input.actorMembershipRole,
+    offerId: input.offerId,
+    campaignId,
+    ...(fifoLot ? { creditLotId: fifoLot.id, orderId: fifoLot.get('orderId') } : {}),
+    catalogVersion: LAUNCH_CATALOG_VERSION,
+    currency: 'eur',
+    idempotencyKey,
+    createdAt: input.now,
   });
   const endsAt = Timestamp.fromMillis(input.now.toMillis() + 60 * 24 * 60 * 60 * 1000);
   transaction.set(campaignRef, {
@@ -122,11 +236,11 @@ export async function activateCampaignInTransaction(transaction: Transaction, fi
     baseDurationDays: 60, purchasedExtensionDays: 0, simultaneousCandidateLimit: 5,
     baseQualifiedCandidateLimit: 20, purchasedQualifiedCandidateCapacity: 0, effectiveQualifiedCandidateLimit: 20,
     activeCandidateCount: 0, deliveredCandidateCount: 0, queuedCandidateCount: 0,
-    creditLedgerEntryId: movement.entryId, catalogVersion: LAUNCH_CATALOG_VERSION,
+    creditLedgerEntryId: movementRef.id, ...(fifoLot ? { creditLotId: fifoLot.id } : {}), catalogVersion: LAUNCH_CATALOG_VERSION,
     createdByUid: input.actorUid, lastUpdatedByUid: input.actorUid,
     createdAt: campaign.get('createdAt') ?? input.now, updatedAt: input.now,
   }, { merge: true });
-  return { campaignId, ledgerEntryId: movement.entryId, created: movement.applied };
+  return { campaignId, ledgerEntryId: movementRef.id, created: true };
 }
 
 export async function createManualBillingOrder(input: {
@@ -161,11 +275,36 @@ export async function applyBillingEntitlement(input: { orderId: string; companyI
     if (!product) throw new SevenoBillingError('invalid_product', 409, 'Produit inconnu.');
     const now = Timestamp.now();
     if (product.type === 'credit_pack') {
+      const isStripePurchase = order.get('provider') === 'stripe' && input.actor.type === 'stripe_webhook';
+      const paidAt = order.get('paidAt');
+      if (isStripePurchase && !(paidAt instanceof Timestamp)) {
+        throw new SevenoBillingError('order_paid_at_missing', 409, 'La date de paiement de la commande est absente.');
+      }
+      const lotRef = creditLotsCollection(firestore, input.companyId).doc(input.orderId);
+      const existingLot = isStripePurchase ? await transaction.get(lotRef) : null;
       await applyCreditMovementInTransaction(transaction, firestore, {
         companyId: input.companyId, quantity: product.creditQuantity, type: input.actor.type === 'seveno_admin' ? 'admin_grant' : 'purchase',
         idempotencyKey: `order_entitlement:${input.companyId}:${input.orderId}`, actor: input.actor, orderId: input.orderId,
         productCode, unitAmountExcludingTax: product.unitAmountExcludingTax, reason: String(order.get('reason') ?? ''),
+        ...(isStripePurchase ? { creditLotId: lotRef.id } : {}),
       });
+      if (isStripePurchase && !existingLot?.exists) {
+        const acquiredAt = paidAt as Timestamp;
+        transaction.create(lotRef, {
+          creditLotId: lotRef.id,
+          companyId: input.companyId,
+          orderId: input.orderId,
+          productCode,
+          providerEnvironment: order.get('providerEnvironment'),
+          quantityGranted: product.creditQuantity,
+          remainingQuantity: product.creditQuantity,
+          acquiredAt,
+          expiresAt: addCalendarMonths(acquiredAt, 24),
+          expiredAt: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
     } else {
       const campaignId = String(order.get('campaignId') ?? '');
       const campaignRef = firestore.collection('recruitment_campaigns').doc(campaignId);
@@ -185,22 +324,84 @@ export async function applyBillingEntitlement(input: { orderId: string; companyI
   });
 }
 
+async function reconcileExpiredPurchasedCreditLots(companyId: string, now: Timestamp) {
+  const firestore = db();
+  await firestore.runTransaction(async (transaction) => {
+    const accountRef = firestore.collection('company_billing_accounts').doc(companyId);
+    const [account, expiredLots] = await Promise.all([
+      transaction.get(accountRef),
+      transaction.get(creditLotsCollection(firestore, companyId).where('expiresAt', '<=', now).orderBy('expiresAt', 'asc')),
+    ]);
+    const expirableLots = expiredLots.docs.filter((lot) => Number(lot.get('remainingQuantity') ?? 0) > 0);
+    if (!expirableLots.length) return;
+    const expirationEntries = await Promise.all(expirableLots.map((lot) => transaction.get(
+      ledgerRef(firestore, companyId, `purchase_expiration:${companyId}:${lot.id}`),
+    )));
+    const current = account.exists ? account.data() as RecordValue : accountDefaults(companyId, now);
+    let balance = Number(current.availableCredits ?? 0);
+    let expiredQuantity = 0;
+    expirableLots.forEach((lot, index) => {
+      if (expirationEntries[index].exists) return;
+      const quantity = Number(lot.get('remainingQuantity') ?? 0);
+      if (!Number.isSafeInteger(quantity) || quantity < 1) return;
+      if (balance < quantity) throw new SevenoBillingError('billing_balance_inconsistent', 409, 'Le solde de crédits est incohérent avec les lots achetés.');
+      const before = balance;
+      balance -= quantity;
+      expiredQuantity += quantity;
+      const entryRef = expirationEntries[index].ref;
+      transaction.create(entryRef, {
+        entryId: entryRef.id,
+        companyId,
+        type: 'purchase_expiration',
+        quantity: -quantity,
+        balanceBefore: before,
+        balanceAfter: balance,
+        actorUid: null,
+        actorType: 'system',
+        orderId: lot.get('orderId'),
+        productCode: lot.get('productCode'),
+        providerEnvironment: lot.get('providerEnvironment'),
+        creditLotId: lot.id,
+        catalogVersion: LAUNCH_CATALOG_VERSION,
+        currency: 'eur',
+        idempotencyKey: `purchase_expiration:${companyId}:${lot.id}`,
+        createdAt: now,
+      });
+      transaction.update(lot.ref, { remainingQuantity: 0, expiredAt: now, updatedAt: now });
+    });
+    transaction.set(accountRef, {
+      ...current,
+      companyId,
+      availableCredits: balance,
+      lifetimeExpiredCredits: Number(current.lifetimeExpiredCredits ?? 0) + expiredQuantity,
+      updatedAt: now,
+    });
+  });
+}
+
 export async function getCompanyBillingView(companyId: string) {
   await ensureLaunchBillingCatalog();
   const firestore = db();
-  const [account, ledger, campaigns] = await Promise.all([
+  const now = Timestamp.now();
+  await reconcileExpiredPurchasedCreditLots(companyId, now);
+  const [account, ledger, campaigns, purchasedLots] = await Promise.all([
     firestore.collection('company_billing_accounts').doc(companyId).get(),
     firestore.collection('company_billing_accounts').doc(companyId).collection('credit_ledger').orderBy('createdAt', 'desc').limit(100).get(),
     firestore.collection('recruitment_campaigns').where('companyId', '==', companyId).get(),
+    creditLotsCollection(firestore, companyId).where('expiresAt', '>', now).orderBy('expiresAt', 'asc').get(),
   ]);
   const current = account.exists ? account.data() as RecordValue : accountDefaults(companyId, Timestamp.now());
+  const nextLot = purchasedLots.docs.find((lot) => Number(lot.get('remainingQuantity') ?? 0) > 0);
+  const nextExpiration = nextLot?.get('expiresAt') instanceof Timestamp ? nextLot.get('expiresAt') as Timestamp : null;
   return {
-    ...current, companyId, catalogVersion: LAUNCH_CATALOG_VERSION, products: LAUNCH_BILLING_PRODUCTS,
+    ...current, companyId, lifetimeExpiredCredits: Number(current.lifetimeExpiredCredits ?? 0), catalogVersion: LAUNCH_CATALOG_VERSION, products: LAUNCH_BILLING_PRODUCTS,
     ledger: ledger.docs.map((doc) => ({ ...doc.data(), createdAt: (doc.get('createdAt') as Timestamp).toDate().toISOString() })),
     campaigns: campaigns.docs.map((doc) => ({
       ...doc.data(), campaignId: doc.id,
       startedAt: (doc.get('startedAt') as Timestamp).toDate().toISOString(),
       endsAt: (doc.get('endsAt') as Timestamp).toDate().toISOString(),
     })),
+    nextPurchasedCreditExpirationAt: nextExpiration?.toDate().toISOString() ?? null,
+    purchasedCreditExpirationWarningDays: resolvePurchasedCreditExpirationWarningDays(nextExpiration?.toMillis() ?? null, now.toMillis()),
   };
 }

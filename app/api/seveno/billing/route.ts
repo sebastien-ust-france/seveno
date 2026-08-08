@@ -5,6 +5,10 @@ import { getCompanyBillingView, SevenoBillingError } from '@/lib/seveno-billing-
 import { isStripeCheckoutReady } from '@/lib/seveno-stripe-server';
 import { canPurchaseCompanyCredits } from '@/lib/seveno-company-roles';
 import { adminDb } from '@/lib/firebase-admin';
+import {
+  CURRENT_COMPANY_SALES_TERMS_VERSION,
+  getCurrentCompanySalesTermsAcceptance,
+} from '@/lib/seveno-company-sales-terms-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +17,10 @@ export async function GET(request: NextRequest) {
   try {
     const token = await requireSevenoApiToken(request);
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'billing_manager', 'viewer'] });
-    const billing = await getCompanyBillingView(membership.companyId);
+    const [billing, salesTermsAcceptance] = await Promise.all([
+      getCompanyBillingView(membership.companyId),
+      getCurrentCompanySalesTermsAcceptance(membership.companyId),
+    ]);
     let campaigns = billing.campaigns;
     if (membership.role === 'recruiter') {
       if (!adminDb) throw new Error('Firebase Admin indisponible.');
@@ -29,6 +36,9 @@ export async function GET(request: NextRequest) {
       membershipRole: membership.role,
       canPurchaseCredits: canPurchaseCompanyCredits(membership),
       stripeCheckoutEnabled: isStripeCheckoutReady(),
+      companySalesTermsVersion: CURRENT_COMPANY_SALES_TERMS_VERSION,
+      companySalesTermsAccepted: Boolean(salesTermsAcceptance),
+      companySalesTermsAcceptedAt: salesTermsAcceptance?.acceptedAt.toDate().toISOString() ?? null,
     });
   } catch (error) {
     if (error instanceof CompanyMembershipError || error instanceof SevenoBillingError || error instanceof SevenoApiAuthError) return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });

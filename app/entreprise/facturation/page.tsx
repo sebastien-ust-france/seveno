@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
-import { createStripeCheckoutClient, getBillingOrderStatusClient, getCompanyBillingClient } from '@/lib/seveno-billing-client';
+import { acceptCompanySalesTermsClient, createStripeCheckoutClient, getBillingOrderStatusClient, getCompanyBillingClient } from '@/lib/seveno-billing-client';
 import { startStripeOrderStatusPolling } from '@/lib/seveno-stripe-order-polling';
 import { getCompanyJobOffer } from '@/lib/seveno-job-offers';
 import { campaignContext, campaignDateLabel, campaignStatusLabel, campaignTitle } from '@/lib/seveno-billing-campaign-presentation';
@@ -24,6 +25,8 @@ export default function CompanyBillingPage() {
   const [pendingPurchase, setPendingPurchase] = useState<string | null>(null);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [campaignOffers, setCampaignOffers] = useState<Record<string, SerializedJobOffer>>({});
+  const [salesTermsChecked, setSalesTermsChecked] = useState(false);
+  const [pendingTermsPurchase, setPendingTermsPurchase] = useState<{ productCode: BillingProductCode; campaignId?: string } | null>(null);
   const polledCheckoutOrderRef = useRef<string | null>(null);
   const canPurchase = Boolean(billing?.canPurchaseCredits && billing.stripeCheckoutEnabled);
 
@@ -82,8 +85,8 @@ export default function CompanyBillingPage() {
 
   const creditProducts = useMemo(() => billing ? Object.entries(billing.products).filter(([, product]) => product.type === 'credit_pack') : [], [billing]);
 
-  async function purchase(productCode: BillingProductCode, campaignId?: string) {
-    if (!authUser || pendingPurchase) return;
+  async function runCheckout(productCode: BillingProductCode, campaignId?: string, continueAfterTerms = false) {
+    if (!authUser || (pendingPurchase && !continueAfterTerms)) return;
     setPurchaseError(null);
     setPendingPurchase(`${productCode}:${campaignId ?? ''}`);
     try {
@@ -94,6 +97,37 @@ export default function CompanyBillingPage() {
       if (/autorisé/i.test(message)) setPurchaseError('Vous n’êtes pas autorisé à effectuer cet achat.');
       else if (/campagne/i.test(message)) setPurchaseError('Ce produit ne peut pas être acheté pour cette campagne.');
       else setPurchaseError('Le paiement n’a pas pu être préparé. Veuillez réessayer.');
+      setPendingPurchase(null);
+    }
+  }
+
+  function purchase(productCode: BillingProductCode, campaignId?: string) {
+    if (!billing?.companySalesTermsAccepted) {
+      setSalesTermsChecked(false);
+      setPendingTermsPurchase({ productCode, ...(campaignId ? { campaignId } : {}) });
+      return;
+    }
+    void runCheckout(productCode, campaignId);
+  }
+
+  async function acceptTermsAndContinue() {
+    if (!authUser || !pendingTermsPurchase || !salesTermsChecked || pendingPurchase) return;
+    setPurchaseError(null);
+    setPendingPurchase(`terms:${pendingTermsPurchase.productCode}:${pendingTermsPurchase.campaignId ?? ''}`);
+    try {
+      const acceptance = await acceptCompanySalesTermsClient(authUser);
+      const requestedPurchase = pendingTermsPurchase;
+      setBilling((current) => current ? {
+        ...current,
+        companySalesTermsAccepted: true,
+        companySalesTermsAcceptedAt: acceptance.acceptedAt,
+        companySalesTermsVersion: acceptance.version,
+      } : current);
+      setPendingTermsPurchase(null);
+      setPendingPurchase(null);
+      await runCheckout(requestedPurchase.productCode, requestedPurchase.campaignId, true);
+    } catch (reason) {
+      setPurchaseError(reason instanceof Error ? reason.message : 'L’acceptation des CGV n’a pas pu être enregistrée.');
       setPendingPurchase(null);
     }
   }
@@ -113,15 +147,30 @@ export default function CompanyBillingPage() {
       <p className="mt-3 text-slate-300">Aucun abonnement. Aucune commission sur l’embauche. Aucun renouvellement automatique.</p>
       {checkoutMessage ? <div role="status" className="mt-5 flex items-start justify-between gap-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-cyan-100"><p>{checkoutMessage}</p><button type="button" onClick={() => setCheckoutMessage(null)} className="shrink-0 rounded-full px-3 py-1 text-sm font-semibold text-cyan-50 underline decoration-cyan-200/50 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200">Fermer</button></div> : null}
       {purchaseError ? <p role="alert" className="mt-5 rounded-2xl border border-orange-300/20 bg-orange-400/10 p-4 text-orange-100">{purchaseError}</p> : null}
+      {pendingTermsPurchase ? <SevenoPanel className="mt-5 border-cyan-300/20 p-5">
+        <h2 className="text-xl font-semibold text-white">Conditions générales de vente</h2>
+        <p className="mt-2 text-sm leading-7 text-slate-300">Vous devez accepter la version courante des CGV Entreprises avant d’accéder au paiement.</p>
+        <label className="mt-4 flex items-start gap-3 text-sm leading-7 text-slate-200">
+          <input type="checkbox" checked={salesTermsChecked} onChange={(event) => setSalesTermsChecked(event.target.checked)} className="mt-1 accent-cyan-400" />
+          <span>J’ai lu et j’accepte les Conditions générales de vente Seven’O Entreprises — version 1.0, et je reconnais agir pour le compte de l’Entreprise.</span>
+        </label>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" disabled={!salesTermsChecked || pendingPurchase !== null} onClick={() => void acceptTermsAndContinue()} className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Accepter et continuer vers le paiement</button>
+          <Link href="/cgv-entreprises" className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10">Consulter, imprimer ou enregistrer les CGV</Link>
+        </div>
+      </SevenoPanel> : null}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <SevenoPanel className="p-5"><p className="text-sm text-slate-300">Crédits disponibles</p><p className="mt-2 text-4xl font-semibold text-white">{billing?.availableCredits ?? 0}</p></SevenoPanel>
+        <SevenoPanel className="p-5"><p className="text-sm text-slate-300">Crédits disponibles : {billing?.availableCredits ?? 0}</p><p className="mt-2 text-4xl font-semibold text-white">{billing?.availableCredits ?? 0}</p>{billing?.nextPurchasedCreditExpirationAt ? <p className="mt-3 text-sm text-slate-300">Prochaine expiration : {new Date(billing.nextPurchasedCreditExpirationAt).toLocaleDateString('fr-FR')}</p> : null}</SevenoPanel>
         <SevenoPanel className="p-5"><p className="text-sm text-slate-300">Campagnes actives</p><p className="mt-2 text-4xl font-semibold text-white">{billing?.activeCampaignCount ?? 0}</p></SevenoPanel>
       </div>
+      {billing?.purchasedCreditExpirationWarningDays === 60 ? <p className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">Certains de vos crédits expireront dans moins de 60 jours. Pensez à les utiliser avant leur date d’expiration.</p> : null}
+      {billing?.purchasedCreditExpirationWarningDays === 30 ? <p className="mt-4 rounded-2xl border border-orange-300/20 bg-orange-400/10 p-4 text-sm text-orange-100">Certains de vos crédits expireront dans moins de 30 jours. Après leur date d’expiration, ils ne pourront plus être utilisés.</p> : null}
       <h2 className="mt-8 text-2xl font-semibold text-white">Tarifs de lancement</h2>
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {creditProducts.map(([code, product]) => <SevenoPanel key={code} className="p-5"><p className="font-semibold text-white">{product.displayName}</p><p className="mt-2 text-cyan-100">{formatBillingPrice(product.unitAmountExcludingTax)} HT</p><PurchaseButton productCode={code as BillingProductCode} /></SevenoPanel>)}
       </div>
       <p className="mt-4 text-sm text-slate-400">Paiement sécurisé par Stripe</p>
+      <p className="mt-2 text-sm text-slate-400"><Link href="/cgv-entreprises" className="text-cyan-200 underline decoration-cyan-200/40 underline-offset-4">CGV Entreprises</Link> · Les crédits achetés sont valables 24 mois.</p>
       <h2 className="mt-8 text-2xl font-semibold text-white">Historique des mouvements</h2>
       <SevenoPanel className="mt-4 min-w-0 p-5">
         {billing?.ledger.length ? <>

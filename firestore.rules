@@ -1193,6 +1193,12 @@ service cloud.firestore {
       match /credit_ledger/{entryId} {
         allow read, create, update, delete: if false;
       }
+      match /credit_lots/{lotId} {
+        allow read, create, update, delete: if false;
+      }
+    }
+    match /company_sales_terms_acceptances/{acceptanceId} {
+      allow read, create, update, delete: if false;
     }
     match /billing_orders/{orderId} {
       allow read, create, update, delete: if false;

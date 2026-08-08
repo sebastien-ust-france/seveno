@@ -22,6 +22,7 @@ const PUBLIC_FOOTER_LINKS = {
   information: [
     { href: '/mentions-legales', label: 'Mentions légales' },
     { href: '/cgu', label: 'CGU' },
+    { href: '/cgv-entreprises', label: 'CGV Entreprises' },
     { href: '/confidentialite', label: 'Politique de confidentialité' },
     { href: '/cookies', label: 'Cookies' },
   ],
