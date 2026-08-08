@@ -26,10 +26,13 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_ADMIN_CODE=
-FIREBASE_ADMIN_PROJECT_ID=
-FIREBASE_ADMIN_CLIENT_EMAIL=
-FIREBASE_ADMIN_PRIVATE_KEY=
 ```
+
+Sur Firebase App Hosting, Firebase Admin utilise Application Default Credentials avec
+l'identité d'exécution du backend. Aucun fichier JSON ni clé privée de service account
+n'est requis. Le triplet historique `FIREBASE_ADMIN_PROJECT_ID`,
+`FIREBASE_ADMIN_CLIENT_EMAIL` et `FIREBASE_ADMIN_PRIVATE_KEY` reste accepté uniquement
+comme compatibilité locale explicite lorsqu'il est fourni au complet.
 
 ## Firestore
 
@@ -49,4 +52,4 @@ Chaque document contient :
 
 - La protection `/admin` par code reste temporaire. Le vrai contrôle d&apos;accès passe par le serveur, qui lit Firestore via Firebase Admin.
 - Les règles Firestore autorisent uniquement la création dans `study_responses` et bloquent les lectures publiques.
-- Pour que `/admin` lise les données, il faut renseigner les variables Firebase Admin ci-dessus avec un compte de service.
+- Pour que `/admin` lise les données hors App Hosting, utiliser ADC localement ou le triplet de compatibilité locale complet.

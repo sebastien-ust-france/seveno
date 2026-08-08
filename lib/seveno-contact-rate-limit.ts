@@ -18,7 +18,6 @@ function getRateLimitSecret() {
   return (
     process.env.SEVENO_CONTACT_RATE_LIMIT_SECRET
     || process.env.SEVENO_AVAILABILITY_CRON_SECRET
-    || process.env.FIREBASE_ADMIN_PRIVATE_KEY
     || 'seveno-contact-rate-limit'
   );
 }

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 
 process.env.STRIPE_ENVIRONMENT = 'test';
+delete process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+delete process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 import net from 'node:net';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

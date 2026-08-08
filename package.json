@@ -20,6 +20,7 @@
     "test:company-validation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-validation-smoke-test.mts",
     "test:company-validation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-validation-emulator-test.mts",
     "test:member-invitations:security": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/member-invitation-security-smoke-test.mts",
+    "test:firebase-admin-adc": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/firebase-admin-adc-smoke-test.mts",
     "test:stripe-checkout": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-smoke-test.mts",
     "test:stripe-checkout:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-emulator-test.mts",
     "stripe:test-catalog:audit": "node --env-file=.env.local --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-test-catalog-audit.mts",

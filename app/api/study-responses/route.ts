@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       {
         error: 'firebase_admin_missing',
         message:
-          'Firebase Admin n est pas configure. Ajoutez FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL et FIREBASE_ADMIN_PRIVATE_KEY.',
+          'Firebase Admin est indisponible. Vérifiez l’identité d’exécution et la configuration serveur.',
       },
       { status: 500 },
     );
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       {
         error: 'firebase_admin_missing',
         message:
-          'Firebase Admin n est pas configure. Ajoutez FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL et FIREBASE_ADMIN_PRIVATE_KEY.',
+          'Firebase Admin est indisponible. Vérifiez l’identité d’exécution et la configuration serveur.',
       },
       { status: 500 },
     );
