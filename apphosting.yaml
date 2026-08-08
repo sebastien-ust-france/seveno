@@ -67,3 +67,39 @@ env:
     secret: SEVENO_AVAILABILITY_CRON_SECRET
   - variable: SEVENO_NOTIFICATION_OUTBOX_CRON_SECRET
     secret: SEVENO_NOTIFICATION_OUTBOX_CRON_SECRET
+  - variable: STRIPE_SECRET_KEY
+    secret: STRIPE_SECRET_KEY
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: STRIPE_WEBHOOK_SECRET
+  - variable: STRIPE_CHECKOUT_ENABLED
+    value: "false"
+    availability:
+      - RUNTIME
+  - variable: STRIPE_ENVIRONMENT
+    value: live
+    availability:
+      - RUNTIME
+  - variable: SEVENO_PUBLIC_ORIGIN
+    value: https://seveno.eu
+    availability:
+      - RUNTIME
+  - variable: STRIPE_PRICE_CAMPAIGN_CREDIT_1_LIVE
+    value: price_1U28RBAVrlZvHKMVJhzHtWh0
+    availability:
+      - RUNTIME
+  - variable: STRIPE_PRICE_CAMPAIGN_CREDIT_3_LIVE
+    value: price_1U28R5AVrlZvHKMVnrIQqzEb
+    availability:
+      - RUNTIME
+  - variable: STRIPE_PRICE_CAMPAIGN_CREDIT_10_LIVE
+    value: price_1U28R6AVrlZvHKMVutaeN76P
+    availability:
+      - RUNTIME
+  - variable: STRIPE_PRICE_CAMPAIGN_EXTENSION_30D_LIVE
+    value: price_1U28R6AVrlZvHKMVk65MblAY
+    availability:
+      - RUNTIME
+  - variable: STRIPE_PRICE_QUALIFIED_CANDIDATES_10_LIVE
+    value: price_1U28R5AVrlZvHKMVOG0Kalau
+    availability:
+      - RUNTIME
