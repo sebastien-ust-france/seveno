@@ -1197,6 +1197,9 @@ service cloud.firestore {
     match /billing_orders/{orderId} {
       allow read, create, update, delete: if false;
     }
+    match /stripe_webhook_events/{eventId} {
+      allow read, create, update, delete: if false;
+    }
     match /recruitment_campaigns/{campaignId} {
       allow read, create, update, delete: if false;
       match /candidate_deliveries/{applicationId} {

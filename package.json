@@ -20,6 +20,9 @@
     "test:company-validation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-validation-smoke-test.mts",
     "test:company-validation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-validation-emulator-test.mts",
     "test:member-invitations:security": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/member-invitation-security-smoke-test.mts",
+    "test:stripe-checkout": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-smoke-test.mts",
+    "test:stripe-checkout:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-emulator-test.mts",
+    "stripe:test-catalog:audit": "node --env-file=.env.local --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-test-catalog-audit.mts",
     "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
     "test:offer-lifecycle": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offer-lifecycle-smoke-test.mts",
     "test:applications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-applications-smoke-test.mts",
@@ -72,7 +75,8 @@
     "next": "^15.0.0",
     "nodemailer": "^6.10.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "stripe": "^22.4.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",

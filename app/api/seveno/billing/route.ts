@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 import { getCompanyBillingView, SevenoBillingError } from '@/lib/seveno-billing-server';
+import { isStripeCheckoutReady } from '@/lib/seveno-stripe-server';
 import { canPurchaseCompanyCredits } from '@/lib/seveno-company-roles';
 import { adminDb } from '@/lib/firebase-admin';
 
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
       campaigns,
       membershipRole: membership.role,
       canPurchaseCredits: canPurchaseCompanyCredits(membership),
+      stripeCheckoutEnabled: isStripeCheckoutReady(),
     });
   } catch (error) {
     if (error instanceof CompanyMembershipError || error instanceof SevenoBillingError || error instanceof SevenoApiAuthError) return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });

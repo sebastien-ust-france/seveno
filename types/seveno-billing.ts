@@ -4,7 +4,7 @@ export interface CompanyMembershipPermissions { canPurchaseCredits: boolean }
 export type BillingProductCode = 'campaign_credit_1_launch' | 'campaign_credit_3_launch' | 'campaign_credit_10_launch'
   | 'campaign_extension_30d_launch' | 'qualified_candidates_10_launch';
 export type CreditLedgerType = 'purchase' | 'admin_grant' | 'campaign_activation' | 'admin_restoration' | 'admin_correction';
-export type BillingActorType = 'company_member' | 'seveno_admin' | 'system';
+export type BillingActorType = 'company_member' | 'seveno_admin' | 'stripe_webhook' | 'system';
 export type RecruitmentCampaignStatus = 'active' | 'paused' | 'expired' | 'candidate_limit_reached' | 'closed';
 export type CandidateDeliveryStatus = 'queued' | 'delivered' | 'slot_released' | 'cancelled';
 
@@ -62,12 +62,21 @@ export interface CompanyBillingView {
   catalogVersion: 'launch_v1';
   membershipRole: CompanyMembershipRole;
   canPurchaseCredits: boolean;
+  stripeCheckoutEnabled: boolean;
   products: Record<BillingProductCode, BillingCatalogProduct>;
   campaigns: RecruitmentCampaignView[];
   ledger: Array<{
     entryId: string; type: CreditLedgerType; quantity: number; balanceAfter: number;
     actorUid: string | null; offerId?: string; campaignId?: string; reason?: string; createdAt: string;
   }>;
+}
+
+export interface BillingOrderStatusView {
+  orderId: string;
+  status: string;
+  entitlementApplied: boolean;
+  productCode: string;
+  campaignId: string | null;
 }
 
 export interface RecruitmentCampaignView {

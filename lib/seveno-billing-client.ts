@@ -2,7 +2,8 @@
 
 import type { User } from 'firebase/auth';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
-import type { CompanyBillingView, CompanyContextView, CompanyMembershipRole, CompanyMembershipView, RecruitmentDashboardView } from '@/types/seveno-billing';
+import type { BillingOrderStatusView, CompanyBillingView, CompanyContextView, CompanyMembershipRole, CompanyMembershipView, RecruitmentDashboardView } from '@/types/seveno-billing';
+import type { BillingProductCode } from '@/types/seveno-billing';
 
 export const ACTIVE_COMPANY_STORAGE_KEY = 'seveno_active_company_id';
 export function companyHeaders() {
@@ -17,6 +18,12 @@ export function getCompanyBillingClient(user: User) {
 }
 export function getRecruitmentDashboardClient(user: User) {
   return fetchSevenoMatchApi<RecruitmentDashboardView>(user, '/api/seveno/recruitment-dashboard', { headers: companyHeaders() });
+}
+export function createStripeCheckoutClient(user: User, input: { productCode: BillingProductCode; campaignId?: string; requestId: string }) {
+  return fetchSevenoMatchApi<{ orderId: string; checkoutSessionId: string; checkoutUrl: string }>(user, '/api/seveno/billing/checkout', { method: 'POST', headers: companyHeaders(), body: JSON.stringify(input) });
+}
+export function getBillingOrderStatusClient(user: User, orderId: string, signal?: AbortSignal) {
+  return fetchSevenoMatchApi<BillingOrderStatusView>(user, `/api/seveno/billing/orders/${encodeURIComponent(orderId)}`, { headers: companyHeaders(), signal });
 }
 export function getCompanyMembersClient(user: User) {
   return fetchSevenoMatchApi<{ members: CompanyMembershipView[] }>(user, '/api/seveno/company-memberships', { headers: companyHeaders() });
