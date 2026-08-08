@@ -3,6 +3,8 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { Timestamp, type Query } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
+import { buildCompanyMembershipId } from '@/lib/seveno-company-memberships-server';
+import type { CompanyMembershipRole } from '@/types/seveno-billing';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
 import {
   countActiveCandidateFilesForOffer,
@@ -39,7 +41,6 @@ import {
   processCandidateOfferFanout,
 } from '@/lib/seveno-candidate-offer-notifications-server';
 import { activateCampaignInTransaction } from '@/lib/seveno-billing-server';
-import type { CompanyMembershipRole } from '@/types/seveno-billing';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
@@ -467,6 +468,9 @@ function serializeOffer(id: string, data: FirestoreRecord): SerializedJobOffer {
     companyUid: String(data.companyUid ?? ''),
     companyId: String(data.companyId ?? data.companyUid ?? ''),
     createdByUid: String(data.createdByUid ?? data.createdBy ?? data.companyUid ?? ''),
+    assignedToUid: String(data.assignedToUid ?? ''),
+    assignedAt: timestampToIso(data.assignedAt) ?? '',
+    assignedByUid: String(data.assignedByUid ?? ''),
     updatedByUid: String(data.updatedByUid ?? data.createdByUid ?? data.createdBy ?? data.companyUid ?? ''),
     activeCampaignId: typeof data.activeCampaignId === 'string' && data.activeCampaignId ? data.activeCampaignId : null,
     companyPublicId: String(data.companyPublicId ?? ''),
@@ -588,6 +592,9 @@ export async function createJobOffer(companyUid: string, raw: unknown, actorUid 
     companyUid,
     companyId: companyUid,
     createdByUid: actorUid,
+    assignedToUid: actorUid,
+    assignedAt: now,
+    assignedByUid: actorUid,
     updatedByUid: actorUid,
     activeCampaignId: null,
     companyPublicId: context.companyPublicId,
@@ -682,7 +689,7 @@ export function buildDuplicatedJobOfferData(
   };
 }
 
-export async function duplicateJobOffer(companyUid: string, offerId: string) {
+export async function duplicateJobOffer(companyUid: string, offerId: string, actorUid = companyUid) {
   const context = await loadCompanyContext(companyUid);
   const source = await getJobOffer(companyUid, offerId);
   const id = randomUUID();
@@ -696,7 +703,12 @@ export async function duplicateJobOffer(companyUid: string, offerId: string) {
     id,
     ...content,
     duplicatedFromOfferId: source.id,
-    createdBy: companyUid,
+    createdBy: actorUid,
+    createdByUid: actorUid,
+    updatedByUid: actorUid,
+    assignedToUid: actorUid,
+    assignedAt: now,
+    assignedByUid: actorUid,
     createdAt: now,
     updatedAt: now,
   };
@@ -885,6 +897,7 @@ function decodeCursor(value?: string): OfferCursor | null {
 
 export async function listJobOffers(companyUid: string, options: {
   status?: JobOfferStatus;
+  assignedToUid?: string;
   limit?: number;
   cursor?: string;
 } = {}): Promise<JobOfferListPage> {
@@ -894,6 +907,7 @@ export async function listJobOffers(companyUid: string, options: {
   }
   const limit = Math.min(MAX_LIST_LIMIT, Math.max(1, options.limit ?? DEFAULT_LIST_LIMIT));
   let query: Query = requireDatabase().collection(COLLECTION).where('companyUid', '==', companyUid);
+  if (options.assignedToUid) query = query.where('assignedToUid', '==', options.assignedToUid);
   if (options.status) query = query.where('status', '==', options.status);
   query = query.orderBy('updatedAt', 'desc').orderBy('id', 'asc');
   const cursor = decodeCursor(options.cursor);
@@ -916,6 +930,71 @@ export async function listJobOffers(companyUid: string, options: {
       ? encodeCursor({ updatedAt: updatedAt.toMillis(), id: last?.id ?? '' })
       : null,
   };
+}
+
+export function assertRecruitmentOfferAccess(offer: SerializedJobOffer, membership: { companyId: string; userUid: string; role: CompanyMembershipRole }, mutation = false) {
+  if (offer.companyId !== membership.companyId && offer.companyUid !== membership.companyId) throw new SevenoJobOfferError('forbidden_offer', 403, 'Accès à ce recrutement refusé.');
+  if (membership.role === 'billing_manager') throw new SevenoJobOfferError('forbidden_recruitment_role', 403, 'Votre rôle ne permet pas d’accéder aux recrutements.');
+  if (mutation && membership.role === 'viewer') throw new SevenoJobOfferError('read_only_membership', 403, 'Votre rôle permet uniquement la consultation.');
+  if (membership.role === 'recruiter' && offer.assignedToUid !== membership.userUid) throw new SevenoJobOfferError('recruitment_not_assigned', 403, 'Ce recrutement est attribué à un autre membre.');
+}
+
+export type RecruitmentMembership = { companyId: string; userUid: string; role: CompanyMembershipRole };
+
+export async function assertRecruitmentOfferIdAccess(
+  offerId: string,
+  membership: RecruitmentMembership,
+  mutation = false,
+) {
+  const offer = await getJobOffer(membership.companyId, offerId);
+  assertRecruitmentOfferAccess(offer, membership, mutation);
+  return offer;
+}
+
+export async function assertRecruitmentApplicationAccess(
+  applicationId: string,
+  membership: RecruitmentMembership,
+  mutation = false,
+) {
+  const snapshot = await requireDatabase().collection('job_applications').doc(cleanText(applicationId, 100, true)).get();
+  if (!snapshot.exists) throw new SevenoJobOfferError('application_not_found', 404, 'Candidature introuvable.');
+  const companyId = String(snapshot.get('companyId') ?? snapshot.get('companyUid') ?? '');
+  if (companyId !== membership.companyId) throw new SevenoJobOfferError('forbidden_application', 403, 'Accès à cette candidature refusé.');
+  const offerId = String(snapshot.get('offerId') ?? '').trim();
+  if (!offerId) throw new SevenoJobOfferError('application_offer_missing', 409, 'Cette candidature n’est reliée à aucune offre.');
+  const offer = await assertRecruitmentOfferIdAccess(offerId, membership, mutation);
+  return { applicationId: snapshot.id, offerId, offer };
+}
+
+export async function assertRecruitmentCampaignAccess(
+  campaignId: string,
+  membership: RecruitmentMembership,
+  mutation = false,
+) {
+  const campaign = await requireDatabase().collection('recruitment_campaigns').doc(cleanText(campaignId, 128, true)).get();
+  if (!campaign.exists) throw new SevenoJobOfferError('campaign_not_found', 404, 'Campagne introuvable.');
+  if (String(campaign.get('companyId') ?? '') !== membership.companyId) throw new SevenoJobOfferError('forbidden_campaign', 403, 'Accès à cette campagne refusé.');
+  const offerId = String(campaign.get('offerId') ?? '').trim();
+  if (!offerId) throw new SevenoJobOfferError('campaign_offer_missing', 409, 'Cette campagne n’est reliée à aucune offre.');
+  const offer = await assertRecruitmentOfferIdAccess(offerId, membership, mutation);
+  return { campaignId: campaign.id, offerId, offer };
+}
+
+export async function reassignJobOffer(companyId: string, offerId: string, actor: { uid: string; role: CompanyMembershipRole }, targetUid: string) {
+  if (!['owner', 'admin'].includes(actor.role)) throw new SevenoJobOfferError('reassignment_forbidden', 403, 'Seul un owner ou un administrateur peut réattribuer un recrutement.');
+  const firestore = requireDatabase(); const ref = firestore.collection(COLLECTION).doc(offerId); const targetRef = firestore.collection('company_memberships').doc(buildCompanyMembershipId(companyId, targetUid));
+  await firestore.runTransaction(async (transaction) => {
+    const [offer, target] = await Promise.all([transaction.get(ref), transaction.get(targetRef)]);
+    if (!offer.exists || (offer.get('companyId') ?? offer.get('companyUid')) !== companyId) throw new SevenoJobOfferError('offer_not_found', 404, 'Offre introuvable.');
+    if (!target.exists || target.get('companyId') !== companyId || target.get('userUid') !== targetUid || target.get('status') !== 'active' || !['owner', 'admin', 'recruiter'].includes(String(target.get('role')))) throw new SevenoJobOfferError('invalid_assignee', 400, 'Le responsable doit être un membre actif autorisé de cette entreprise.');
+    const previousAssignedToUid = String(offer.get('assignedToUid') ?? '');
+    if (!previousAssignedToUid) throw new SevenoJobOfferError('offer_assignment_missing', 409, 'Cette offre ne fait pas partie du nouveau modèle de responsabilité.');
+    if (previousAssignedToUid === targetUid) return;
+    const now = Timestamp.now();
+    transaction.update(ref, { assignedToUid: targetUid, assignedAt: now, assignedByUid: actor.uid, updatedAt: now });
+    transaction.create(firestore.collection('admin_logs').doc(), { actorUserId: actor.uid, actorRole: actor.role, action: 'offer_reassigned', targetCollection: COLLECTION, targetId: offerId, metadata: { offerId, companyId, previousAssignedToUid, newAssignedToUid: targetUid }, createdAt: now });
+  });
+  return getJobOffer(companyId, offerId);
 }
 
 export async function changeJobOfferStatus(companyUid: string, offerId: string, action: JobOfferStatusAction, actor?: { uid: string; membershipRole: CompanyMembershipRole }) {

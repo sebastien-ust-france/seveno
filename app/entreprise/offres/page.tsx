@@ -13,7 +13,10 @@ import {
   deleteCompanyJobOffer,
   duplicateCompanyJobOffer,
   listCompanyJobOffers,
+  reassignCompanyJobOffer,
 } from '@/lib/seveno-job-offers';
+import { getCompanyMembersClient } from '@/lib/seveno-billing-client';
+import type { CompanyMembershipView } from '@/types/seveno-billing';
 import { useSevenoCompanySession } from '@/lib/use-seveno-company-session';
 import { isCompanyProfileIncomplete } from '@/lib/seveno-companies';
 import type {
@@ -46,7 +49,8 @@ function formatDate(value: string) {
 }
 
 export default function CompanyOffersPage() {
-  const { authUser, profile, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
+  const { authUser, profile, membershipRole, loading: sessionLoading, error: sessionError } = useSevenoCompanySession();
+  const [scope, setScope] = useState<'mine' | 'company'>('mine');
   const [offers, setOffers] = useState<SerializedJobOffer[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,13 +59,24 @@ export default function CompanyOffersPage() {
   const [offerToDelete, setOfferToDelete] = useState<SerializedJobOffer | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [members, setMembers] = useState<CompanyMembershipView[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [reassignment, setReassignment] = useState<{ offer: SerializedJobOffer; targetUid: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('scope') === 'company' && (membershipRole === 'owner' || membershipRole === 'admin')) {
+      setScope('company');
+      setAssigneeFilter(params.get('assignedToUid') ?? '');
+    }
+  }, [membershipRole]);
 
   async function loadOffers(append = false, cursor?: string | null) {
     if (!authUser) return;
     setLoading(true);
     setError(null);
     try {
-      const payload = await listCompanyJobOffers(authUser, { cursor, ...(statusFilter !== 'all' ? { status: statusFilter } : {}) });
+      const payload = await listCompanyJobOffers(authUser, { cursor, scope, ...(scope === 'company' && assigneeFilter ? { assignedToUid: assigneeFilter } : {}), ...(statusFilter !== 'all' ? { status: statusFilter } : {}) });
       setOffers((current) => append ? [...current, ...payload.offers] : payload.offers);
       setNextCursor(payload.nextCursor);
     } catch (thrownError) {
@@ -74,7 +89,23 @@ export default function CompanyOffersPage() {
   useEffect(() => {
     if (authUser) void loadOffers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser, statusFilter]);
+  }, [authUser, statusFilter, scope, assigneeFilter]);
+
+  useEffect(() => {
+    if (!authUser || (membershipRole !== 'owner' && membershipRole !== 'admin')) return;
+    void getCompanyMembersClient(authUser).then((payload) => setMembers(payload.members.filter((member) => member.status === 'active' && ['owner', 'admin', 'recruiter'].includes(member.role)))).catch(() => setMembers([]));
+  }, [authUser, membershipRole]);
+
+  async function confirmReassignment() {
+    if (!authUser || !reassignment?.targetUid) return;
+    setActionId(reassignment.offer.id);
+    try {
+      await reassignCompanyJobOffer(authUser, reassignment.offer.id, reassignment.targetUid);
+      setReassignment(null);
+      await loadOffers();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'La réattribution a échoué.'); }
+    finally { setActionId(null); }
+  }
 
   async function changeStatus(offerId: string, action: JobOfferStatusAction) {
     if (!authUser || actionId) return;
@@ -135,15 +166,16 @@ export default function CompanyOffersPage() {
   return (
     <SevenoSurface
       eyebrow="Espace entreprise"
-      title="Mes offres"
-      description="Créez, reprenez et pilotez vos offres structurées Seven’O."
-      actions={<Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white">Créer une offre</Link>}
+      title={scope === 'mine' ? 'Mes recrutements' : 'Tous les recrutements'}
+      description="Créez, reprenez et pilotez les recrutements dont vous avez la responsabilité."
+      actions={<Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white">Créer une offre</Link>}
       containerClassName="max-w-[96rem]"
     >
       <div className="space-y-6">
         {sessionError || error ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">{sessionError ?? error}</p></SevenoPanel> : null}
         {profile && isCompanyProfileIncomplete(profile) ? <SevenoPanel tone="orange"><p className="text-sm text-orange-100">Votre profil entreprise est incomplet. Vous pouvez préparer un brouillon, mais devrez compléter le profil avant publication.</p></SevenoPanel> : null}
         <SevenoPanel tone="neutral">
+          {membershipRole === 'owner' || membershipRole === 'admin' ? <div className="mb-4 flex gap-2"><button type="button" onClick={() => setScope('mine')} className={scope === 'mine' ? 'rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950' : 'rounded-full border border-white/10 px-4 py-2 text-xs text-slate-300'}>Mes recrutements</button><button type="button" onClick={() => setScope('company')} className={scope === 'company' ? 'rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-950' : 'rounded-full border border-white/10 px-4 py-2 text-xs text-slate-300'}>Tous les recrutements</button></div> : null}
           <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold text-white">Offres enregistrées</h2><span className="text-sm text-slate-400">{offers.length} {offers.length > 1 ? 'affichées' : 'affichée'}</span></div>
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Filtrer les offres">
             {FILTERS.map((filter) => (
@@ -152,9 +184,10 @@ export default function CompanyOffersPage() {
               </button>
             ))}
           </div>
+          {scope === 'company' && (membershipRole === 'owner' || membershipRole === 'admin') ? <label className="mt-4 block max-w-sm text-sm text-slate-300">Responsable<select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-white"><option value="">Tous</option>{members.map((member) => <option key={member.userUid} value={member.userUid}>{member.displayName || member.email || 'Membre'}</option>)}</select></label> : null}
           <div className="mt-5 space-y-4">
             {(sessionLoading || loading) && offers.length === 0 ? <p className="text-sm text-slate-400">Chargement...</p> : null}
-            {!sessionLoading && !loading && offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"><p className="font-medium text-white">Aucune offre pour le moment.</p><p className="mt-2 text-sm text-slate-400">Créez un premier brouillon pour commencer.</p></div> : null}
+            {!sessionLoading && !loading && offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"><p className="font-medium text-white">Aucun recrutement ne vous est attribué pour le moment.</p>{membershipRole === 'owner' || membershipRole === 'admin' ? <button type="button" onClick={() => setScope('company')} className="mt-3 text-sm text-cyan-200">Voir tous les recrutements</button> : null}</div> : null}
             {offers.map((offer) => (
               <article key={offer.id} className="rounded-[22px] border border-white/10 bg-white/[0.04] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -163,6 +196,7 @@ export default function CompanyOffersPage() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-300"><span>{offer.requiredPrerequisites.length} {offer.requiredPrerequisites.length > 1 ? 'obligatoires' : 'obligatoire'}</span><span>{offer.preferredPrerequisites.length} {offer.preferredPrerequisites.length > 1 ? 'valeurs ajoutées' : 'valeur ajoutée'}</span><span>Version {offer.version}</span></div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-cyan-100">Responsable : {members.find((member) => member.userUid === offer.assignedToUid)?.displayName || members.find((member) => member.userUid === offer.assignedToUid)?.email || 'Non renseigné'}</span>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-slate-300">
                     {offer.questionnaireId ? `Questionnaire associé : ${offer.questionnaireTitleSnapshot || 'Questionnaire sans titre'} (${offer.questionnaireQuestionCountSnapshot ?? 0} ${(offer.questionnaireQuestionCountSnapshot ?? 0) > 1 ? 'questions' : 'question'})` : 'Aucun questionnaire associé'}
                   </span>
@@ -170,6 +204,7 @@ export default function CompanyOffersPage() {
                 <div className="mt-5 flex flex-wrap gap-2">
                   {offer.status !== 'closed' && offer.status !== 'archived' ? <Link href={`/entreprise/offres/${offer.id}/modifier`} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white">Modifier</Link> : null}
                   <Link href={`/entreprise/offres/${offer.id}/questionnaire`} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs text-violet-100">Questionnaire</Link>
+                  {(membershipRole === 'owner' || membershipRole === 'admin') && offer.assignedToUid ? <button type="button" onClick={() => setReassignment({ offer, targetUid: offer.assignedToUid })} className="rounded-full border border-cyan-300/20 px-3 py-2 text-xs text-cyan-100">Changer de responsable</button> : null}
             {offer.status === 'draft' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'publish')} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-40">Publier</button> : null}
             {offer.status === 'published' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'pause')} className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 disabled:opacity-40">Mettre en pause</button> : null}
             {offer.status === 'paused' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'reactivate')} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-40">Réactiver</button> : null}
@@ -241,6 +276,7 @@ export default function CompanyOffersPage() {
           </div>
         </div>
       ) : null}
+      {reassignment ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/80 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-6"><h2 className="text-xl font-semibold text-white">Changer de responsable</h2><label className="mt-4 block text-sm text-slate-200">Responsable du recrutement<select value={reassignment.targetUid} onChange={(event) => setReassignment({ ...reassignment, targetUid: event.target.value })} className="mt-2 w-full rounded-xl bg-slate-900 p-3">{members.map((member) => <option key={member.userUid} value={member.userUid}>{member.displayName || member.email || 'Membre'}</option>)}</select></label><p className="mt-4 text-sm leading-6 text-slate-300">Ce recrutement sera désormais attribué à {members.find((member) => member.userUid === reassignment.targetUid)?.displayName || members.find((member) => member.userUid === reassignment.targetUid)?.email || 'ce membre'}. Les candidatures, questionnaires et mises en relation associés resteront inchangés.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setReassignment(null)} className="rounded-full border border-white/10 px-4 py-2">Annuler</button><button type="button" disabled={!reassignment.targetUid || Boolean(actionId)} onClick={() => void confirmReassignment()} className="rounded-full bg-cyan-500 px-4 py-2 font-semibold text-slate-950 disabled:opacity-40">Réattribuer le recrutement</button></div></div></div> : null}
     </SevenoSurface>
   );
 }

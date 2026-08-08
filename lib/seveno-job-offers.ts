@@ -14,12 +14,20 @@ import { companyHeaders } from '@/lib/seveno-billing-client';
 
 export async function listCompanyJobOffers(
   authUser: User,
-  options: { status?: JobOfferStatus; cursor?: string | null } = {},
+  options: { status?: JobOfferStatus; cursor?: string | null; scope?: 'mine' | 'company'; assignedToUid?: string } = {},
 ) {
   const params = new URLSearchParams({ limit: '30' });
   if (options.status) params.set('status', options.status);
   if (options.cursor) params.set('cursor', options.cursor);
+  params.set('scope', options.scope ?? 'mine');
+  if (options.assignedToUid) params.set('assignedToUid', options.assignedToUid);
   return fetchSevenoMatchApi<JobOfferListPage>(authUser, `/api/seveno/offers?${params.toString()}`, { headers: companyHeaders() });
+}
+
+export async function reassignCompanyJobOffer(authUser: User, offerId: string, targetUid: string) {
+  return fetchSevenoMatchApi<{ offer: SerializedJobOffer }>(authUser, `/api/seveno/offers/${encodeURIComponent(offerId)}/assignee`, {
+    method: 'PATCH', headers: companyHeaders(), body: JSON.stringify({ targetUid }),
+  });
 }
 
 export async function getCompanyJobOffer(authUser: User, offerId: string) {

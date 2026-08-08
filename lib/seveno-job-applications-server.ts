@@ -1181,7 +1181,7 @@ export async function createCompanyApplicationInvitation(input: {
 
 export async function listCompanyApplications(
   companyUid: string,
-  options: { limit?: number; cursor?: string; publicCandidateId?: string; offerId?: string } = {},
+  options: { limit?: number; cursor?: string; publicCandidateId?: string; offerId?: string; assignedToUid?: string } = {},
   actorUid = companyUid,
 ) {
   await assertVerifiedCompanyAccount(actorUid);
@@ -1201,7 +1201,17 @@ export async function listCompanyApplications(
     query = query.startAfter(Timestamp.fromMillis(cursor.timestamp), cursor.id);
   }
   const snapshot = await query.limit(limit + 1).get();
-  const documents = snapshot.docs.filter((item) => item.get('campaignDeliveryStatus') !== 'queued').slice(0, limit);
+  let allowedOfferIds: Set<string> | null = null;
+  if (options.assignedToUid) {
+    const assignedOffers = await requireDatabase().collection('job_offers')
+      .where('companyUid', '==', companyUid)
+      .where('assignedToUid', '==', cleanText(options.assignedToUid, 128))
+      .get();
+    allowedOfferIds = new Set(assignedOffers.docs.map((item) => item.id));
+  }
+  const documents = snapshot.docs
+    .filter((item) => item.get('campaignDeliveryStatus') !== 'queued' && (!allowedOfferIds || allowedOfferIds.has(String(item.get('offerId')))))
+    .slice(0, limit);
   const last = documents.at(-1);
   const updatedAt = last?.get('updatedAt');
   let prioritySelection: CompanyApplicationPrioritySelection | null = null;

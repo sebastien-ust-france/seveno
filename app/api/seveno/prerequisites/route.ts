@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 import { getJobOffer } from '@/lib/seveno-job-offers-server';
 import {
   assertCompanyCanAccessCandidateProfiles,
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest) {
     if (!actor || actor.role !== 'company') {
       throw new SevenoMatchRequestError('forbidden_role', 403, 'Seules les entreprises peuvent consulter cette bibliotheque.');
     }
-    await assertCompanyCanAccessCandidateProfiles(decodedToken.uid);
+    const membership = await requireActiveCompanyMembership({ userUid: decodedToken.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'] });
+    await assertCompanyCanAccessCandidateProfiles(membership.companyId);
     const jobRoleId = request.nextUrl.searchParams.get('jobRoleId')?.trim() ?? '';
     const offerId = request.nextUrl.searchParams.get('offerId')?.trim() ?? '';
     const query = request.nextUrl.searchParams.get('query')?.trim() ?? '';
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) ? limitParam : 20;
     if (!jobRoleId) throw new SevenoPrerequisiteError('job_role_required', 400, 'Selectionnez un metier precis.');
     const prerequisites = await listApplicablePrerequisites(jobRoleId, {
-      companyUid: decodedToken.uid,
+      companyUid: membership.companyId,
       ...(offerId ? { offerId } : {}),
       ...(query ? { query } : {}),
       limit,
@@ -46,6 +48,7 @@ export async function GET(request: NextRequest) {
       error instanceof SevenoApiAuthError
       || error instanceof SevenoMatchRequestError
       || error instanceof SevenoPrerequisiteError
+      || error instanceof CompanyMembershipError
     ) {
       return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
     }
@@ -63,7 +66,8 @@ export async function POST(request: NextRequest) {
     if (!actor || actor.role !== 'company') {
       throw new SevenoMatchRequestError('forbidden_role', 403, 'Seules les entreprises peuvent creer un prerequis personnalise.');
     }
-    await assertCompanyCanAccessCandidateProfiles(decodedToken.uid);
+    const membership = await requireActiveCompanyMembership({ userUid: decodedToken.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
+    await assertCompanyCanAccessCandidateProfiles(membership.companyId);
 
     const body = await request.json().catch(() => null);
     if (!isPlainObject(body)) {
@@ -85,8 +89,8 @@ export async function POST(request: NextRequest) {
     const candidateHelp = typeof body.candidateHelp === 'string' ? body.candidateHelp.trim() : '';
 
     const saveToLibrary = body.saveToLibrary === true;
-    const offer = await getJobOffer(decodedToken.uid, offerId);
-    const definition = await createCompanyPrerequisite(decodedToken.uid, offer, {
+    const offer = await getJobOffer(membership.companyId, offerId);
+    const definition = await createCompanyPrerequisite(membership.companyId, offer, {
       offerId,
       prerequisiteFamily: body.prerequisiteFamily as CompanyPrerequisiteCreationInput['prerequisiteFamily'],
       ...(body.offerRequirementCategory ? { offerRequirementCategory: body.offerRequirementCategory as CompanyPrerequisiteCreationInput['offerRequirementCategory'] } : {}),
@@ -105,6 +109,7 @@ export async function POST(request: NextRequest) {
       error instanceof SevenoApiAuthError
       || error instanceof SevenoMatchRequestError
       || error instanceof SevenoPrerequisiteError
+      || error instanceof CompanyMembershipError
     ) {
       return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
     }

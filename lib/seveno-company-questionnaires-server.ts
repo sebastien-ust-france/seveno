@@ -394,6 +394,7 @@ export async function getCompanyQuestionnaire(companyUid: string, offerId: strin
 }
 
 export async function getCompanyQuestionnairePromptContext(companyUid: string, offerId: string) {
+  await assertCompanyQuestionnaireOwner(companyUid);
   const offer = await getJobOffer(companyUid, offerId);
   const resolved = await resolveQuestionnaireDocument(offer, companyUid);
   const questionnaire = resolved ? toProjection(resolved.questionnaireId, resolved.data) : null;
@@ -532,20 +533,28 @@ export async function activateCompanyQuestionnaire(companyUid: string, offerId: 
   });
 }
 
-export async function listCompanyQuestionnaires(companyUid: string, actorUid = companyUid) {
+export async function listCompanyQuestionnaires(companyUid: string, actorUid = companyUid, assignedToUid?: string) {
   await assertCompanyQuestionnaireOwner(actorUid);
   const snapshot = await requireDatabase()
     .collection(COLLECTION)
     .where('companyUid', '==', companyUid)
     .get();
 
+  let allowedOfferIds: Set<string> | null = null;
+  if (assignedToUid) {
+    const offers = await requireDatabase().collection('job_offers')
+      .where('companyUid', '==', companyUid)
+      .where('assignedToUid', '==', assignedToUid)
+      .get();
+    allowedOfferIds = new Set(offers.docs.map((offer) => offer.id));
+  }
   return {
     questionnaires: snapshot.docs
       .map((doc) => {
         try {
           const data = doc.data() as FirestoreRecord;
           const projection = toProjection(doc.id, data);
-          if (projection.questions.length === 0 || !projection.offerId) {
+          if (projection.questions.length === 0 || !projection.offerId || (allowedOfferIds && !allowedOfferIds.has(projection.offerId))) {
             return null;
           }
           return toListItem(doc.id, data);

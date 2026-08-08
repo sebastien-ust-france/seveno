@@ -7,11 +7,13 @@ import { getCurrentAuthUser } from '@/lib/auth';
 import { ensureSevenoUser } from '@/lib/seveno-users';
 import { ACTIVE_COMPANY_STORAGE_KEY, getCompanyContextClient } from '@/lib/seveno-billing-client';
 import type { CompanyProfile } from '@/types/seveno';
+import type { CompanyMembershipRole } from '@/types/seveno-billing';
 
 export function useSevenoCompanySession() {
   const router = useRouter();
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  const [membershipRole, setMembershipRole] = useState<CompanyMembershipRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +43,7 @@ export function useSevenoCompanySession() {
         window.localStorage.setItem(ACTIVE_COMPANY_STORAGE_KEY, companyContext.activeCompanyId);
         setAuthUser(firebaseUser);
         setProfile(companyProfile);
+        setMembershipRole(companyContext.companies.find((company) => company.companyId === companyContext.activeCompanyId)?.role ?? null);
         if (!sevenoUser.emailVerified) {
           setError('Votre adresse email doit etre verifiee pour gerer les offres.');
         } else if (companyProfile.profileStatus === 'suspended') {
@@ -56,5 +59,5 @@ export function useSevenoCompanySession() {
     return () => { active = false; };
   }, [router]);
 
-  return { authUser, profile, loading, error };
+  return { authUser, profile, membershipRole, loading, error };
 }

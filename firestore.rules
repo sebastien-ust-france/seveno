@@ -1046,6 +1046,12 @@ service cloud.firestore {
     match /company_invitations/{invitationId} {
       allow read, write: if false;
     }
+    match /company_member_invitations/{invitationId} {
+      allow read, write: if false;
+    }
+    match /company_membership_events/{eventId} {
+      allow read, write: if false;
+    }
 
     match /job_sectors/{sectorCode} {
       allow read: if true;

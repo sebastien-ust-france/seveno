@@ -7,6 +7,7 @@ import {
 import { readApplicationBody, toApplicationApiError } from '../../_shared';
 import { releaseCampaignCandidateSlot } from '@/lib/seveno-recruitment-campaigns-server';
 import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
+import { assertRecruitmentApplicationAccess } from '@/lib/seveno-job-offers-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
+    await assertRecruitmentApplicationAccess(applicationId, membership, true);
     const application = await reviewCompanyJobApplication(membership.companyId, applicationId, decision, token.uid);
     await releaseCampaignCandidateSlot({ applicationId, actorUid: token.uid, reason: decision === 'interested' ? 'contact_requested' : 'company_declined' });
     return NextResponse.json({ application });

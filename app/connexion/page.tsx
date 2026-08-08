@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
@@ -7,9 +7,7 @@ import { FirebaseError } from 'firebase/app';
 import type { User } from 'firebase/auth';
 import {
   createEmailPasswordUser,
-  deleteAuthUser,
   getCurrentAuthUser,
-  getEmailSignInMethods,
   isPasswordAuthUser,
   refreshAuthUser,
   sendPasswordReset,
@@ -486,16 +484,6 @@ export default function ConnexionPage() {
     let createdAuthUser: User | null = null;
 
     try {
-      const methods = await getEmailSignInMethods(normalizedEmail);
-      if (methods.includes('google.com')) {
-        setError('Cette adresse est déjà associée à Google. Utilisez « Continuer avec Google ».');
-        return;
-      }
-      if (methods.length > 0) {
-        setError('Cette adresse est déjà associée à un compte. Connectez-vous avec votre méthode habituelle.');
-        return;
-      }
-
       if (hasActiveCompanyInvitation() && !isInvitationEmailMatch(normalizedEmail)) {
         setError('Cette invitation est réservée à une autre adresse email.');
         return;
@@ -507,8 +495,6 @@ export default function ConnexionPage() {
       try {
         sevenoUser = await ensureSevenoUser(createdAuthUser, hasActiveCompanyInvitation() ? null : signupAccountType);
       } catch (userDocumentError) {
-        await deleteAuthUser(createdAuthUser).catch(() => undefined);
-        createdAuthUser = null;
         throw userDocumentError;
       }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 import { getCompanyMatchRequests, getSevenoUserByUid, SevenoMatchRequestError } from '@/lib/seveno-match-requests';
 import { toMatchApiErrorResponse } from '../_shared';
 
@@ -16,11 +17,11 @@ export async function GET(request: NextRequest) {
     }
 
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
-    const requests = await getCompanyMatchRequests(decodedToken.uid, publicCandidateId || undefined);
+    const membership = await requireActiveCompanyMembership({ userUid: decodedToken.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'viewer'] });
+    const requests = await getCompanyMatchRequests(membership.companyId, publicCandidateId || undefined);
 
     return NextResponse.json({ requests });
   } catch (error) {
     return toMatchApiErrorResponse(error);
   }
 }
-

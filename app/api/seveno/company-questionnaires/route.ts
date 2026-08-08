@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const token = await requireSevenoApiToken(request);
-    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
-    return NextResponse.json(await listCompanyQuestionnaires(membership.companyId, token.uid));
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'] });
+    return NextResponse.json(await listCompanyQuestionnaires(membership.companyId, token.uid, membership.role === 'recruiter' ? membership.userUid : undefined));
   } catch (error) {
     if (error instanceof SevenoApiAuthError || error instanceof SevenoCompanyQuestionnaireError || error instanceof CompanyMembershipError) {
       return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });

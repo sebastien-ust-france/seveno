@@ -7,7 +7,9 @@ import AnonymousCandidateCard from '@/components/entreprise/AnonymousCandidateCa
 import { Select } from '@/components/ui/Select';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS, findSectorLabel, getFamiliesBySector, getRolesByFamily } from '@/lib/job-taxonomy';
-import { getCompanyProfile } from '@/lib/seveno-companies';
+import { getCompanyBillingClient, getCompanyContextClient, getRecruitmentDashboardClient } from '@/lib/seveno-billing-client';
+import { recruitmentCreditPresentation } from '@/lib/seveno-recruitment-credit-presentation';
+import type { CompanyBillingView, RecruitmentDashboardView } from '@/types/seveno-billing';
 import {
   buildCandidateSearchParams,
   searchVisibleCandidateProfiles,
@@ -137,6 +139,8 @@ export default function CompanyDashboardPage() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [user, setUser] = useState<SevenoUser | null>(null);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  const [billing, setBilling] = useState<CompanyBillingView | null>(null);
+  const [recruitmentDashboard, setRecruitmentDashboard] = useState<RecruitmentDashboardView | null>(null);
   const [candidateProfiles, setCandidateProfiles] = useState<VisibleCandidateProfile[]>([]);
   const [searchStarted, setSearchStarted] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -189,7 +193,13 @@ export default function CompanyDashboardPage() {
           return;
         }
 
-        const companyProfile = await getCompanyProfile(sevenoUser.uid);
+        const companyContext = await getCompanyContextClient(authUser);
+        const companyProfile = companyContext.activeProfile;
+        const activeMembership = companyContext.companies.find((company) => company.companyId === companyContext.activeCompanyId);
+        const operationalAccess = companyProfile.verificationStatus === 'verified' && activeMembership && ['owner', 'admin', 'recruiter'].includes(activeMembership.role);
+        const [companyBilling, personalDashboard] = operationalAccess
+          ? await Promise.all([getCompanyBillingClient(authUser), getRecruitmentDashboardClient(authUser)])
+          : [null, null];
         if (!active) {
           return;
         }
@@ -201,6 +211,8 @@ export default function CompanyDashboardPage() {
 
         setUser(sevenoUser);
         setProfile(companyProfile);
+        setBilling(companyBilling);
+        setRecruitmentDashboard(personalDashboard);
         setAuthUser(authUser);
 
         if (companyProfile.profileStatus === 'suspended' || isIncompleteCompanyProfile(companyProfile)) {
@@ -338,6 +350,23 @@ export default function CompanyDashboardPage() {
   const recruitmentAreas = profile?.recruitmentAreas ?? [];
   const companyIsSuspended = profile?.profileStatus === 'suspended';
   const companyIsIncomplete = profile ? isIncompleteCompanyProfile(profile) : false;
+  const creditPresentation = billing ? recruitmentCreditPresentation(billing.availableCredits, billing.membershipRole, billing.canPurchaseCredits) : null;
+
+  if (!loading && profile && profile.verificationStatus !== 'verified') {
+    const companyIsRejected = profile.verificationStatus === 'rejected';
+    const title = companyIsRejected
+      ? 'La validation de votre entreprise n’a pas été acceptée'
+      : companyIsIncomplete
+        ? 'Complétez votre profil entreprise'
+        : 'Votre entreprise est en cours de validation';
+    const message = companyIsRejected
+      ? 'Votre espace de recrutement reste désactivé. Vous pouvez modifier les informations de votre entreprise avant un nouvel examen par Seven’O.'
+      : companyIsIncomplete
+        ? 'Renseignez les informations nécessaires avant l’examen de votre entreprise par Seven’O.'
+        : 'Votre profil a bien été enregistré. Seven’O effectue quelques vérifications avant d’activer votre espace de recrutement. Vous pourrez créer vos offres, inviter vos collaborateurs et acheter des crédits dès validation de votre entreprise.';
+
+    return <main className="min-h-screen bg-slate-950 px-5 py-12 text-white"><section className="mx-auto max-w-3xl rounded-[32px] border border-cyan-400/15 bg-slate-900 p-7 sm:p-10"><p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Espace entreprise</p><h1 className="mt-4 text-3xl font-semibold">{title}</h1><p className="mt-5 leading-7 text-slate-300">{message}</p><Link href="/entreprise/onboarding" className="mt-7 inline-flex rounded-full bg-cyan-400 px-5 py-3 font-semibold text-slate-950">Modifier mon profil entreprise</Link></section></main>;
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
@@ -366,6 +395,8 @@ export default function CompanyDashboardPage() {
                   Créer une offre
                 </Link>
               </div>
+              {recruitmentDashboard ? <section className="rounded-[24px] border border-cyan-400/15 bg-white/[0.04] p-5 sm:p-6"><p className="text-2xl font-semibold text-white">Bonjour {recruitmentDashboard.displayName || 'Membre'}</p><p className="mt-2 text-sm font-medium text-cyan-100">{recruitmentDashboard.roleLabel}</p><div className="mt-6 flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">Mes recrutements</h2>{recruitmentDashboard.canViewAllRecruitments ? <Link href="/entreprise/offres?scope=company" className="text-sm text-cyan-100">Tous les recrutements</Link> : null}</div>{recruitmentDashboard.assignedRecruitments === 0 ? <p className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Aucun recrutement ne vous est attribué pour le moment.</p> : <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[[recruitmentDashboard.activeRecruitments, 'Recrutements actifs'], [recruitmentDashboard.applicationsToReview, 'Candidatures à traiter'], [recruitmentDashboard.completedQuestionnaires, 'Questionnaires terminés'], [recruitmentDashboard.pendingIntroductions, 'Mises en relation en attente']].map(([count, label]) => <article key={String(label)} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"><p className="text-2xl font-semibold">{count}</p><p className="mt-1 text-sm text-slate-300">{label}</p></article>)}</div>}<Link href="/entreprise/offres" className="mt-5 inline-flex rounded-full border border-cyan-300/20 px-4 py-2 text-sm text-cyan-100">Voir mes recrutements</Link></section> : null}
+              {creditPresentation ? <article className={creditPresentation.state === 'empty' ? 'rounded-[24px] border border-rose-400/20 bg-rose-400/10 p-5' : creditPresentation.state === 'low' ? 'rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-5' : 'rounded-[24px] border border-cyan-400/15 bg-cyan-400/10 p-5'}><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">Crédits de recrutement disponibles</p><p className="mt-2 text-3xl font-semibold text-white">{creditPresentation.credits}</p>{creditPresentation.label ? <p className="mt-2 font-semibold text-white">{creditPresentation.label}</p> : null}<p className="mt-2 text-sm text-slate-200">{creditPresentation.message}</p>{billing?.membershipRole === 'admin' && !creditPresentation.canBuy ? <p className="mt-2 text-sm text-slate-300">L’achat de crédits est géré par le propriétaire de l’entreprise.</p> : null}</div>{creditPresentation.canBuy ? <Link href="/entreprise/facturation" className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950">Acheter des crédits</Link> : null}</div></article> : null}
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <article className="rounded-[24px] border border-violet-400/12 bg-[linear-gradient(180deg,rgba(12,14,34,0.94),rgba(8,15,28,0.88))] p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">Nom commercial</p>

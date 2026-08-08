@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 import { cancelSevenoMatchRequest, getSevenoUserByUid, SevenoMatchRequestError } from '@/lib/seveno-match-requests';
 import { readJsonBody, toMatchApiErrorResponse } from '../_shared';
 
@@ -37,10 +38,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = await cancelSevenoMatchRequest(decodedToken.uid, matchRequestId);
+    const membership = await requireActiveCompanyMembership({ userUid: decodedToken.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin'] });
+    const payload = await cancelSevenoMatchRequest(membership.companyId, matchRequestId);
     return NextResponse.json(payload);
   } catch (error) {
     return toMatchApiErrorResponse(error);
   }
 }
-
