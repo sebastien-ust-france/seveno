@@ -7,7 +7,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const USERS_COLLECTION = 'users';
-const COMPANY_INVITE_ONLY_MESSAGE = "L'accès entreprise est actuellement ouvert sur invitation.";
 
 class SevenoUserSyncError extends Error {
   code: string;
@@ -88,6 +87,14 @@ async function syncSevenoUserDocument(
     const existingAuthProvider = isSupportedAuthProvider(existing?.authProvider) ? existing.authProvider : null;
     const resolvedEmail = getOptionalTokenText(email) || getOptionalTokenText(existing?.email);
 
+    if (initialRole && existingRole && initialRole !== existingRole) {
+      throw new SevenoUserSyncError(
+        'role_already_assigned',
+        409,
+        'Ce compte possede deja un type de compte SevenO different.',
+      );
+    }
+
     if (!resolvedEmail) {
       throw new SevenoUserSyncError(
         'missing_email',
@@ -96,13 +103,9 @@ async function syncSevenoUserDocument(
       );
     }
 
-    if (!snapshot.exists && initialRole === 'company') {
-      throw new SevenoUserSyncError('company_invite_only', 403, COMPANY_INVITE_ONLY_MESSAGE);
-    }
-
     const payload: Record<string, unknown> = {
       uid,
-      role: snapshot.exists ? existingRole : initialRole,
+      role: existingRole ?? initialRole,
       authProvider: existingAuthProvider ?? resolveAuthProvider(authProvider),
       email: resolvedEmail,
       emailVerified,

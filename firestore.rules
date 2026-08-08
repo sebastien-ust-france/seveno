@@ -878,10 +878,7 @@ service cloud.firestore {
         && authProviderMatchesCurrentSignIn(request.resource.data.authProvider)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.emailVerified == request.auth.token.email_verified
-        && (
-          request.resource.data.role == null
-          || (request.resource.data.authProvider == 'password' && request.resource.data.role in ['candidate', 'company'])
-        )
+        && request.resource.data.role == null
         && request.resource.data.onboardingCompleted is bool;
       allow read: if isOwner(uid) || isAdminForOtherUser(uid);
       allow update: if (
@@ -895,10 +892,7 @@ service cloud.firestore {
         && request.resource.data.role != 'admin'
         && isCandidatePrivateIdentityUpdateAllowed(uid)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['termsAcceptance'])
-        && (
-          request.resource.data.role == resource.data.role
-          || (resource.data.role == null && request.resource.data.role in ['candidate', 'company'])
-        )
+        && request.resource.data.role == resource.data.role
       ) || (
         isAdminForOtherUser(uid)
         && isValidUserData(request.resource.data)

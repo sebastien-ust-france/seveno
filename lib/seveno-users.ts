@@ -15,7 +15,6 @@ import type {
 } from '@/types/seveno';
 
 const USERS_COLLECTION = 'users';
-export const COMPANY_INVITE_ONLY_MESSAGE = "L'accès entreprise est actuellement ouvert sur invitation.";
 
 export interface SevenoTermsAcceptanceResponse {
   acceptance: TermsAcceptance;
@@ -58,11 +57,7 @@ export function hasSevenoTermsAcceptance(
 }
 
 export function canAssignPublicRole(existingRole: UserRoleOrNull, requestedRole: PublicUserRole) {
-  if (requestedRole !== 'company') {
-    return true;
-  }
-
-  return existingRole === 'company';
+  return existingRole == null || existingRole === requestedRole;
 }
 
 export async function getSevenoUser(uid: string): Promise<SevenoUser | null> {
@@ -100,47 +95,8 @@ export async function ensureSevenoUser(
   return refreshed;
 }
 
-export async function updateSevenoUserRole(uid: string, role: PublicUserRole): Promise<SevenoUser> {
-  const ref = userRef(uid);
-
-  let snapshot;
-  try {
-    snapshot = await getDocFromServer(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture du document utilisateur', error));
-  }
-
-  if (!snapshot.exists()) {
-    throw new Error('Le document users n a pas pu etre lu avant mise a jour du role.');
-  }
-
-  const existing = snapshot.data() as SevenoUser;
-  if (!canAssignPublicRole(existing.role, role)) {
-    throw new Error(COMPANY_INVITE_ONLY_MESSAGE);
-  }
-
-  try {
-    await updateDoc(ref, {
-      role,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    throw new Error(describeFirestoreError('Mise à jour du rôle utilisateur', error));
-  }
-
-  let updated;
-
-  try {
-    updated = await getDocFromServer(ref);
-  } catch (error) {
-    throw new Error(describeFirestoreError('Lecture apres mise a jour du role utilisateur', error));
-  }
-
-  if (!updated.exists()) {
-    throw new Error('Le document users n a pas pu etre lu apres mise a jour du role.');
-  }
-
-  return updated.data() as SevenoUser;
+export async function updateSevenoUserRole(authUser: User, role: PublicUserRole): Promise<SevenoUser> {
+  return ensureSevenoUser(authUser, role);
 }
 
 export async function markUserOnboardingCompleted(uid: string): Promise<SevenoUser> {

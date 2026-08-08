@@ -19,8 +19,8 @@ import {
   signOutUser,
 } from '@/lib/auth';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
-import { COMPANY_INVITE_ONLY_MESSAGE, ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
-import type { PublicCompanyInvitationView, SevenoUser } from '@/types/seveno';
+import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import type { PublicCompanyInvitationView, PublicUserRole, SevenoUser } from '@/types/seveno';
 
 type AuthMode = 'sign-in' | 'sign-up' | 'reset';
 type LoadingAction = 'google' | 'sign-in' | 'sign-up' | 'reset' | 'resend' | 'refresh' | 'sign-out' | null;
@@ -214,6 +214,7 @@ export default function ConnexionPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [signupAccountType, setSignupAccountType] = useState<PublicUserRole | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -474,6 +475,10 @@ export default function ConnexionPage() {
       setError('La confirmation du mot de passe ne correspond pas.');
       return;
     }
+    if (!hasActiveCompanyInvitation() && !signupAccountType) {
+      setError('Choisissez comment vous souhaitez utiliser Seven’O.');
+      return;
+    }
 
     setLoadingAction('sign-up');
     setError(null);
@@ -500,7 +505,7 @@ export default function ConnexionPage() {
 
       let sevenoUser: SevenoUser;
       try {
-        sevenoUser = await ensureSevenoUser(createdAuthUser, hasActiveCompanyInvitation() ? null : 'candidate');
+        sevenoUser = await ensureSevenoUser(createdAuthUser, hasActiveCompanyInvitation() ? null : signupAccountType);
       } catch (userDocumentError) {
         await deleteAuthUser(createdAuthUser).catch(() => undefined);
         createdAuthUser = null;
@@ -773,6 +778,32 @@ export default function ConnexionPage() {
                     </div>
                   ) : null}
 
+                  {mode === 'sign-up' && !hasActiveCompanyInvitation() ? (
+                    <fieldset className="space-y-3">
+                      <legend className="text-sm font-semibold text-white">Comment souhaitez-vous utiliser Seven’O ?</legend>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          aria-pressed={signupAccountType === 'candidate'}
+                          onClick={() => setSignupAccountType('candidate')}
+                          className={`rounded-2xl border p-4 text-left transition ${signupAccountType === 'candidate' ? 'border-cyan-300/60 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                        >
+                          <span className="block font-semibold text-white">Je suis candidat</span>
+                          <span className="mt-2 block text-sm leading-5 text-slate-300">Je recherche une opportunité professionnelle.</span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={signupAccountType === 'company'}
+                          onClick={() => setSignupAccountType('company')}
+                          className={`rounded-2xl border p-4 text-left transition ${signupAccountType === 'company' ? 'border-blue-300/60 bg-blue-400/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                        >
+                          <span className="block font-semibold text-white">Je représente une entreprise</span>
+                          <span className="mt-2 block text-sm leading-5 text-slate-300">Je souhaite recruter avec Seven’O.</span>
+                        </button>
+                      </div>
+                    </fieldset>
+                  ) : null}
+
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-200">Adresse email</span>
                     <input
@@ -823,9 +854,6 @@ export default function ConnexionPage() {
                         />
                       </label>
 
-                      <div className="rounded-2xl border border-violet-300/15 bg-violet-400/10 px-4 py-3 text-sm leading-6 text-violet-100">
-                        {COMPANY_INVITE_ONLY_MESSAGE}
-                      </div>
                     </>
                   ) : null}
 

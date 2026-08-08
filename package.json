@@ -35,6 +35,7 @@
     "test:favicon-readiness": "node --experimental-strip-types ./scripts/favicon-readiness-smoke-test.mts",
     "test:color-system": "node --experimental-strip-types ./scripts/seveno-color-system-smoke-test.mts",
     "test:public-auth-isolation": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-auth-isolation.mts",
+    "test:public-account-type": "node --experimental-strip-types ./scripts/public-account-type-smoke-test.mts",
     "test:public-performance-architecture": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-performance-architecture.mts",
     "test:seveno-contact": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-contact-smoke-test.mts",
     "test:assessment-decoupling": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/assessment-decoupling-smoke-test.mts",
