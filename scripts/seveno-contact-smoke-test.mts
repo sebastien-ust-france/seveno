@@ -135,7 +135,7 @@ async function main() {
   assert.equal(headerInjection.fieldErrors?.subject, 'Les retours à la ligne ne sont pas autorisés dans ce champ.');
 
   const mailtoHref = buildContactMailtoHref(validSubmission);
-  assert.match(mailtoHref, /^mailto:contact@ust-france\.com\?/);
+  assert.match(mailtoHref, /^mailto:sebastien@seveno\.eu\?/);
   assert.match(mailtoHref, /subject=/);
 
   const context = {
@@ -156,8 +156,8 @@ async function main() {
   assert.equal(acknowledgementPreview.to, 'marie.dupont@example.com');
   assert.equal(acknowledgementPreview.subject, CONTACT_ACKNOWLEDGEMENT_SUBJECT);
   assert.match(acknowledgementPreview.text, /Votre demande a bien été transmise à Seven’O\./);
-  assert.match(acknowledgementPreview.text, /contact@ust-france.com/);
-  assert.match(acknowledgementPreview.html, /contact@ust-france.com/);
+  assert.match(acknowledgementPreview.text, /sebastien@seveno.eu/);
+  assert.match(acknowledgementPreview.html, /sebastien@seveno.eu/);
 
   const transport = createMockContactEmailTransport();
   const queued = await queueContactEmail(context, { transport });
@@ -269,7 +269,7 @@ async function main() {
   assertContains('components/public/contact/ContactHero.tsx', [
     'CONTACT',
     'Échanger avec Seven’O.',
-    'contact@ust-france.com',
+    'sebastien@seveno.eu',
   ]);
 
   assertContains('components/public/contact/ContactForm.tsx', [

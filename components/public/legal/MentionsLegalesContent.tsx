@@ -46,8 +46,8 @@ export function MentionsLegalesContent() {
           <p>Numéro de TVA intracommunautaire : FR28 103 480 349</p>
           <p>
             Adresse électronique :{' '}
-            <a href="mailto:contact@ust-france.com" className="text-cyan-200 transition hover:text-cyan-100">
-              contact@ust-france.com
+            <a href="mailto:sebastien@seveno.eu" className="text-cyan-200 transition hover:text-cyan-100">
+              sebastien@seveno.eu
             </a>
           </p>
           <p>
@@ -186,7 +186,7 @@ export function MentionsLegalesContent() {
               Consulter la Politique de confidentialité
             </Link>
           </p>
-          <p>Pour exercer ses droits ou poser une question relative aux données personnelles, l’utilisateur peut écrire à contact@ust-france.com.</p>
+          <p>Pour exercer ses droits ou poser une question relative aux données personnelles, l’utilisateur peut écrire à sebastien@seveno.eu.</p>
         </Section>
 
         <Section number="11." title="Cookies et traceurs">
@@ -224,8 +224,8 @@ export function MentionsLegalesContent() {
           <p>France</p>
           <p>
             Email :{' '}
-            <a href="mailto:contact@ust-france.com" className="text-cyan-200 transition hover:text-cyan-100">
-              contact@ust-france.com
+            <a href="mailto:sebastien@seveno.eu" className="text-cyan-200 transition hover:text-cyan-100">
+              sebastien@seveno.eu
             </a>
           </p>
           <p>

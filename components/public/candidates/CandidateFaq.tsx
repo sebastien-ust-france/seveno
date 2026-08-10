@@ -46,7 +46,7 @@ const faqItems = [
   {
     question: 'Comment exercer mes droits ou demander la suppression de mon compte ?',
     answer:
-      'Vous pouvez contacter Seven’O à l’adresse contact@ust-france.com afin d’exercer vos droits ou de demander la suppression de votre compte et de vos données.',
+      'Vous pouvez contacter Seven’O à l’adresse sebastien@seveno.eu afin d’exercer vos droits ou de demander la suppression de votre compte et de vos données.',
   },
 ] as const;
 

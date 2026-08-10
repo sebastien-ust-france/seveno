@@ -73,7 +73,7 @@ export type ContactSubmission = {
 export const CONTACT_GENERAL_VALIDATION_MESSAGE = 'Certains champs doivent être corrigés avant l’envoi.';
 export const CONTACT_RATE_LIMIT_MESSAGE = 'Trop de demandes ont été envoyées récemment. Patientez avant de réessayer.';
 export const CONTACT_SERVICE_UNAVAILABLE_MESSAGE =
-  'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à contact@ust-france.com.';
+  'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à sebastien@seveno.eu.';
 
 export function getContactReasonOption(reason: ContactReasonCode) {
   return CONTACT_REASON_OPTIONS.find((item) => item.value === reason) ?? null;
@@ -265,5 +265,5 @@ export function buildContactMailtoHref(submission: ContactSubmission) {
   const searchParams = new URLSearchParams();
   searchParams.set('subject', buildSubjectLine(submission));
   searchParams.set('body', bodyLines.join('\n'));
-  return `mailto:contact@ust-france.com?${searchParams.toString()}`;
+  return `mailto:sebastien@seveno.eu?${searchParams.toString()}`;
 }

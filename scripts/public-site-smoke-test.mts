@@ -124,7 +124,7 @@ assertPageContains('app/cookies/page.tsx', [
   "Seven'O - Cookies",
   'PublicSiteShell',
   'Gestion des cookies',
-  'contact@ust-france.com',
+  'sebastien@seveno.eu',
   "canonical: '/cookies'",
 ]);
 
@@ -165,7 +165,7 @@ assertPageContains('components/public/PublicSiteFooter.tsx', [
   'Mentions légales',
   'Politique de confidentialité',
   'Cookies',
-  'contact@ust-france.com',
+  'sebastien@seveno.eu',
   'SEVENO_LOGO_SRC',
   '/mentions-legales',
 ]);

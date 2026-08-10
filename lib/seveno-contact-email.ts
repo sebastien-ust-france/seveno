@@ -3,7 +3,7 @@ import 'server-only';
 import { createTransport } from 'nodemailer';
 import { getContactReasonLabel, type ContactSubmission } from '@/lib/seveno-contact';
 
-export const CONTACT_RECIPIENT = 'contact@ust-france.com';
+export const CONTACT_RECIPIENT = 'sebastien@seveno.eu';
 export const CONTACT_SENDER_NAME = 'Seven’O — Formulaire de contact';
 export const CONTACT_ACKNOWLEDGEMENT_SUBJECT = 'Seven’O — Votre demande a bien été reçue';
 
@@ -124,7 +124,7 @@ function buildAcknowledgementBodyLines(context: ContactEmailContext) {
     '',
     'Seven’O',
     'Recrutement et observatoire des talents',
-    'contact@ust-france.com',
+    'sebastien@seveno.eu',
   ];
 }
 

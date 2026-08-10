@@ -52,7 +52,7 @@ env:
     availability:
       - RUNTIME
   - variable: CONTACT_SMTP_FROM_ADDRESS
-    value: sebastien@ust-france.com
+    value: sebastien@seveno.eu
     availability:
       - RUNTIME
   - variable: CONTACT_SMTP_SECURE
