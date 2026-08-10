@@ -74,6 +74,25 @@ export const CONTACT_GENERAL_VALIDATION_MESSAGE = 'Certains champs doivent être
 export const CONTACT_RATE_LIMIT_MESSAGE = 'Trop de demandes ont été envoyées récemment. Patientez avant de réessayer.';
 export const CONTACT_SERVICE_UNAVAILABLE_MESSAGE =
   'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à sebastien@seveno.eu.';
+const TRUSTED_CONTACT_ORIGINS = new Set(['https://seveno.eu']);
+
+export function isTrustedContactOrigin(headers: Pick<Headers, 'get'>) {
+  const originHeader = headers.get('origin');
+  if (originHeader) {
+    return TRUSTED_CONTACT_ORIGINS.has(originHeader);
+  }
+
+  const refererHeader = headers.get('referer');
+  if (!refererHeader) {
+    return true;
+  }
+
+  try {
+    return TRUSTED_CONTACT_ORIGINS.has(new URL(refererHeader).origin);
+  } catch {
+    return false;
+  }
+}
 
 export function getContactReasonOption(reason: ContactReasonCode) {
   return CONTACT_REASON_OPTIONS.find((item) => item.value === reason) ?? null;

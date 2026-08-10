@@ -7,6 +7,7 @@ import {
   CONTACT_REASON_OPTIONS,
   CONTACT_RATE_LIMIT_MESSAGE,
   CONTACT_SERVICE_UNAVAILABLE_MESSAGE,
+  isTrustedContactOrigin,
   normalizeContactSubmission,
 } from '@/lib/seveno-contact';
 import {
@@ -71,6 +72,12 @@ function createMockContactEmailTransport(options?: { failAcknowledgement?: boole
 }
 
 async function main() {
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://seveno.eu' })), true);
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://www.seveno.eu' })), false);
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://example.com' })), false);
+  assert.equal(isTrustedContactOrigin(new Headers({ referer: 'https://seveno.eu/contact' })), true);
+  assert.equal(isTrustedContactOrigin(new Headers()), true);
+
   assert.equal(CONTACT_REASON_OPTIONS.length, 7);
   assert.deepEqual(
     CONTACT_REASON_OPTIONS.map((item) => item.label),

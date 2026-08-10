@@ -7,6 +7,7 @@ import {
   CONTACT_MIN_RENDER_DELAY_MS,
   CONTACT_RATE_LIMIT_MESSAGE,
   CONTACT_SERVICE_UNAVAILABLE_MESSAGE,
+  isTrustedContactOrigin,
   normalizeContactSubmission,
 } from '@/lib/seveno-contact';
 import { queueContactEmail } from '@/lib/seveno-contact-email';
@@ -76,25 +77,6 @@ function getRequestOrigin(request: NextRequest) {
   }
 }
 
-function isTrustedOrigin(request: NextRequest) {
-  const requestOrigin = request.nextUrl.origin;
-  const originHeader = request.headers.get('origin');
-  if (originHeader) {
-    return originHeader === requestOrigin;
-  }
-
-  const refererHeader = request.headers.get('referer');
-  if (!refererHeader) {
-    return true;
-  }
-
-  try {
-    return new URL(refererHeader).origin === requestOrigin;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
   if (!isJsonContentType(request.headers.get('content-type'))) {
     return jsonError(415, UNSUPPORTED_MEDIA_TYPE_MESSAGE, 'unsupported_media_type');
@@ -117,7 +99,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (!isTrustedOrigin(request)) {
+  if (!isTrustedContactOrigin(request.headers)) {
     return jsonError(403, INVALID_ORIGIN_MESSAGE, 'invalid_origin');
   }
 
