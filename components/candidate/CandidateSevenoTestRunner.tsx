@@ -189,7 +189,7 @@ export function CandidateSevenoTestRunner() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!activeSession || questionnaireCompleted) {
+    if (!activeSession || questionnaireCompleted || submitting) {
       return;
     }
 
@@ -200,7 +200,7 @@ export function CandidateSevenoTestRunner() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [activeSession, questionnaireCompleted]);
+  }, [activeSession, questionnaireCompleted, submitting]);
 
   useEffect(() => {
     if (!activeSession) {
@@ -212,7 +212,7 @@ export function CandidateSevenoTestRunner() {
   }, [activeSession, currentQuestionIndex]);
 
   useEffect(() => {
-    if (!activeSession || questionnaireCompleted || !currentQuestion || remainingQuestionSeconds === null) {
+    if (!activeSession || questionnaireCompleted || submitting || !currentQuestion || remainingQuestionSeconds === null) {
       return;
     }
 
@@ -228,7 +228,7 @@ export function CandidateSevenoTestRunner() {
     autoAdvanceHandledRef.current = autoAdvanceKey;
     void handleAdvanceQuestion(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSession?.sessionId, questionnaireCompleted, currentQuestion?.id, currentQuestionIndex, remainingQuestionSeconds]);
+  }, [activeSession?.sessionId, questionnaireCompleted, submitting, currentQuestion?.id, currentQuestionIndex, remainingQuestionSeconds]);
 
   async function handleStartSession() {
     if (!authUser) {
@@ -289,6 +289,8 @@ export function CandidateSevenoTestRunner() {
       setState(nextState);
       setCurrentAnswer('');
       setServerOffsetMs(nextState.session ? Date.parse(nextState.session.serverNow) - Date.now() : 0);
+    } catch (thrownError) {
+      setError(thrownError instanceof Error ? thrownError.message : 'La soumission du questionnaire a échoué.');
     } finally {
       setSubmitting(false);
     }

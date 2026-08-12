@@ -44,7 +44,7 @@ function configureEmulatorEnvironment() {
   process.env.PROJECT_ID = projectId;
   process.env.FIREBASE_ADMIN_PROJECT_ID = projectId;
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = projectId;
-  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
+  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8081';
   process.env.SEVENO_PROFESSIONAL_ASSESSMENT_ADMIN_STORE = 'memory';
 }
 
@@ -187,9 +187,22 @@ async function main() {
   const suffix = randomUUID().slice(0, 8);
   const candidateUid = `candidate-${suffix}`;
 
-  const activeVersion = buildSequentialProfessionalAssessmentVersion(createSevenoProfessionalAssessmentSeedVersion());
+  const draftBaseVersion = createSevenoProfessionalAssessmentSeedVersion();
+  const activeVersion = {
+    ...buildSequentialProfessionalAssessmentVersion(draftBaseVersion),
+    status: 'active' as const,
+  };
+  const nextVersion = {
+    ...buildSequentialProfessionalAssessmentVersion({
+      ...draftBaseVersion,
+      id: `${activeVersion.id}-b`,
+      version: `${activeVersion.version}-b`,
+      name: `${activeVersion.name} B`,
+    }),
+    status: 'draft' as const,
+  };
 
-  resetSevenoProfessionalAssessmentRepository([activeVersion]);
+  resetSevenoProfessionalAssessmentRepository([activeVersion, nextVersion]);
 
   await firestore.collection('users').doc(candidateUid).set({
     uid: candidateUid,
@@ -208,7 +221,7 @@ async function main() {
     (error) => error instanceof Error && (error as { code?: string }).code === 'professional_assessment_version_unavailable',
   );
 
-  resetSevenoProfessionalAssessmentRepository([activeVersion]);
+  resetSevenoProfessionalAssessmentRepository([activeVersion, nextVersion]);
 
   const startSession = await startSevenoTestSession(candidateUid);
   assert.ok(startSession);
@@ -243,10 +256,7 @@ async function main() {
 
   const expiredSessionRef = firestore.collection('test_sessions').doc(sessionId1);
   const forcedExpiredAt = Timestamp.fromMillis(Date.now() - 1000);
-  const forcedStartedAt = Timestamp.fromMillis(Date.now() - 16000);
   await expiredSessionRef.update({
-    questionTimeSeconds: 15,
-    questionStartedAt: forcedStartedAt,
     questionExpiresAt: forcedExpiredAt,
   });
 
@@ -260,10 +270,10 @@ async function main() {
   });
   assert.ok('session' in afterTimeout);
   assert.equal(afterTimeout.session?.currentQuestionIndex, 2);
-  assert.equal(afterTimeout.session?.questionTimeSeconds, 15);
+  assert.equal(afterTimeout.session?.questionTimeSeconds, 30);
   assert.equal(
     Date.parse(afterTimeout.session?.questionExpiresAt ?? '') - Date.parse(afterTimeout.session?.questionStartedAt ?? ''),
-    15000,
+    30000,
   );
 
   const storedAfterTimeout = await expiredSessionRef.get();
@@ -283,6 +293,14 @@ async function main() {
 
   const oldSessionAfterRestart = await expiredSessionRef.get();
   assert.equal(oldSessionAfterRestart.get('status'), 'abandoned');
+
+  resetSevenoProfessionalAssessmentRepository([
+    { ...nextVersion, status: 'active' },
+    { ...activeVersion, status: 'draft' },
+  ]);
+  const versionBStart = await startSevenoTestSession(candidateUid);
+  assert.ok(versionBStart);
+  assert.equal(versionBStart.professionalAssessmentVersionId, nextVersion.id);
 
   console.log('SevenO general sequential smoke test: OK', {
     sessionId: secondStart.sessionId,
