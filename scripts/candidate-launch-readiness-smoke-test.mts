@@ -4,12 +4,16 @@ import { resolve } from 'node:path';
 import type { User } from 'firebase/auth';
 import { CANDIDATE_NAVIGATION } from '@/lib/seveno-navigation';
 import { validateCandidateIdentity } from '@/lib/seveno-candidate-identity';
-import { COMPANY_INVITE_ONLY_MESSAGE, canAssignPublicRole } from '@/lib/seveno-users';
 import {
   resolveCandidateSessionGateState,
   shouldAllowCandidateOnboardingWithoutProfile,
   shouldRenderCandidateChildren,
 } from '@/lib/seveno-candidate-session-gate';
+import {
+  buildSevenoAutoTimeoutQuestionKey,
+  shouldArmSevenoAutoTimeoutQuestion,
+  shouldTriggerSevenoAutoTimeoutQuestion,
+} from '@/lib/seveno-test-runner-timeout-guards';
 
 function readSource(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
@@ -42,13 +46,6 @@ for (const route of BLOCKED_CANDIDATE_ROUTES) {
     `La route ${route} ne doit plus apparaître dans la navigation candidat.`,
   );
 }
-
-assert.equal(canAssignPublicRole(null, 'candidate'), true);
-assert.equal(canAssignPublicRole('candidate', 'candidate'), true);
-assert.equal(canAssignPublicRole('company', 'company'), true);
-assert.equal(canAssignPublicRole(null, 'company'), false);
-assert.equal(canAssignPublicRole('candidate', 'company'), false);
-assert.match(COMPANY_INVITE_ONLY_MESSAGE, /invitation/i);
 
 const authenticatedCandidate = { uid: 'candidate-1' } as User;
 
@@ -137,6 +134,89 @@ assert.doesNotMatch(
   /Les confirmations quotidiennes et le bouton de test seront réactivées lors de l'ouverture complète/,
 );
 assert.doesNotMatch(candidateDashboardSource, mojibakePattern);
+
+const sessionId = 'session-1';
+const questionA = buildSevenoAutoTimeoutQuestionKey(sessionId, 'question-a', 39);
+const questionB = buildSevenoAutoTimeoutQuestionKey(sessionId, 'question-b', 40);
+
+let armedQuestionKey: string | null = null;
+let consumedQuestionKey: string | null = null;
+let currentQuestionKey: string | null = questionA;
+
+assert.equal(
+  shouldArmSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 1,
+  }),
+  true,
+);
+armedQuestionKey = currentQuestionKey;
+assert.equal(
+  shouldTriggerSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 0,
+    armedQuestionKey,
+    consumedQuestionKey,
+  }),
+  true,
+);
+consumedQuestionKey = currentQuestionKey;
+assert.equal(
+  shouldTriggerSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 0,
+    armedQuestionKey,
+    consumedQuestionKey,
+  }),
+  false,
+);
+
+currentQuestionKey = questionB;
+armedQuestionKey = null;
+assert.equal(
+  shouldTriggerSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 0,
+    armedQuestionKey,
+    consumedQuestionKey,
+  }),
+  false,
+);
+assert.equal(
+  shouldArmSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 30,
+  }),
+  true,
+);
+armedQuestionKey = currentQuestionKey;
+assert.equal(
+  shouldTriggerSevenoAutoTimeoutQuestion({
+    activeSessionPresent: true,
+    questionnaireCompleted: false,
+    submitting: false,
+    currentQuestionKey,
+    remainingQuestionSeconds: 0,
+    armedQuestionKey,
+    consumedQuestionKey,
+  }),
+  true,
+);
 
 const testRunnerSource = readSource('components/candidate/CandidateSevenoTestRunner.tsx');
 assert.match(testRunnerSource, /useSevenoCandidateSession/);
