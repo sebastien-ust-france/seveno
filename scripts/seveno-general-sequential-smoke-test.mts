@@ -56,6 +56,15 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+const TEMPORARILY_UNAVAILABLE_MESSAGE = 'L’évaluation Seven’O est temporairement indisponible. Merci de réessayer un peu plus tard.';
+
+function isTemporarilyUnavailableError(error: unknown) {
+  return error instanceof Error
+    && (error as { code?: string }).code === 'assessment_temporarily_unavailable'
+    && (error as { status?: number }).status === 503
+    && error.message === TEMPORARILY_UNAVAILABLE_MESSAGE;
+}
+
 function buildSequentialQuestionPool(
   sourceQuestions: Array<{ id: string; code: string; path: 'essential' | 'extended'; options: Array<{ id: string; label: string; position?: number; dimensionScores?: Record<string, number>; adminExplanation?: string }>; assessmentVersionId?: string }>,
   path: 'essential' | 'extended',
@@ -196,10 +205,31 @@ async function main() {
     ...buildSequentialProfessionalAssessmentVersion({
       ...draftBaseVersion,
       id: `${activeVersion.id}-b`,
-      version: `${activeVersion.version}-b`,
+      version: '2.0.0',
       name: `${activeVersion.name} B`,
     }),
     status: 'draft' as const,
+  };
+  const invalidVersionId = `${activeVersion.id}-invalid`;
+  const invalidVersion = {
+    ...cloneValue(activeVersion),
+    id: invalidVersionId,
+    code: `${activeVersion.code}-invalid`,
+    version: '9.9.9',
+    name: `${activeVersion.name} invalide`,
+    status: 'active' as const,
+    schemaVersion: 2,
+    questions: activeVersion.questions.map((question) => {
+      const dimensionCodes = [...question.primaryDimensionCodes, ...(question.secondaryDimensionCodes ?? [])];
+      return {
+        ...cloneValue(question),
+        assessmentVersionId: invalidVersionId,
+        options: question.options.map((option) => ({
+          ...cloneValue(option),
+          dimensionScores: Object.fromEntries(dimensionCodes.map((dimensionCode) => [dimensionCode, 2])),
+        })),
+      };
+    }),
   };
 
   resetSevenoProfessionalAssessmentRepository([activeVersion, nextVersion]);
@@ -220,6 +250,171 @@ async function main() {
     () => startSevenoTestSession(candidateUid),
     (error) => error instanceof Error && (error as { code?: string }).code === 'professional_assessment_version_unavailable',
   );
+
+  resetSevenoProfessionalAssessmentRepository([invalidVersion, nextVersion]);
+  const candidateUserRef = firestore.collection('users').doc(candidateUid);
+  const candidateAttemptRef = firestore.collection('candidate_assessment_attempts').doc(candidateUid);
+  const candidateProfileRef = firestore.collection('candidate_profiles').doc(candidateUid);
+  const candidateSummaryRef = firestore.collection('candidate_assessment_summaries').doc(candidateUid);
+  const userBeforeInvalidStart = await candidateUserRef.get();
+  const sessionsBeforeInvalidStart = await firestore.collection('test_sessions').where('uid', '==', candidateUid).get();
+  const startValidationLogs: unknown[][] = [];
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    startValidationLogs.push(args);
+  };
+  try {
+    await assert.rejects(
+      () => startSevenoTestSession(candidateUid),
+      isTemporarilyUnavailableError,
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
+  const sessionsAfterInvalidStart = await firestore.collection('test_sessions').where('uid', '==', candidateUid).get();
+  const [attemptAfterInvalidStart, profileAfterInvalidStart, summaryAfterInvalidStart, userAfterInvalidStart] = await Promise.all([
+    candidateAttemptRef.get(),
+    candidateProfileRef.get(),
+    candidateSummaryRef.get(),
+    candidateUserRef.get(),
+  ]);
+  assert.equal(sessionsAfterInvalidStart.size, sessionsBeforeInvalidStart.size);
+  assert.equal(attemptAfterInvalidStart.exists, false);
+  assert.equal(profileAfterInvalidStart.exists, false);
+  assert.equal(summaryAfterInvalidStart.exists, false);
+  assert.equal(userAfterInvalidStart.updateTime?.toMillis(), userBeforeInvalidStart.updateTime?.toMillis());
+  assert.equal(startValidationLogs.length, 1);
+  assert.equal((startValidationLogs[0]?.[1] as { phase?: string })?.phase, 'start_version_validation');
+  assert.equal((startValidationLogs[0]?.[1] as { assessmentVersionId?: string })?.assessmentVersionId, invalidVersion.id);
+
+  const invalidCandidateUid = `candidate-invalid-${suffix}`;
+  const invalidSessionId = `invalid-session-${suffix}`;
+  const invalidQuestionIds = invalidVersion.questions.slice(0, 40).map((question) => question.id);
+  const invalidCurrentQuestionId = invalidQuestionIds[0];
+  const invalidCurrentAnswer = invalidVersion.questions[0]?.options[0]?.id ?? '';
+  assert.ok(invalidCurrentQuestionId);
+  assert.ok(invalidCurrentAnswer);
+  const invalidSessionRef = firestore.collection('test_sessions').doc(invalidSessionId);
+  const invalidAttemptRef = firestore.collection('candidate_assessment_attempts').doc(invalidCandidateUid);
+  const invalidProfileRef = firestore.collection('candidate_profiles').doc(invalidCandidateUid);
+  const invalidResultRef = firestore.collection('test_results').doc(invalidSessionId);
+  const invalidSummaryRef = firestore.collection('candidate_assessment_summaries').doc(invalidCandidateUid);
+  const invalidStartedAt = Timestamp.now();
+  await Promise.all([
+    firestore.collection('users').doc(invalidCandidateUid).set({
+      uid: invalidCandidateUid,
+      role: 'candidate',
+      authProvider: 'google',
+      email: `${invalidCandidateUid}@seveno.test`,
+      emailVerified: true,
+      onboardingCompleted: true,
+      createdAt: invalidStartedAt,
+      updatedAt: invalidStartedAt,
+    }),
+    invalidProfileRef.set({
+      uid: invalidCandidateUid,
+      sevenoAssessmentStatus: 'in_progress',
+      marker: 'unchanged',
+      createdAt: invalidStartedAt,
+      updatedAt: invalidStartedAt,
+    }),
+    invalidSessionRef.set({
+      uid: invalidCandidateUid,
+      candidateUid: invalidCandidateUid,
+      assessmentType: 'seveno_general',
+      professionalAssessmentVersionId: invalidVersion.id,
+      attemptSeed: `invalid-${suffix}`,
+      questionnaireVersion: invalidVersion.version,
+      questionBankCode: invalidVersion.code,
+      questionBankVersion: invalidVersion.version,
+      status: 'in_progress',
+      questionIds: invalidQuestionIds,
+      currentQuestionIndex: 0,
+      questionStartedAt: invalidStartedAt,
+      questionExpiresAt: Timestamp.fromMillis(invalidStartedAt.toMillis() + 30000),
+      questionTimeSeconds: 30,
+      answers: {},
+      answersCount: 0,
+      totalQuestions: 40,
+      questionsPresentedCount: 40,
+      timedOutQuestionIds: [],
+      lastQuestionId: null,
+      startedAt: invalidStartedAt,
+      updatedAt: invalidStartedAt,
+      expiresAt: Timestamp.fromMillis(invalidStartedAt.toMillis() + 1200000),
+    }),
+    invalidAttemptRef.set({
+      uid: invalidCandidateUid,
+      activeSessionId: invalidSessionId,
+      status: 'active',
+      marker: 'unchanged',
+      updatedAt: invalidStartedAt,
+    }),
+  ]);
+
+  async function readInvalidMutationState() {
+    const [sessionSnapshot, attemptSnapshot, profileSnapshot, resultSnapshot, summarySnapshot] = await Promise.all([
+      invalidSessionRef.get(),
+      invalidAttemptRef.get(),
+      invalidProfileRef.get(),
+      invalidResultRef.get(),
+      invalidSummaryRef.get(),
+    ]);
+    return {
+      sessionUpdateTime: sessionSnapshot.updateTime?.toMillis() ?? null,
+      attemptUpdateTime: attemptSnapshot.updateTime?.toMillis() ?? null,
+      profileUpdateTime: profileSnapshot.updateTime?.toMillis() ?? null,
+      answers: (sessionSnapshot.get('answers') as Record<string, string> | undefined) ?? {},
+      answersCount: sessionSnapshot.get('answersCount'),
+      questionIds: (sessionSnapshot.get('questionIds') as string[] | undefined) ?? [],
+      questionsPresentedCount: sessionSnapshot.get('questionsPresentedCount'),
+      currentQuestionIndex: sessionSnapshot.get('currentQuestionIndex'),
+      timedOutQuestionIds: (sessionSnapshot.get('timedOutQuestionIds') as string[] | undefined) ?? [],
+      resultExists: resultSnapshot.exists,
+      summaryExists: summarySnapshot.exists,
+    };
+  }
+
+  const submitValidationLogs: unknown[][] = [];
+  console.error = (...args: unknown[]) => {
+    submitValidationLogs.push(args);
+  };
+  try {
+    const beforeManualInvalidSubmit = await readInvalidMutationState();
+    await assert.rejects(
+      () => submitSevenoTestSession(invalidCandidateUid, invalidSessionId, {
+        sessionId: invalidSessionId,
+        questionId: invalidCurrentQuestionId,
+        answer: invalidCurrentAnswer,
+        timeout: false,
+      }),
+      isTemporarilyUnavailableError,
+    );
+    assert.deepEqual(await readInvalidMutationState(), beforeManualInvalidSubmit);
+
+    await invalidSessionRef.update({
+      questionExpiresAt: Timestamp.fromMillis(Date.now() - 1000),
+    });
+    const beforeTimeoutInvalidSubmit = await readInvalidMutationState();
+    await assert.rejects(
+      () => submitSevenoTestSession(invalidCandidateUid, invalidSessionId, {
+        sessionId: invalidSessionId,
+        questionId: invalidCurrentQuestionId,
+        answer: null,
+        timeout: true,
+      }),
+      isTemporarilyUnavailableError,
+    );
+    assert.deepEqual(await readInvalidMutationState(), beforeTimeoutInvalidSubmit);
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.equal(submitValidationLogs.length, 2);
+  assert.ok(submitValidationLogs.every((entry) => (entry[1] as { phase?: string })?.phase === 'submit_version_validation'));
+  assert.ok(submitValidationLogs.every((entry) => (entry[1] as { assessmentVersionId?: string })?.assessmentVersionId === invalidVersion.id));
+  assert.equal((submitValidationLogs[0]?.[1] as { timeout?: boolean })?.timeout, false);
+  assert.equal((submitValidationLogs[1]?.[1] as { timeout?: boolean })?.timeout, true);
+  assert.doesNotMatch(JSON.stringify(submitValidationLogs), new RegExp(invalidCurrentAnswer));
 
   resetSevenoProfessionalAssessmentRepository([activeVersion, nextVersion]);
 
@@ -424,7 +619,9 @@ async function main() {
   );
 
   const submittedSessionId = `submitted-${suffix}`;
-  await firestore.collection('test_sessions').doc(submittedSessionId).set({
+  const submittedSessionRef = firestore.collection('test_sessions').doc(submittedSessionId);
+  const submittedResultRef = firestore.collection('test_results').doc(submittedSessionId);
+  await submittedSessionRef.set({
     uid: candidateUid,
     candidateUid,
     assessmentType: 'seveno_general',
@@ -451,7 +648,7 @@ async function main() {
     updatedAt: productionLikeNow,
     expiresAt: Timestamp.fromMillis(productionLikeNow.toMillis() + 1200000),
   });
-  await firestore.collection('test_results').doc(submittedSessionId).set({
+  await submittedResultRef.set({
     uid: candidateUid,
     candidateUid,
     sessionId: submittedSessionId,
@@ -483,6 +680,12 @@ async function main() {
     createdAt: productionLikeNow,
     verifiedAt: productionLikeNow,
   });
+  const [submittedSessionBeforeRetry, submittedResultBeforeRetry, submittedSummaryBeforeRetry] = await Promise.all([
+    submittedSessionRef.get(),
+    submittedResultRef.get(),
+    candidateSummaryRef.get(),
+  ]);
+  assert.equal(submittedSummaryBeforeRetry.exists, true);
   const submittedRetry = await submitSevenoTestSession(candidateUid, submittedSessionId, {
     sessionId: submittedSessionId,
     questionId: productionLikeQuestionIds[39],
@@ -490,8 +693,18 @@ async function main() {
     timeout: false,
   });
   assert.ok(submittedRetry);
-  const submittedRetryResult = await firestore.collection('test_results').doc(submittedSessionId).get();
-  assert.equal(submittedRetryResult.exists, true);
+  const [submittedSessionAfterRetry, submittedResultAfterRetry, submittedSummaryAfterRetry] = await Promise.all([
+    submittedSessionRef.get(),
+    submittedResultRef.get(),
+    candidateSummaryRef.get(),
+  ]);
+  assert.equal(submittedResultAfterRetry.exists, true);
+  assert.deepEqual(submittedSessionAfterRetry.data(), submittedSessionBeforeRetry.data());
+  assert.deepEqual(submittedResultAfterRetry.data(), submittedResultBeforeRetry.data());
+  assert.deepEqual(submittedSummaryAfterRetry.data(), submittedSummaryBeforeRetry.data());
+  assert.equal(submittedSessionAfterRetry.updateTime?.toMillis(), submittedSessionBeforeRetry.updateTime?.toMillis());
+  assert.equal(submittedResultAfterRetry.updateTime?.toMillis(), submittedResultBeforeRetry.updateTime?.toMillis());
+  assert.equal(submittedSummaryAfterRetry.updateTime?.toMillis(), submittedSummaryBeforeRetry.updateTime?.toMillis());
 
   const candidateUidRestart = `candidate-restart-${suffix}`;
   await firestore.collection('users').doc(candidateUidRestart).set({
