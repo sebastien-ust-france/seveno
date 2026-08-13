@@ -282,7 +282,230 @@ async function main() {
   const storedAnswers = storedAfterTimeout.get('answers') as Record<string, string> | undefined;
   assert.equal(storedAnswers?.[expiredQuestion.id], undefined);
 
-  const secondStart = await startSevenoTestSession(candidateUid);
+  const productionLikeQuestions = activeVersion.questions.slice(0, 40);
+  const productionLikeQuestionIds = productionLikeQuestions.map((question) => question.id);
+  const productionLikeReplacement = activeVersion.questions.find((question) => question.path === 'extended' && question.id !== 'extended_profile_15' && question.id !== 'extended_profile_05');
+  assert.ok(productionLikeReplacement);
+  const productionLikeNow = Timestamp.now();
+  const productionLikeInitialAnswers = Object.fromEntries(
+    productionLikeQuestionIds.slice(0, 39).map((questionId, index) => [questionId, productionLikeQuestions[index]?.options[0]?.id ?? `${questionId}-option-1`]),
+  );
+
+  const productionLikeSessionId = `prod-like-${suffix}`;
+  const productionLikeSessionRef = firestore.collection('test_sessions').doc(productionLikeSessionId);
+  await productionLikeSessionRef.set({
+    uid: candidateUid,
+    candidateUid,
+    assessmentType: 'seveno_general',
+    professionalAssessmentVersionId: activeVersion.id,
+    attemptSeed: `prod-like-${suffix}`,
+    questionnaireVersion: activeVersion.version,
+    questionBankCode: activeVersion.code,
+    questionBankVersion: activeVersion.version,
+    status: 'in_progress',
+    questionIds: [...productionLikeQuestionIds],
+    currentQuestionIndex: 39,
+    questionStartedAt: productionLikeNow,
+    questionExpiresAt: Timestamp.fromMillis(productionLikeNow.toMillis() + 900000),
+    questionTimeSeconds: 30,
+    answers: productionLikeInitialAnswers,
+    answersCount: 39,
+    totalQuestions: 40,
+    questionsPresentedCount: 40,
+    timedOutQuestionIds: [],
+    lastQuestionId: productionLikeQuestionIds[38],
+    startedAt: productionLikeNow,
+    updatedAt: productionLikeNow,
+    expiresAt: Timestamp.fromMillis(productionLikeNow.toMillis() + 1200000),
+  });
+
+  const productionLikeBeforeTimeout = await productionLikeSessionRef.get();
+  console.log('productionLike before timeout', {
+    answersCount: productionLikeBeforeTimeout.get('answersCount'),
+    answerKeys: Object.keys((productionLikeBeforeTimeout.get('answers') as Record<string, string>) ?? {}).length,
+    currentQuestionIndex: productionLikeBeforeTimeout.get('currentQuestionIndex'),
+    questionIdsLength: (productionLikeBeforeTimeout.get('questionIds') as string[] | undefined)?.length ?? null,
+    currentQuestionId: (productionLikeBeforeTimeout.get('questionIds') as string[] | undefined)?.[productionLikeBeforeTimeout.get('currentQuestionIndex') as number] ?? null,
+  });
+
+  const productionLikeTimeoutQuestionId = productionLikeQuestionIds[39];
+  assert.ok(productionLikeTimeoutQuestionId);
+  await productionLikeSessionRef.update({
+    questionExpiresAt: Timestamp.fromMillis(Date.now() - 1000),
+  });
+  const productionLikeTimeoutSubmit = await submitSevenoTestSession(candidateUid, productionLikeSessionId, {
+    sessionId: productionLikeSessionId,
+    questionId: productionLikeTimeoutQuestionId,
+    answer: null,
+    timeout: true,
+  });
+  assert.ok('session' in productionLikeTimeoutSubmit);
+  const productionLikeAfterTimeout = await productionLikeSessionRef.get();
+  const productionLikeTimedOutQuestionIds = (productionLikeAfterTimeout.get('timedOutQuestionIds') as string[] | undefined) ?? [];
+  console.log('productionLike after timeout', {
+    answersCount: productionLikeAfterTimeout.get('answersCount'),
+    answerKeys: Object.keys((productionLikeAfterTimeout.get('answers') as Record<string, string>) ?? {}).length,
+    currentQuestionIndex: productionLikeAfterTimeout.get('currentQuestionIndex'),
+    questionIdsLength: (productionLikeAfterTimeout.get('questionIds') as string[] | undefined)?.length ?? null,
+    replacementQuestionId: (productionLikeAfterTimeout.get('questionIds') as string[] | undefined)?.[40] ?? null,
+    timedOutQuestionIds: productionLikeTimedOutQuestionIds,
+  });
+
+  const productionLikeReplacementId = (productionLikeAfterTimeout.get('questionIds') as string[] | undefined)?.[40];
+  assert.ok(productionLikeReplacementId);
+  const productionLikeBeforeReplacement = await productionLikeSessionRef.get();
+  console.log('productionLike before replacement', {
+    answersCount: productionLikeBeforeReplacement.get('answersCount'),
+    currentQuestionId: (productionLikeBeforeReplacement.get('questionIds') as string[] | undefined)?.[productionLikeBeforeReplacement.get('currentQuestionIndex') as number] ?? null,
+    replacementQuestionId: productionLikeReplacementId,
+  });
+
+  const productionLikeReplacementAnswer = `${productionLikeReplacementId}-option-1`;
+  const productionLikeFinalSubmit = await submitSevenoTestSession(candidateUid, productionLikeSessionId, {
+    sessionId: productionLikeSessionId,
+    questionId: productionLikeReplacementId,
+    answer: productionLikeReplacementAnswer,
+    timeout: false,
+  });
+  assert.ok('session' in productionLikeFinalSubmit);
+  const productionLikeResult = await firestore.collection('test_results').doc(productionLikeSessionId).get();
+  const productionLikeAfterReplacement = await productionLikeSessionRef.get();
+  const productionLikeResultAnswers = (productionLikeResult.get('answers') as Record<string, string> | undefined) ?? {};
+  console.log('productionLike after replacement', {
+    answersCount: productionLikeAfterReplacement.get('answersCount'),
+    answerKeys: Object.keys((productionLikeAfterReplacement.get('answers') as Record<string, string>) ?? {}).length,
+    status: productionLikeAfterReplacement.get('status'),
+    currentQuestionIndex: productionLikeAfterReplacement.get('currentQuestionIndex'),
+    questionIdsLength: (productionLikeAfterReplacement.get('questionIds') as string[] | undefined)?.length ?? null,
+    testResultExists: productionLikeResult.exists,
+  });
+  assert.equal(productionLikeResult.exists, true);
+  const productionLikeStoredSession = await productionLikeSessionRef.get();
+  assert.equal(productionLikeStoredSession.get('status'), 'submitted');
+  assert.equal(productionLikeStoredSession.get('answersCount'), 40);
+  assert.equal(productionLikeStoredSession.get('currentQuestionIndex') < productionLikeStoredSession.get('questionIds').length, true);
+  assert.equal(Object.keys((productionLikeStoredSession.get('answers') as Record<string, string>) ?? {}).length, 40);
+  assert.equal(
+    (productionLikeStoredSession.get('answers') as Record<string, string> | undefined)?.[productionLikeReplacementId] ?? null,
+    productionLikeReplacementAnswer,
+  );
+  assert.equal(Object.keys(productionLikeResultAnswers).length, 40);
+  assert.equal(productionLikeResultAnswers[productionLikeReplacementId] ?? null, productionLikeReplacementAnswer);
+  assert.deepEqual(
+    Object.fromEntries(Object.entries((productionLikeStoredSession.get('answers') as Record<string, string>) ?? {}).sort()),
+    Object.fromEntries(Object.entries(productionLikeResultAnswers).sort()),
+  );
+  assert.equal(
+    !(productionLikeStoredSession.get('status') === 'in_progress' && productionLikeStoredSession.get('currentQuestionIndex') >= productionLikeStoredSession.get('questionIds').length),
+    true,
+  );
+
+  console.log('SevenO general sequential smoke test: productionLike OK', {
+    sessionId: productionLikeSessionId,
+    questionTimeoutId: productionLikeTimeoutQuestionId,
+    replacementQuestionId: productionLikeReplacementId,
+  });
+  const productionLikeRetry = await submitSevenoTestSession(candidateUid, productionLikeSessionId, {
+    sessionId: productionLikeSessionId,
+    questionId: productionLikeReplacementId,
+    answer: productionLikeReplacementAnswer,
+    timeout: false,
+  });
+  assert.ok(productionLikeRetry);
+  const productionLikeRetryResult = await firestore.collection('test_results').doc(productionLikeSessionId).get();
+  const productionLikeRetrySession = await productionLikeSessionRef.get();
+  assert.equal(productionLikeRetryResult.exists, true);
+  assert.equal(productionLikeRetrySession.get('status'), 'submitted');
+  assert.equal(productionLikeRetrySession.get('answersCount'), 40);
+  assert.equal(Object.keys((productionLikeRetrySession.get('answers') as Record<string, string>) ?? {}).length, 40);
+  assert.equal(
+    (productionLikeRetrySession.get('answers') as Record<string, string> | undefined)?.[productionLikeReplacementId] ?? null,
+    productionLikeReplacementAnswer,
+  );
+
+  const submittedSessionId = `submitted-${suffix}`;
+  await firestore.collection('test_sessions').doc(submittedSessionId).set({
+    uid: candidateUid,
+    candidateUid,
+    assessmentType: 'seveno_general',
+    professionalAssessmentVersionId: activeVersion.id,
+    attemptSeed: `submitted-${suffix}`,
+    questionnaireVersion: activeVersion.version,
+    questionBankCode: activeVersion.code,
+    questionBankVersion: activeVersion.version,
+    status: 'submitted',
+    questionIds: productionLikeQuestionIds,
+    currentQuestionIndex: 40,
+    questionStartedAt: productionLikeNow,
+    questionExpiresAt: null,
+    questionTimeSeconds: 30,
+    answers: Object.fromEntries(
+      productionLikeQuestionIds.map((questionId, index) => [questionId, activeVersion.questions[index]?.options[0]?.id ?? `${questionId}-option-1`]),
+    ),
+    answersCount: 40,
+    totalQuestions: 40,
+    questionsPresentedCount: 40,
+    timedOutQuestionIds: [],
+    lastQuestionId: productionLikeQuestionIds[39],
+    startedAt: productionLikeNow,
+    updatedAt: productionLikeNow,
+    expiresAt: Timestamp.fromMillis(productionLikeNow.toMillis() + 1200000),
+  });
+  await firestore.collection('test_results').doc(submittedSessionId).set({
+    uid: candidateUid,
+    candidateUid,
+    sessionId: submittedSessionId,
+    assessmentType: 'seveno_general',
+    questionnaireVersion: activeVersion.version,
+    questionnaireId: activeVersion.code,
+    status: 'completed',
+    questionBankCode: activeVersion.code,
+    questionBankVersion: activeVersion.version,
+    score: 100,
+    overallScore: 100,
+    scoresByDimension: {},
+    professionalAssessmentVersionId: activeVersion.id,
+    professionalAssessmentSchemaVersion: activeVersion.schemaVersion ?? 1,
+    behavioralProfile: null,
+    correctAnswers: 0,
+    totalQuestions: 40,
+    passed: true,
+    threshold: 0,
+    durationSeconds: 1200,
+    answersCount: 40,
+    questionsPresentedCount: 40,
+    questionIds: productionLikeQuestionIds,
+    timedOutQuestionIds: [],
+    answers: Object.fromEntries(
+      productionLikeQuestionIds.map((questionId, index) => [questionId, activeVersion.questions[index]?.options[0]?.id ?? `${questionId}-option-1`]),
+    ),
+    submittedAt: productionLikeNow,
+    createdAt: productionLikeNow,
+    verifiedAt: productionLikeNow,
+  });
+  const submittedRetry = await submitSevenoTestSession(candidateUid, submittedSessionId, {
+    sessionId: submittedSessionId,
+    questionId: productionLikeQuestionIds[39],
+    answer: productionLikeQuestionIds[39] ? `${productionLikeQuestionIds[39]}-option-1` : '',
+    timeout: false,
+  });
+  assert.ok(submittedRetry);
+  const submittedRetryResult = await firestore.collection('test_results').doc(submittedSessionId).get();
+  assert.equal(submittedRetryResult.exists, true);
+
+  const candidateUidRestart = `candidate-restart-${suffix}`;
+  await firestore.collection('users').doc(candidateUidRestart).set({
+    uid: candidateUidRestart,
+    role: 'candidate',
+    authProvider: 'google',
+    email: `${candidateUidRestart}@seveno.test`,
+    emailVerified: true,
+    onboardingCompleted: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const secondStart = await startSevenoTestSession(candidateUidRestart);
   assert.ok(secondStart);
   assert.notEqual(secondStart.attemptSeed, attemptSeed1);
   assert.equal(secondStart.currentQuestionIndex, 0);
@@ -298,7 +521,7 @@ async function main() {
     { ...nextVersion, status: 'active' },
     { ...activeVersion, status: 'draft' },
   ]);
-  const versionBStart = await startSevenoTestSession(candidateUid);
+  const versionBStart = await startSevenoTestSession(candidateUidRestart);
   assert.ok(versionBStart);
   assert.equal(versionBStart.professionalAssessmentVersionId, nextVersion.id);
 

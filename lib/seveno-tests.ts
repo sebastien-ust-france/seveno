@@ -1141,6 +1141,7 @@ async function submitSevenoProfessionalAssessment(
       score: overallScore,
       totalQuestions,
       passed: true,
+      answers: { ...answers },
       answersCount,
       questionsPresentedCount,
       timedOutQuestionIds: [...timedOutSet],
@@ -1209,6 +1210,19 @@ async function submitSevenoProfessionalAssessment(
   }
 
   return buildSubmitResult(committedResult);
+}
+
+function isRecoverableSevenoGeneralAssessmentSession(session: TestSession) {
+  const questionIds = Array.isArray(session.questionIds)
+    ? session.questionIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    : [];
+  const currentQuestionIndex = typeof session.currentQuestionIndex === 'number' && Number.isFinite(session.currentQuestionIndex)
+    ? Math.max(0, session.currentQuestionIndex)
+    : 0;
+  return session.assessmentType === 'seveno_general'
+    && session.status === 'in_progress'
+    && currentQuestionIndex >= questionIds.length
+    && session.answersCount === 40;
 }
 
 function normalizeSevenoGeneralStepSubmission(value: unknown) {
@@ -1312,6 +1326,38 @@ async function advanceSevenoGeneralAssessmentQuestion(
         return [...baseQuestionIds, replacementQuestion.id];
       })()
     : baseQuestionIds;
+
+  if (answersCount === 40) {
+    await submitSevenoProfessionalAssessment(
+      uid,
+      sessionId,
+      {
+        ...session,
+        professionalAssessmentVersionId: professionalVersion.id,
+        attemptSeed: session.attemptSeed ?? null,
+        questionIds: nextQuestionIds,
+        currentQuestionIndex,
+        questionStartedAt: currentQuestionStartedAt,
+        questionExpiresAt: currentQuestionExpiresAt,
+        questionTimeSeconds: currentQuestionTimeSeconds,
+        answers: nextAnswers,
+        answersCount,
+        totalQuestions: session.totalQuestions ?? 40,
+        questionsPresentedCount: nextQuestionIds.length,
+        timedOutQuestionIds,
+        lastQuestionId: currentQuestionId,
+        expiresAt: toTimestamp(session.expiresAt) ?? Timestamp.fromMillis(currentQuestionStartedAt.toMillis() + currentQuestionTimeSeconds * 1000),
+      },
+      bank,
+      professionalVersion,
+      Object.fromEntries(
+        Object.entries(nextAnswers).filter(([, value]) => typeof value === 'string' && value.length > 0),
+      ) as Record<string, string>,
+      new Set(timedOutQuestionIds),
+    );
+
+    return getSevenoAssessmentStartState(uid);
+  }
 
   return await commitNextStep();
 
@@ -1874,6 +1920,31 @@ export async function submitSevenoTestSession(
       ? (rawAnswers as { answers: Record<string, unknown> }).answers
       : rawAnswers);
   if (session.assessmentType === 'seveno_general') {
+    if (isRecoverableSevenoGeneralAssessmentSession(session)) {
+      const professionalVersion = await loadProfessionalAssessmentVersionByCodeAndVersion(bank.code, bank.version);
+      if (!professionalVersion) {
+        throw new SevenoTestError('question_bank_missing', 404, 'La banque de questions est indisponible.');
+      }
+
+      const recoverableAnswers = isPlainObject(session.answers)
+        ? Object.fromEntries(
+            Object.entries(session.answers).filter(([, value]) => typeof value === 'string' && value.length > 0),
+          ) as Record<string, string>
+        : {};
+      return submitSevenoProfessionalAssessment(
+        uid,
+        sessionId,
+        session,
+        bank,
+        professionalVersion,
+        recoverableAnswers,
+        new Set(
+          Array.isArray(session.timedOutQuestionIds)
+            ? session.timedOutQuestionIds.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+            : [],
+        ),
+      );
+    }
     if (generalSubmission) {
       const professionalVersion = await loadProfessionalAssessmentVersionByCodeAndVersion(bank.code, bank.version);
       if (!professionalVersion) {
