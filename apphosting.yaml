@@ -4,6 +4,10 @@ runConfig:
   minInstances: 0
 
 env:
+  - variable: SEVENO_RATE_LIMIT_HASH_SECRET
+    secret: SEVENO_RATE_LIMIT_HASH_SECRET
+    availability:
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyBdbKuYVPus0c6bZ6lY_5h69oqAgHc8BPs
     availability:

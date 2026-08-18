@@ -4,6 +4,8 @@ import { CompanyMembershipError, requireActiveCompanyMembership } from '@/lib/se
 import { createStripeCheckout, SevenoStripeError, toStripeErrorResponse, validateCheckoutRequest } from '@/lib/seveno-stripe-server';
 import { canPurchaseCompanyCredits } from '@/lib/seveno-company-roles';
 import { requireCurrentCompanySalesTermsAcceptance } from '@/lib/seveno-company-sales-terms-server';
+import { consumeSevenoRateLimits } from '@/lib/seveno-rate-limit';
+import { SevenoRateLimitConfigurationError } from '@/lib/seveno-rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,9 +19,20 @@ export async function POST(request: NextRequest) {
     }
     await requireCurrentCompanySalesTermsAcceptance(membership.companyId);
     const body = validateCheckoutRequest(await request.json().catch(() => null));
+    const rateLimit = await consumeSevenoRateLimits([
+      { scope: 'stripe-checkout-company-product-10m', key: `${membership.companyId}:${body.productCode}`, limit: 5, windowSeconds: 10 * 60 },
+      { scope: 'stripe-checkout-company-day', key: membership.companyId, limit: 20, windowSeconds: 24 * 60 * 60 },
+    ]);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'rate_limit_exceeded', retryAfterSeconds: rateLimit.retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+      );
+    }
     const result = await createStripeCheckout({ companyId: membership.companyId, actorUid: token.uid, ...(token.email_verified && token.email ? { actorEmail: token.email } : {}), actorRole: membership.role, companyProfile: membership.profile, ...body });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof SevenoRateLimitConfigurationError) return NextResponse.json({ error: 'rate_limit_unavailable' }, { status: 503 });
     if (error instanceof SevenoApiAuthError || error instanceof CompanyMembershipError || error instanceof SevenoStripeError) return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
     const response = toStripeErrorResponse(error);
     return NextResponse.json(response.body, { status: response.status });

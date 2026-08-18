@@ -21,6 +21,8 @@
     "test:company-validation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-validation-emulator-test.mts",
     "test:member-invitations:security": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/member-invitation-security-smoke-test.mts",
     "test:firebase-admin-adc": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/firebase-admin-adc-smoke-test.mts",
+    "test:rate-limit:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-rate-limit-emulator-test.mts",
+    "test:study-rate-limit": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/study-rate-limit-integration-test.mts",
     "test:stripe-checkout": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-smoke-test.mts",
     "test:stripe-checkout:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/stripe-checkout-emulator-test.mts",
     "test:company-sales-terms": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-sales-terms-smoke-test.mts",

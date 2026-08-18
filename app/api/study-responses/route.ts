@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
+import { consumeSevenoRateLimits, normalizeRateLimitEmail, normalizeRateLimitPhone } from '@/lib/seveno-rate-limit';
 import {
   getAcquisitionChannelLabel,
   normalizeAcquisitionChannelCode,
@@ -194,6 +195,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPhone = normalizePhone(phone);
+  const normalizedFingerprint = normalizeFingerprint(visitorFingerprint);
+  const identity = normalizedEmail
+    ? `email:${normalizeRateLimitEmail(normalizedEmail)}`
+    : normalizedPhone
+      ? `phone:${normalizeRateLimitPhone(normalizedPhone)}`
+      : normalizedFingerprint
+        ? `fingerprint:${normalizedFingerprint}`
+        : '';
+
+  if (!identity) {
+    return NextResponse.json({ error: 'missing_rate_limit_identity', message: "La réponse n'a pas pu être enregistrée. Merci de renseigner un moyen de contact." }, { status: 400 });
+  }
+
   const existingResponses = await getExistingStudyResponses();
   if (existingResponses === null) {
     return NextResponse.json(
@@ -206,7 +222,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const normalizedEmail = normalizeEmail(email);
   if (normalizedEmail) {
     const duplicateEmail = existingResponses.find((data) => normalizeEmail(toStringValue(getDocumentValue(data, 'email'))) === normalizedEmail);
     if (duplicateEmail) {
@@ -220,7 +235,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const normalizedPhone = normalizePhone(phone);
   if (normalizedPhone) {
     const duplicatePhone = existingResponses.find((data) => normalizePhone(toStringValue(getDocumentValue(data, 'phone'))) === normalizedPhone);
     if (duplicatePhone) {
@@ -234,7 +248,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const normalizedFingerprint = normalizeFingerprint(visitorFingerprint);
   if (normalizedFingerprint) {
     const duplicateFingerprint = existingResponses.find(
       (data) => normalizeFingerprint(toStringValue(getDocumentValue(data, 'visitorFingerprint'))) === normalizedFingerprint,
@@ -248,6 +261,23 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+  }
+
+  let rateLimit;
+  try {
+    rateLimit = await consumeSevenoRateLimits([
+      { scope: 'study-response-hour', key: identity, limit: 3, windowSeconds: 60 * 60 },
+      { scope: 'study-response-day', key: identity, limit: 5, windowSeconds: 24 * 60 * 60 },
+    ]);
+  } catch (error) {
+    console.error('[POST /api/study-responses] Rate limiter unavailable', error);
+    return NextResponse.json({ error: 'rate_limit_unavailable' }, { status: 503 });
+  }
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'rate_limit_exceeded', retryAfterSeconds: rateLimit.retryAfterSeconds },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
   }
 
   const recentWindow = existingResponses

@@ -57,6 +57,8 @@ function configureEmulatorEnvironment() {
   process.env.FIREBASE_ADMIN_PROJECT_ID = projectId;
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = projectId;
   process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
+  // Explicitly fictitious, process-local value: never read from Secret Manager or .env files.
+  process.env.SEVENO_RATE_LIMIT_HASH_SECRET = 'test-only-rate-limit-secret-32-bytes-minimum';
 }
 
 async function assertEmulatorAvailable() {

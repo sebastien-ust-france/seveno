@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SevenoApiAuthError, requireSevenoApiToken } from '@/lib/seveno-api-auth';
 import { SevenoTestError, getSevenoAssessmentStartState, startSevenoTestSession } from '@/lib/seveno-tests';
 import { SevenoMatchRequestError, getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import { consumeSevenoRateLimits } from '@/lib/seveno-rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,20 @@ export async function POST(request: NextRequest) {
     const actor = await getSevenoUserByUid(decodedToken.uid);
     if (!actor || actor.role !== 'candidate') {
       throw new SevenoMatchRequestError('forbidden_role', 403, 'Seuls les candidats peuvent lancer ce questionnaire.');
+    }
+
+    try {
+      const rateLimit = await consumeSevenoRateLimits([
+        { scope: 'tests-start-seveno-general', key: decodedToken.uid, limit: 6, windowSeconds: 10 * 60 },
+      ]);
+      if (!rateLimit.allowed) {
+        return NextResponse.json(
+          { error: 'rate_limit_exceeded', retryAfterSeconds: rateLimit.retryAfterSeconds },
+          { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+        );
+      }
+    } catch (error) {
+      console.error('[POST /api/seveno/tests/start] Rate limiter unavailable', error);
     }
 
     const result = await startSevenoTestSession(decodedToken.uid);
