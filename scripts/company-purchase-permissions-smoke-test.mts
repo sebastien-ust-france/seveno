@@ -20,6 +20,10 @@ assert.equal(recruitmentCreditPresentation(2, 'recruiter', false).state, 'low');
 assert.equal(recruitmentCreditPresentation(1, 'owner', true).label, 'Stock faible');
 assert.equal(recruitmentCreditPresentation(0, 'admin', false).label, 'Aucun crédit disponible');
 
+const checkoutRoute = await readFile(new URL('../app/api/seveno/billing/checkout/route.ts', import.meta.url), 'utf8');
+assert.ok(checkoutRoute.indexOf('canPurchaseCompanyCredits(membership)') < checkoutRoute.indexOf('createStripeCheckout('), 'Le refus doit précéder tout appel Stripe.');
+assert.match(checkoutRoute, /Le propriétaire de l’entreprise ne vous autorise pas à acheter des crédits\./);
+
 const offerStatusRoute = await readFile(new URL('../app/api/seveno/offers/[offerId]/status/route.ts', import.meta.url), 'utf8');
 assert.match(offerStatusRoute, /allowedRoles: \['owner', 'admin', 'recruiter'\]/, 'La permission d’achat ne doit pas bloquer la publication admin.');
 

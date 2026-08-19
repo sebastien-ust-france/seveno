@@ -29,6 +29,7 @@ const guardedRoutes = [
   ['app/api/seveno/offers/[offerId]/questionnaire/route.ts', 'saveCompanyQuestionnaire'],
   ['app/api/seveno/applications/[applicationId]/company-decision/route.ts', 'reviewCompanyJobApplication'],
   ['app/api/seveno/applications/[applicationId]/conversation/route.ts', 'sendJobApplicationConversationMessage'],
+  ['app/api/seveno/billing/checkout/route.ts', 'createStripeCheckout'],
 ] as const;
 
 for (const [path, sensitiveCall] of guardedRoutes) {
@@ -41,5 +42,8 @@ for (const [path, sensitiveCall] of guardedRoutes) {
 
 const invitationRoute = await read('app/api/seveno/company-member-invitations/route.ts');
 assert.ok(invitationRoute.indexOf('requireActiveCompanyMembership({') < invitationRoute.indexOf('createMemberInvitation('));
+
+const checkoutRoute = await read('app/api/seveno/billing/checkout/route.ts');
+assert.ok(checkoutRoute.indexOf('requireActiveCompanyMembership({') < checkoutRoute.indexOf('createStripeCheckout('));
 
 console.log('Company validation smoke tests: OK');
