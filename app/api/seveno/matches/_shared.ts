@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SevenoApiAuthError } from '@/lib/seveno-api-auth';
 import { SevenoMatchRequestError } from '@/lib/seveno-match-requests';
+import { CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -18,7 +19,7 @@ export async function readJsonBody(request: NextRequest): Promise<JsonRecord | n
 }
 
 export function toMatchApiErrorResponse(error: unknown) {
-  if (error instanceof SevenoApiAuthError || error instanceof SevenoMatchRequestError) {
+  if (error instanceof SevenoApiAuthError || error instanceof SevenoMatchRequestError || error instanceof CompanyMembershipError) {
     return NextResponse.json(
       {
         error: error.code,
@@ -40,4 +41,3 @@ export function toMatchApiErrorResponse(error: unknown) {
     },
   );
 }
-

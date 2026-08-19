@@ -265,13 +265,13 @@ export function ContactForm({ initialReason = '' }: ContactFormProps) {
 
       setResult({
         kind: 'error',
-        message: payload?.message || 'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à contact@ust-france.com.',
+        message: payload?.message || 'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à sebastien@seveno.eu.',
         mailtoHref: payload?.mailtoHref || buildContactMailtoHref(submission),
       });
     } catch {
       setResult({
         kind: 'error',
-        message: 'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à contact@ust-france.com.',
+        message: 'Votre demande n’a pas pu être envoyée. Vous pouvez écrire directement à sebastien@seveno.eu.',
         mailtoHref: undefined,
       });
     } finally {
@@ -328,7 +328,7 @@ export function ContactForm({ initialReason = '' }: ContactFormProps) {
                     href={result.mailtoHref}
                     className="font-medium text-cyan-100 underline decoration-cyan-100/40 underline-offset-4"
                   >
-                    contact@ust-france.com
+                    sebastien@seveno.eu
                   </a>
                 </p>
               ) : null}

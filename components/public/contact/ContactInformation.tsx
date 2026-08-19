@@ -2,8 +2,8 @@ const CONTACT_INFORMATION_ITEMS = [
   {
     title: 'Adresse email',
     content: (
-      <a href="mailto:contact@ust-france.com" className="font-medium text-cyan-200 transition hover:text-cyan-100">
-        contact@ust-france.com
+      <a href="mailto:sebastien@seveno.eu" className="font-medium text-cyan-200 transition hover:text-cyan-100">
+        sebastien@seveno.eu
       </a>
     ),
   },

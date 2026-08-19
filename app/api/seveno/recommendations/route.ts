@@ -7,6 +7,7 @@ import {
   SevenoRecommendationError,
 } from '@/lib/seveno-recommendations-server';
 import { readJsonBody } from '../matches/_shared';
+import { SevenoRateLimitConfigurationError } from '@/lib/seveno-rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,13 @@ export async function POST(request: NextRequest) {
 }
 
 function toRecommendationApiErrorResponse(error: unknown) {
+  if (error instanceof SevenoRateLimitConfigurationError) return NextResponse.json({ error: 'rate_limit_unavailable' }, { status: 503 });
+  if (error instanceof SevenoRecommendationError && error.code === 'rate_limit_exceeded' && error.retryAfterSeconds) {
+    return NextResponse.json(
+      { error: 'rate_limit_exceeded', retryAfterSeconds: error.retryAfterSeconds },
+      { status: 429, headers: { 'Retry-After': String(error.retryAfterSeconds) } },
+    );
+  }
   if (error instanceof SevenoMatchRequestError || error instanceof SevenoRecommendationError) {
     return NextResponse.json(
       { error: error.code, message: error.message },

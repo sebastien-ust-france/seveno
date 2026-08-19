@@ -41,8 +41,8 @@ const mainResult = await transport.sendMail({
 const mainMessage = Buffer.isBuffer(mainResult.message)
   ? mainResult.message.toString('utf8')
   : String(mainResult.message);
-assert.deepEqual(mainResult.envelope.to, ['contact@ust-france.com']);
-assert.match(mainMessage, /To: contact@ust-france\.com/i);
+assert.deepEqual(mainResult.envelope.to, ['sebastien@seveno.eu']);
+assert.match(mainMessage, /To: sebastien@seveno\.eu/i);
 assert.match(mainMessage, /Reply-To: marie\.dupont@example\.com/i);
 assert.match(mainMessage, /Content-Type: multipart\/alternative/i);
 assert.match(mainMessage, /nodemailer-compatibility-20260819/);

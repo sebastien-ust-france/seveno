@@ -5,12 +5,12 @@ import {
   buildContactMailtoHref,
   CONTACT_GENERAL_VALIDATION_MESSAGE,
   CONTACT_MIN_RENDER_DELAY_MS,
-  CONTACT_RATE_LIMIT_MESSAGE,
   CONTACT_SERVICE_UNAVAILABLE_MESSAGE,
+  isTrustedContactOrigin,
   normalizeContactSubmission,
 } from '@/lib/seveno-contact';
 import { queueContactEmail } from '@/lib/seveno-contact-email';
-import { checkContactRateLimit, recordContactAttempt } from '@/lib/seveno-contact-rate-limit';
+import { consumeSevenoRateLimits, normalizeRateLimitEmail, SevenoRateLimitConfigurationError } from '@/lib/seveno-rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,43 +58,6 @@ function isJsonContentType(contentType: string | null) {
   return Boolean(contentType && contentType.toLowerCase().includes('application/json'));
 }
 
-function getRequestOrigin(request: NextRequest) {
-  const originHeader = request.headers.get('origin');
-  if (originHeader) {
-    return originHeader;
-  }
-
-  const refererHeader = request.headers.get('referer');
-  if (!refererHeader) {
-    return request.nextUrl.origin;
-  }
-
-  try {
-    return new URL(refererHeader).origin;
-  } catch {
-    return refererHeader;
-  }
-}
-
-function isTrustedOrigin(request: NextRequest) {
-  const requestOrigin = request.nextUrl.origin;
-  const originHeader = request.headers.get('origin');
-  if (originHeader) {
-    return originHeader === requestOrigin;
-  }
-
-  const refererHeader = request.headers.get('referer');
-  if (!refererHeader) {
-    return true;
-  }
-
-  try {
-    return new URL(refererHeader).origin === requestOrigin;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
   if (!isJsonContentType(request.headers.get('content-type'))) {
     return jsonError(415, UNSUPPORTED_MEDIA_TYPE_MESSAGE, 'unsupported_media_type');
@@ -117,7 +80,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (!isTrustedOrigin(request)) {
+  if (!isTrustedContactOrigin(request.headers)) {
     return jsonError(403, INVALID_ORIGIN_MESSAGE, 'invalid_origin');
   }
 
@@ -131,21 +94,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const rateLimit = checkContactRateLimit({
-      origin: getRequestOrigin(request),
-      userAgent: request.headers.get('user-agent') ?? '',
-      email: submission.email,
-    });
+    const rateLimit = await consumeSevenoRateLimits([
+      { scope: 'contact-email-hour', key: normalizeRateLimitEmail(submission.email), limit: 5, windowSeconds: 60 * 60 },
+      { scope: 'contact-email-day', key: normalizeRateLimitEmail(submission.email), limit: 10, windowSeconds: 24 * 60 * 60 },
+    ]);
 
     if (!rateLimit.allowed) {
-      return jsonError(429, CONTACT_RATE_LIMIT_MESSAGE, 'rate_limited');
+      return NextResponse.json(
+        { error: 'rate_limit_exceeded', retryAfterSeconds: rateLimit.retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+      );
     }
-
-    recordContactAttempt({
-      origin: getRequestOrigin(request),
-      userAgent: request.headers.get('user-agent') ?? '',
-      email: submission.email,
-    });
 
     const requestId = randomUUID();
     const receivedAt = new Date();
@@ -191,6 +150,11 @@ export async function POST(request: NextRequest) {
         'validation_failed',
         validationError.fieldErrors,
       );
+    }
+
+    if (error instanceof SevenoRateLimitConfigurationError) {
+      console.error('[POST /api/contact] Rate limiter unavailable', error);
+      return NextResponse.json({ error: 'rate_limit_unavailable' }, { status: 503 });
     }
 
     console.error('[POST /api/contact] Échec de traitement du formulaire', error);

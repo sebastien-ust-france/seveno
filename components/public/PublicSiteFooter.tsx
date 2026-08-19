@@ -22,6 +22,7 @@ const PUBLIC_FOOTER_LINKS = {
   information: [
     { href: '/mentions-legales', label: 'Mentions légales' },
     { href: '/cgu', label: 'CGU' },
+    { href: '/cgv-entreprises', label: 'CGV Entreprises' },
     { href: '/confidentialite', label: 'Politique de confidentialité' },
     { href: '/cookies', label: 'Cookies' },
   ],
@@ -83,10 +84,10 @@ export function PublicSiteFooter() {
           <p className="pt-2 text-sm leading-6 text-slate-400">
             Contact :{' '}
             <a
-              href="mailto:contact@ust-france.com"
+              href="mailto:sebastien@seveno.eu"
               className="font-medium text-cyan-200 transition hover:text-cyan-100"
             >
-              contact@ust-france.com
+              sebastien@seveno.eu
             </a>
           </p>
         </div>

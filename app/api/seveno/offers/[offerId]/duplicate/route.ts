@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
-import { duplicateJobOffer } from '@/lib/seveno-job-offers-server';
+import { assertRecruitmentOfferAccess, duplicateJobOffer, getJobOffer } from '@/lib/seveno-job-offers-server';
 import { toJobOfferApiError } from '../../_shared';
 import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 
@@ -14,7 +14,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const token = await requireSevenoApiToken(request);
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
     const { offerId } = await context.params;
-    const offer = await duplicateJobOffer(membership.companyId, offerId);
+    assertRecruitmentOfferAccess(await getJobOffer(membership.companyId, offerId), membership, true);
+    const offer = await duplicateJobOffer(membership.companyId, offerId, token.uid);
     return NextResponse.json({ offer }, { status: 201 });
   } catch (error) {
     return toJobOfferApiError(error);

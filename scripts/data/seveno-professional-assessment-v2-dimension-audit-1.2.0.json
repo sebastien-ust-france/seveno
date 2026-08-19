@@ -1,0 +1,939 @@
+{
+  "sourceVersion": "1.1.0",
+  "targetVersion": "1.2.0",
+  "dimensions": [
+    {
+      "code": "information_understanding",
+      "label": "Compréhension et intégration de l'information",
+      "definition": "Capacité à lire une consigne, extraire les éléments utiles et les relier correctement.",
+      "rubric": [
+        "Ne distingue pas les faits utiles, les inconnues et les hypothèses nécessaires à la décision.",
+        "Repère partiellement l’information utile mais agit ou attend sans sécuriser le point décisif.",
+        "Identifie les éléments principaux avec une vérification encore incomplète ou peu structurée.",
+        "Structure les faits, les inconnues et les critères utiles avant une action proportionnée.",
+        "Isole l’information décisive, vérifie sa fiabilité et explicite les hypothèses avec précision."
+      ]
+    },
+    {
+      "code": "organization_prioritization",
+      "label": "Organisation et priorisation",
+      "definition": "Capacité à structurer son action, prioriser les tâches et garder un cap clair.",
+      "rubric": [
+        "N’établit ni priorité, ni ordre d’action, ni protection des engagements.",
+        "Suit l’ordre apparent ou change de priorité sans critère explicite.",
+        "Organise l’action avec des critères partiels ou une anticipation limitée.",
+        "Priorise selon l’impact, l’urgence et les engagements, puis ajuste le plan.",
+        "Arbitre explicitement les priorités, séquence l’action et sécurise les dépendances."
+      ]
+    },
+    {
+      "code": "problem_solving",
+      "label": "Résolution de problèmes",
+      "definition": "Capacité à analyser une difficulté, tester des pistes et choisir une solution pertinente.",
+      "rubric": [
+        "Agit sans diagnostic ni apprentissage exploitable.",
+        "Retient une piste intuitive sans vérifier suffisamment la cause ou le résultat.",
+        "Explore une solution plausible avec une analyse ou une mesure partielle.",
+        "Formule des hypothèses, teste de façon contrôlée et compare les résultats.",
+        "Conduit un diagnostic structuré, choisit un test discriminant et capitalise le résultat."
+      ]
+    },
+    {
+      "code": "autonomy_initiative",
+      "label": "Autonomie et initiative",
+      "definition": "Capacité à agir sans assistance permanente et à proposer des actions utiles.",
+      "rubric": [
+        "Reste passif ou transfère une décision clairement située dans son périmètre.",
+        "Attend une validation non nécessaire avant d’engager une action utile.",
+        "Agit sur un périmètre limité avec un besoin de cadrage ou de validation fréquent.",
+        "Prend une initiative utile dans son périmètre et informe aux moments pertinents.",
+        "Prend en charge l’action, sécurise les limites de son mandat et crée une avancée durable."
+      ]
+    },
+    {
+      "code": "adaptability",
+      "label": "Adaptabilité",
+      "definition": "Capacité à ajuster sa méthode et son comportement selon le contexte.",
+      "rubric": [
+        "Maintient une méthode devenue inadaptée sans examiner les signaux disponibles.",
+        "N’ajuste qu’après blocage ou remplace la méthode sans préserver l’objectif.",
+        "Adapte certains éléments avec une lecture encore partielle du nouveau contexte.",
+        "Ajuste la méthode aux contraintes tout en préservant l’objectif et les règles essentielles.",
+        "Reconfigure rapidement et de façon maîtrisée la méthode à partir des résultats observés."
+      ]
+    },
+    {
+      "code": "collaboration",
+      "label": "Collaboration",
+      "definition": "Capacité à coopérer, partager l’information et contribuer à un objectif commun.",
+      "rubric": [
+        "Ignore l’impact collectif ou entretient un blocage relationnel évitable.",
+        "Coopère uniquement sur sollicitation ou recherche un accord sans traiter le fond.",
+        "Contribue au collectif avec un partage ou un soutien ponctuel mais peu structuré.",
+        "Partage l’information, traite les désaccords sur le fond et soutient l’action commune.",
+        "Facilite activement la coopération, la décision partagée et la réussite collective."
+      ]
+    },
+    {
+      "code": "rigor_reliability",
+      "label": "Rigueur et fiabilité",
+      "definition": "Capacité à tenir un cadre, vérifier son travail et sécuriser les engagements.",
+      "rubric": [
+        "N’effectue pas les contrôles indispensables et ne trace pas les risques ou écarts.",
+        "Sécurise insuffisamment l’engagement, la vérification ou l’alerte nécessaire.",
+        "Protège les points principaux avec des contrôles ou une traçabilité partiels.",
+        "Vérifie les points sensibles, trace les écarts et tient un engagement réaliste.",
+        "Dimensionne les contrôles au risque, documente les décisions et sécurise la continuité."
+      ]
+    }
+  ],
+  "classificationCounts": {
+    "A": 19,
+    "B": 22,
+    "C": 19
+  },
+  "rewrittenQuestionCount": 19,
+  "rewrittenOptionCount": 76,
+  "questions": [
+    {
+      "questionId": "essential_profile_01",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "rationale": "Décision autonome dans un périmètre explicite.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_02",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Qualité des critères utilisés pour ordonner plusieurs demandes.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_03",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        3,
+        2,
+        1,
+        4
+      ],
+      "rationale": "Soutien utile au collectif sans abandon du périmètre.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_04",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Identification et sécurisation de l’information qui change la décision.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_05",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        3,
+        1,
+        3,
+        4
+      ],
+      "rationale": "Diagnostic puis test discriminant d’une hypothèse.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_06",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "adaptability",
+      "scores": [
+        1,
+        2,
+        4,
+        2
+      ],
+      "rationale": "Ajustement proportionné de la méthode face à un changement réel.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_07",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "rationale": "Structuration des options et des prochaines étapes du groupe.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_08",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        3,
+        4,
+        4,
+        2
+      ],
+      "rationale": "Arbitrage explicite du contenu, du délai et des contrôles.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_09",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "collaboration",
+      "scores": [
+        1,
+        2,
+        4,
+        2
+      ],
+      "rationale": "Traitement respectueux et factuel d’un désaccord bloquant.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_10",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "problem_solving",
+      "scores": [
+        3,
+        4,
+        2,
+        1
+      ],
+      "rationale": "Comparaison mesurée d’une méthode lorsque sa performance baisse.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_11",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        1,
+        3,
+        4,
+        4
+      ],
+      "rationale": "Alignement constructif après une décision collective.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_12",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "rigor_reliability",
+      "scores": [
+        2,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Sécurisation d’un essai réversible par des limites et des critères.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_13",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        4,
+        3,
+        1,
+        2
+      ],
+      "rationale": "Initiative utile et proportionnée au-delà de la tâche prescrite.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_14",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "adaptability",
+      "scores": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "rationale": "Changement de méthode fondé sur les résultats observés.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_15",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        2,
+        3,
+        4,
+        4
+      ],
+      "rationale": "Contribution argumentée à une décision collective.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_16",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        1,
+        2,
+        4,
+        4
+      ],
+      "rationale": "Signalement actif d’un risque et proposition d’une alternative.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_17",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "adaptability",
+      "scores": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "rationale": "Adaptation maîtrisée en cours d’exécution.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_18",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        2,
+        4,
+        2,
+        1
+      ],
+      "rationale": "Qualification des faits utiles avant traitement ou alerte.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_19",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "rationale": "Action autonome dans des limites explicites sur une mission nouvelle.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_20",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Arbitrage par le critère réellement décisif.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_21",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        4,
+        3,
+        1,
+        2
+      ],
+      "rationale": "Soutien spontané et utile à l’équilibre de charge.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_22",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Structuration des certitudes et ambiguïtés d’une demande contradictoire.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_23",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        2,
+        4,
+        4,
+        3
+      ],
+      "rationale": "Test contrôlé produisant une information utile au diagnostic.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_24",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "adaptability",
+      "scores": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "rationale": "Adaptation du cadre en préservant son objectif.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_25",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "rationale": "Prise en charge utile d’un démarrage non structuré.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_26",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "rigor_reliability",
+      "scores": [
+        2,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Contrôles proportionnés au risque et au délai.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_27",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "collaboration",
+      "scores": [
+        1,
+        2,
+        4,
+        2
+      ],
+      "rationale": "Résolution d’un désaccord par des faits et des critères partagés.",
+      "rewritten": true
+    },
+    {
+      "questionId": "essential_profile_28",
+      "path": "essential",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "rationale": "Comparaison contrôlée d’une méthode nouvelle et d’une méthode fiable.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_29",
+      "path": "essential",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        1,
+        3,
+        4,
+        4
+      ],
+      "rationale": "Soutien loyal et constructif d’une décision collective.",
+      "rewritten": false
+    },
+    {
+      "questionId": "essential_profile_30",
+      "path": "essential",
+      "classification": "C",
+      "dimension": "rigor_reliability",
+      "scores": [
+        1,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Vérification, traçabilité et traitement proportionné d’un risque émergent.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_01",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "problem_solving",
+      "scores": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "rationale": "Identification et réalisation d’une amélioration utile.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_02",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "adaptability",
+      "scores": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "rationale": "Réorientation fondée sur la progression observée.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_03",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        4,
+        2,
+        4
+      ],
+      "rationale": "Vérification des faits, critères et incompréhensions avant reformulation.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_04",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "rationale": "Prise d’initiative argumentée face à une décision contestable.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_05",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Amélioration structurée d’une organisation inefficace.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_06",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        2,
+        4,
+        4,
+        2
+      ],
+      "rationale": "Séparation explicite des observations, hypothèses et inconnues.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_07",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "rationale": "Décision réversible prise dans le périmètre avec traçabilité.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_08",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Choix du critère permettant un arbitrage sous pression.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_09",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "collaboration",
+      "scores": [
+        4,
+        4,
+        1,
+        3
+      ],
+      "rationale": "Contribution active et partage utile au collectif.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_10",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        4,
+        3,
+        2
+      ],
+      "rationale": "Résolution du point contradictoire qui change l’action.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_11",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        2,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Analyse d’hypothèses suivie d’un essai contrôlé.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_12",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "adaptability",
+      "scores": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "rationale": "Adaptation locale sans perte des règles essentielles.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_13",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "autonomy_initiative",
+      "scores": [
+        3,
+        4,
+        2,
+        1
+      ],
+      "rationale": "Activation utile d’une décision et de prochaines actions.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_14",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "rigor_reliability",
+      "scores": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "rationale": "Vérification ciblée et traçabilité d’un écart.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_15",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "collaboration",
+      "scores": [
+        1,
+        2,
+        4,
+        1
+      ],
+      "rationale": "Résolution respectueuse d’un conflit à partir des faits.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_16",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        4,
+        3,
+        3,
+        1
+      ],
+      "rationale": "Vérification de l’exécution avant exploration de causes nouvelles.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_17",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "adaptability",
+      "scores": [
+        4,
+        4,
+        1,
+        3
+      ],
+      "rationale": "Alignement actif sur une nouvelle méthode collective.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_18",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "rigor_reliability",
+      "scores": [
+        2,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Essai réversible sécurisé par des limites et un retour arrière.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_19",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        4,
+        4,
+        1
+      ],
+      "rationale": "Protection de l’engagement tout en qualifiant une opportunité.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_20",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "problem_solving",
+      "scores": [
+        1,
+        3,
+        4,
+        3
+      ],
+      "rationale": "Changement de méthode après apprentissage suffisant.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_21",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        2,
+        4,
+        1,
+        4
+      ],
+      "rationale": "Comparaison des options à partir de faits et critères partagés.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_22",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        3,
+        4,
+        4
+      ],
+      "rationale": "Compréhension des conséquences et formulation d’une alternative.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_23",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "organization_prioritization",
+      "scores": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "rationale": "Planification et mesure d’une amélioration de l’organisation.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_24",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "rigor_reliability",
+      "scores": [
+        2,
+        4,
+        3,
+        4
+      ],
+      "rationale": "Correction, traçabilité et information proportionnées à l’impact.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_25",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "organization_prioritization",
+      "scores": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "rationale": "Coordination temporaire structurée d’un sujet urgent.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_26",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "organization_prioritization",
+      "scores": [
+        3,
+        2,
+        4,
+        4
+      ],
+      "rationale": "Arbitrage explicite entre soutien collectif et engagement propre.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_27",
+      "path": "extended",
+      "classification": "A",
+      "dimension": "adaptability",
+      "scores": [
+        1,
+        3,
+        4,
+        3
+      ],
+      "rationale": "Adoption cohérente d’une méthode collective nouvelle.",
+      "rewritten": false
+    },
+    {
+      "questionId": "extended_profile_28",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "problem_solving",
+      "scores": [
+        2,
+        3,
+        4,
+        2
+      ],
+      "rationale": "Diagnostic puis amélioration vérifiable d’une difficulté concrète.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_29",
+      "path": "extended",
+      "classification": "C",
+      "dimension": "information_understanding",
+      "scores": [
+        1,
+        4,
+        3,
+        4
+      ],
+      "rationale": "Qualité et vérification des éléments soutenant une proposition.",
+      "rewritten": true
+    },
+    {
+      "questionId": "extended_profile_30",
+      "path": "extended",
+      "classification": "B",
+      "dimension": "rigor_reliability",
+      "scores": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "rationale": "Alerte proportionnée distinguant faits établis et incertitudes.",
+      "rewritten": false
+    }
+  ]
+}

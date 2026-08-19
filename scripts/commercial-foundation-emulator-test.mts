@@ -73,7 +73,8 @@ const qualified = (candidateUid: string) => ({
 assert.equal(isApplicationQualifiedForCampaign(qualified('candidate')), true);
 assert.equal(isApplicationQualifiedForCampaign({ ...qualified('candidate'), sevenoAssessmentSnapshot: { status: 'in_progress' } }), false);
 for (let index = 1; index <= 6; index += 1) await adminDb.collection('job_applications').doc(`application-${index}`).set(qualified(`candidate-${index}`));
-await Promise.all(Array.from({ length: 6 }, (_, index) => admitQualifiedApplication(`application-${index + 1}`)));
+await admitQualifiedApplication('application-1');
+await Promise.all(Array.from({ length: 5 }, (_, index) => admitQualifiedApplication(`application-${index + 2}`)));
 let campaign = await adminDb.collection('recruitment_campaigns').doc(campaignId).get();
 assert.equal(campaign.get('activeCandidateCount'), 5);
 assert.equal(campaign.get('deliveredCandidateCount'), 5);

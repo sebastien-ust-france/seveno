@@ -1,9 +1,10 @@
 import 'server-only';
 
-import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
+import { applicationDefault, cert, getApp, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { assertSevenoServerFirebaseEmulatorConfiguration, getSevenoFirebaseServerEmulatorProjectId, isSevenoFirebaseEmulatorModeEnabled } from '@/lib/firebase-emulators';
+import { resolveFirebaseAdminInitialization } from '@/lib/firebase-admin-config';
 
 function getPrivateKey() {
   const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
@@ -14,53 +15,53 @@ function getPrivateKey() {
   return privateKey.replace(/\\n/g, '\n');
 }
 
-function hasLocalFirestoreEmulator() {
-  return Boolean(process.env.FIRESTORE_EMULATOR_HOST?.trim());
-}
-
-function hasAdminCredentials() {
-  return Boolean(
-    (process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) &&
-      process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
-      process.env.FIREBASE_ADMIN_PRIVATE_KEY,
-  );
-}
-
 assertSevenoServerFirebaseEmulatorConfiguration();
-
-export const isFirebaseAdminConfigured = hasAdminCredentials() || hasLocalFirestoreEmulator();
 
 let adminDbInitError: unknown = null;
 
 function getAdminApp() {
-  const projectId = isSevenoFirebaseEmulatorModeEnabled()
-    ? getSevenoFirebaseServerEmulatorProjectId()
-    : process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '';
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL ?? '';
-  const privateKey = getPrivateKey();
-
   if (getApps().length > 0) {
     return getApp();
   }
 
-  if (hasLocalFirestoreEmulator()) {
+  const initialization = resolveFirebaseAdminInitialization();
+  const projectId = isSevenoFirebaseEmulatorModeEnabled()
+    ? getSevenoFirebaseServerEmulatorProjectId()
+    : initialization.projectId;
+  if (initialization.mode === 'emulator') {
     return initializeApp({
-      projectId,
+      ...(projectId ? { projectId } : {}),
+    });
+  }
+
+  if (initialization.mode === 'application_default') {
+    return initializeApp({
+      credential: applicationDefault(),
+      ...(projectId ? { projectId } : {}),
     });
   }
 
   return initializeApp({
     credential: cert({
       projectId,
-      clientEmail,
-      privateKey,
+      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL ?? '',
+      privateKey: getPrivateKey(),
     }),
   });
 }
 
+const adminApp: App | null = (() => {
+  try {
+    return getAdminApp();
+  } catch (error) {
+    adminDbInitError = error;
+    return null;
+  }
+})();
+
 export function getFirebaseAdminDebugStatus() {
   return {
-    configured: isFirebaseAdminConfigured,
+    configured: Boolean(adminApp),
     getAppsLength: getApps().length,
     hasProjectId: Boolean(process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
     hasClientEmail: Boolean(process.env.FIREBASE_ADMIN_CLIENT_EMAIL),
@@ -74,12 +75,12 @@ export function getFirebaseAdminInitError() {
 }
 
 export const adminDb = (() => {
-  if (!isFirebaseAdminConfigured) {
+  if (!adminApp) {
     return null;
   }
 
   try {
-    return getFirestore(getAdminApp());
+    return getFirestore(adminApp);
   } catch (error) {
     adminDbInitError = error;
     return null;
@@ -87,14 +88,16 @@ export const adminDb = (() => {
 })();
 
 export const adminAuth = (() => {
-  if (!isFirebaseAdminConfigured) {
+  if (!adminApp) {
     return null;
   }
 
   try {
-    return getAuth(getAdminApp());
+    return getAuth(adminApp);
   } catch (error) {
     adminDbInitError = error;
     return null;
   }
 })();
+
+export const isFirebaseAdminConfigured = Boolean(adminApp && adminDb && adminAuth);

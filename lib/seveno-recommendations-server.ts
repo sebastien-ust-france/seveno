@@ -3,6 +3,7 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
+import { consumeSevenoRateLimits, normalizeRateLimitEmail } from '@/lib/seveno-rate-limit';
 import {
   buildRecommendationInvitationEmailPreview,
   queueRecommendationInvitationEmail,
@@ -82,11 +83,23 @@ export class SevenoRecommendationError extends Error {
 
   status: number;
 
-  constructor(code: string, status: number, message: string) {
+  retryAfterSeconds?: number;
+
+  constructor(code: string, status: number, message: string, retryAfterSeconds?: number) {
     super(message);
     this.code = code;
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+async function consumeRecommendationInvitationQuota(candidateUid: string, respondentEmail: string) {
+  const rateLimit = await consumeSevenoRateLimits([
+    { scope: 'recommendation-invitation-sender-day', key: candidateUid, limit: 10, windowSeconds: 24 * 60 * 60 },
+    { scope: 'recommendation-invitation-recipient-cooldown', key: normalizeRateLimitEmail(respondentEmail), limit: 1, windowSeconds: 72 * 60 * 60, cooldown: true },
+    { scope: 'recommendation-invitation-recipient-30d', key: normalizeRateLimitEmail(respondentEmail), limit: 3, windowSeconds: 30 * 24 * 60 * 60 },
+  ]);
+  if (!rateLimit.allowed) throw new SevenoRecommendationError('rate_limit_exceeded', 429, 'Trop de demandes. Veuillez réessayer plus tard.', rateLimit.retryAfterSeconds);
 }
 
 function requireAdminDatabase() {
@@ -906,6 +919,7 @@ export async function createCandidateRecommendationInvitation(
       `Vous ne pouvez pas maintenir plus de ${MAX_ACTIVE_RECOMMENDATION_INVITATIONS} invitations actives.`,
     );
   }
+  await consumeRecommendationInvitationQuota(candidateUid, invitationInput.respondentEmail);
 
   const id = firestore.collection(RECOMMENDATION_REQUESTS_COLLECTION).doc().id;
   const token = generateRecommendationToken();
@@ -964,6 +978,7 @@ export async function resendCandidateRecommendationInvitation(candidateUid: stri
   }
 
   ensureResendDelay(request.lastSentAt ? toTimestamp(request.lastSentAt) : null);
+  await consumeRecommendationInvitationQuota(candidateUid, request.respondentEmail);
   const token = generateRecommendationToken();
   const publicLink = await updateInvitationToken(request, token);
   const updatedRequest = await loadRequestById(requestId);

@@ -83,7 +83,7 @@ const POLICY_SECTIONS = [
         <p>Siège social : 69 rue Georges Clemenceau, 33530 Bassens, France</p>
         <p>SIREN : 103 480 349</p>
         <p>RCS Bordeaux : 103 480 349</p>
-        <p>Adresse électronique : contact@ust-france.com</p>
+        <p>Adresse électronique : sebastien@seveno.eu</p>
         <p>
           UST-WORKFLOW détermine les finalités et les moyens essentiels des traitements réalisés dans le cadre de Seven’O,
           sous réserve des traitements pour lesquels un prestataire ou une entreprise utilisatrice agit sous sa propre
@@ -91,7 +91,7 @@ const POLICY_SECTIONS = [
         </p>
         <p className="font-medium text-white">Contact relatif à la protection des données</p>
         <p>
-          Toute question ou demande relative aux données personnelles peut être adressée à contact@ust-france.com ou par
+          Toute question ou demande relative aux données personnelles peut être adressée à sebastien@seveno.eu ou par
           courrier postal au siège social de UST-WORKFLOW.
         </p>
       </>
@@ -434,7 +434,7 @@ const POLICY_SECTIONS = [
           <li>le retrait d’un consentement lorsqu’un traitement repose réellement sur le consentement.</li>
         </ul>
         <p>
-          La demande peut être adressée à contact@ust-france.com ou par courrier au siège social de UST-WORKFLOW.
+          La demande peut être adressée à sebastien@seveno.eu ou par courrier au siège social de UST-WORKFLOW.
         </p>
         <p>
           Si une personne estime, après avoir contacté UST-WORKFLOW, que ses droits ne sont pas respectés, elle peut

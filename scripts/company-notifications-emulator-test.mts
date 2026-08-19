@@ -51,6 +51,7 @@ const {
 } = await import('@/lib/seveno-company-notifications-server');
 const { Timestamp } = await import('firebase-admin/firestore');
 const { adminDb } = await import('@/lib/firebase-admin');
+const { buildCompanyMembershipId } = await import('@/lib/seveno-company-memberships-server');
 if (!adminDb) {
   throw new Error('Firebase Admin Firestore is not configured.');
 }
@@ -87,6 +88,8 @@ async function seedCompany(companyUid: string, role: 'company' | 'candidate' = '
       createdAt: timestamp,
       updatedAt: timestamp,
     });
+    const membershipId = buildCompanyMembershipId(companyUid, companyUid);
+    await adminDb.collection('company_memberships').doc(membershipId).set({ membershipId, companyId: companyUid, userUid: companyUid, role: 'owner', status: 'active', createdAt: timestamp, updatedAt: timestamp });
   }
 }
 
@@ -100,7 +103,7 @@ async function seedDeliveryCase(input: {
   const applicationId = `application-${input.suffix}`;
   const offerId = `offer-${input.suffix}`;
   await seedCompany(companyUid);
-  await adminDb.collection('job_offers').doc(offerId).set({ companyUid, title: 'Développeur', status: 'published' });
+  await adminDb.collection('job_offers').doc(offerId).set({ companyId: companyUid, companyUid, assignedToUid: companyUid, title: 'Développeur', status: 'published' });
   await adminDb.collection('job_applications').doc(applicationId).set({
     companyUid,
     offerId,
@@ -178,6 +181,8 @@ try {
   const atomicApplicationId = 'application-atomic';
   const atomicCompanyUid = 'company-atomic';
   const atomicOfferId = 'offer-atomic';
+  await seedCompany(atomicCompanyUid);
+  await adminDb.collection('job_offers').doc(atomicOfferId).set({ companyId: atomicCompanyUid, companyUid: atomicCompanyUid, assignedToUid: atomicCompanyUid, status: 'published' });
   await adminDb.collection('job_applications').doc(atomicApplicationId).set({ status: 'draft' });
   const atomicEventId = buildApplicationSubmittedNotificationEventId(atomicApplicationId);
   await adminDb.runTransaction(async (transaction) => {
@@ -203,6 +208,8 @@ try {
   assert.equal((await adminDb.collection('notification_outbox').where('applicationId', '==', atomicApplicationId).get()).size, 1);
 
   const failedAtomicApplicationId = 'application-atomic-failed';
+  await seedCompany('company-atomic-failed');
+  await adminDb.collection('job_offers').doc('offer-atomic-failed').set({ companyId: 'company-atomic-failed', companyUid: 'company-atomic-failed', assignedToUid: 'company-atomic-failed', status: 'published' });
   await adminDb.collection('job_applications').doc(failedAtomicApplicationId).set({ status: 'draft' });
   await assert.rejects(adminDb.runTransaction(async (transaction) => {
     await prepareApplicationSubmittedNotificationEvent(transaction, adminDb, {

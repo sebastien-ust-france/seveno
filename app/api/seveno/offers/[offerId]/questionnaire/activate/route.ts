@@ -4,7 +4,7 @@ import {
   activateCompanyQuestionnaire,
   SevenoCompanyQuestionnaireError,
 } from '@/lib/seveno-company-questionnaires-server';
-import { SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
+import { assertRecruitmentOfferIdAccess, SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
 import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 
 export const runtime = 'nodejs';
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const token = await requireSevenoApiToken(request);
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
     const { offerId } = await context.params;
+    await assertRecruitmentOfferIdAccess(offerId, membership, true);
     return NextResponse.json({ questionnaire: await activateCompanyQuestionnaire(membership.companyId, offerId) });
   } catch (error) {
     if (error instanceof SevenoApiAuthError || error instanceof SevenoJobOfferError || error instanceof SevenoCompanyQuestionnaireError || error instanceof CompanyMembershipError) {

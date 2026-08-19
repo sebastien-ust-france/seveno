@@ -17,7 +17,13 @@ const STATUSES: JobOfferStatus[] = ['draft', 'published', 'paused', 'closed', 'a
 export async function GET(request: NextRequest) {
   try {
     const token = await requireSevenoApiToken(request);
-    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'] });
+    const requestedScope = request.nextUrl.searchParams.get('scope') ?? 'mine';
+    if (!['mine', 'company'].includes(requestedScope)) throw new SevenoJobOfferError('invalid_scope', 400, 'La vue demandée est invalide.');
+    if (requestedScope === 'company' && !['owner', 'admin', 'viewer'].includes(membership.role)) throw new SevenoJobOfferError('forbidden_scope', 403, 'La vue entreprise n’est pas autorisée pour ce rôle.');
+    const assigneeUid = request.nextUrl.searchParams.get('assignedToUid')?.trim() ?? '';
+    if (assigneeUid && requestedScope !== 'company') throw new SevenoJobOfferError('invalid_assignee_filter', 400, 'Le filtre responsable exige la vue entreprise.');
+    if (assigneeUid && !['owner', 'admin'].includes(membership.role)) throw new SevenoJobOfferError('forbidden_assignee_filter', 403, 'Ce filtre n’est pas autorisé pour ce rôle.');
     const statusValue = request.nextUrl.searchParams.get('status')?.trim() ?? '';
     const status = statusValue && STATUSES.includes(statusValue as JobOfferStatus)
       ? statusValue as JobOfferStatus
@@ -29,6 +35,7 @@ export async function GET(request: NextRequest) {
     }
     const payload = await listJobOffers(membership.companyId, {
       ...(status ? { status } : {}),
+      ...(requestedScope === 'mine' ? { assignedToUid: token.uid } : assigneeUid ? { assignedToUid: assigneeUid } : {}),
       limit,
       cursor: request.nextUrl.searchParams.get('cursor') ?? undefined,
     });

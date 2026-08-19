@@ -713,6 +713,7 @@ export interface TestSession {
   questionExpiresAt?: FirestoreDateValue | null;
   questionTimeSeconds?: number;
   answersCount: number;
+  questionsPresentedCount?: number;
   durationSeconds: number;
   threshold: number;
   score?: number;
@@ -726,6 +727,7 @@ export interface TestSession {
   cancelledAt?: FirestoreDateValue | null;
   abandonedAt?: FirestoreDateValue | null;
   lastQuestionId?: string | null;
+  timedOutQuestionIds?: string[];
   answers?: Record<string, TestAnswerValue>;
   createdAt: FirestoreDateValue;
   updatedAt: FirestoreDateValue;
@@ -761,8 +763,10 @@ export interface TestResult {
   threshold: number;
   durationSeconds: number;
   answersCount?: number;
+  questionsPresentedCount?: number;
   submittedAt?: FirestoreDateValue | null;
   questionIds?: string[];
+  timedOutQuestionIds?: string[];
   /** Private detailed answers. Never expose through candidate profile APIs. */
   answers?: Record<string, TestAnswerValue>;
   createdAt: FirestoreDateValue;

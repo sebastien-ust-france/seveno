@@ -8,6 +8,7 @@ import {
 import { readApplicationBody, toApplicationApiError } from '../_shared';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
 import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
+import { assertRecruitmentOfferIdAccess } from '@/lib/seveno-job-offers-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,12 +27,14 @@ export async function GET(request: NextRequest) {
 
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
     const offerId = request.nextUrl.searchParams.get('offerId')?.trim() ?? '';
-    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'] });
+    if (offerId) await assertRecruitmentOfferIdAccess(offerId, membership);
     const payload = await listCompanyApplications(membership.companyId, {
       limit,
       cursor: request.nextUrl.searchParams.get('cursor') ?? undefined,
       ...(publicCandidateId ? { publicCandidateId } : {}),
       ...(offerId ? { offerId } : {}),
+      ...(membership.role === 'recruiter' ? { assignedToUid: membership.userUid } : {}),
     }, token.uid);
 
     return NextResponse.json(payload);
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
     if (!publicCandidateId) {
       throw new SevenoJobApplicationError('public_candidate_id_required', 400, 'L identifiant public du candidat est obligatoire.');
     }
+    await assertRecruitmentOfferIdAccess(offerId, membership, true);
 
     const application = await createCompanyApplicationInvitation({
       companyUid: membership.companyId,

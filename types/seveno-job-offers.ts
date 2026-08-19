@@ -63,6 +63,9 @@ export interface JobOffer {
   companyUid: string;
   companyId: string;
   createdByUid: string;
+  assignedToUid: string;
+  assignedAt: FirestoreDateValue;
+  assignedByUid: string;
   updatedByUid: string;
   activeCampaignId: string | null;
   companyPublicId: string;
@@ -100,11 +103,12 @@ export interface JobOffer {
   version: number;
 }
 
-export interface SerializedJobOffer extends Omit<JobOffer, 'createdAt' | 'updatedAt' | 'publishedAt' | 'closedAt'> {
+export interface SerializedJobOffer extends Omit<JobOffer, 'createdAt' | 'updatedAt' | 'publishedAt' | 'closedAt' | 'assignedAt'> {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
   closedAt: string | null;
+  assignedAt: string;
   activeCandidateFilesCount?: number;
 }
 
@@ -114,4 +118,4 @@ export interface JobOfferListPage {
 }
 
 /** Future public projection. Internal company ownership is intentionally excluded. */
-export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid' | 'companyId' | 'createdByUid' | 'updatedByUid'>;
+export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid' | 'companyId' | 'createdByUid' | 'updatedByUid' | 'assignedToUid' | 'assignedAt' | 'assignedByUid'>;

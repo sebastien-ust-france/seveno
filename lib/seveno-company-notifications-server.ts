@@ -6,6 +6,7 @@ import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/fire
 import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getSevenoUserByUid } from '@/lib/seveno-match-requests';
+import { buildCompanyMembershipId } from '@/lib/seveno-company-memberships-server';
 import { buildCompanyApplicationClickUrl } from '@/lib/seveno-company-notification-foreground';
 import type { CompanyNotificationServerState } from '@/lib/seveno-company-notification-readiness';
 
@@ -151,13 +152,14 @@ export function buildApplicationSubmittedNotificationEvent(input: {
   applicationId: string;
   offerId: string;
   companyUid: string;
+  recipientUid: string;
   now: Timestamp;
 }): ApplicationSubmittedNotificationEvent {
   const idempotencyKey = buildApplicationSubmittedNotificationEventId(input.applicationId);
   return {
     eventType: COMPANY_APPLICATION_EVENT_TYPE,
     idempotencyKey,
-    recipientUid: input.companyUid,
+    recipientUid: input.recipientUid || input.companyUid,
     recipientRole: 'company',
     applicationId: input.applicationId,
     offerId: input.offerId,
@@ -189,6 +191,7 @@ export function buildApplicationQuestionnaireCompletedNotificationEvent(input: {
   applicationId: string;
   offerId: string;
   companyUid: string;
+  recipientUid: string;
   resultId: string;
   now: Timestamp;
 }): ApplicationQuestionnaireCompletedNotificationEvent {
@@ -199,7 +202,7 @@ export function buildApplicationQuestionnaireCompletedNotificationEvent(input: {
   return {
     eventType: COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE,
     idempotencyKey,
-    recipientUid: input.companyUid,
+    recipientUid: input.recipientUid || input.companyUid,
     recipientRole: 'company',
     applicationId: input.applicationId,
     offerId: input.offerId,
@@ -233,6 +236,12 @@ export async function prepareApplicationSubmittedNotificationEvent(
 ) {
   const eventId = buildApplicationSubmittedNotificationEventId(input.applicationId);
   const eventRef = firestore.collection(NOTIFICATION_OUTBOX_COLLECTION).doc(eventId);
+  const offerRef = firestore.collection('job_offers').doc(input.offerId);
+  const offer = await transaction.get(offerRef);
+  const recipientUid = cleanText(offer.get('assignedToUid'));
+  if (!offer.exists || offer.get('companyUid') !== input.companyUid || !recipientUid) throw new SevenoCompanyNotificationError('notification_assignee_missing', 409, 'Responsable du recrutement introuvable.');
+  const recipient = await transaction.get(firestore.collection('company_memberships').doc(buildCompanyMembershipId(input.companyUid, recipientUid)));
+  if (!recipient.exists || recipient.get('status') !== 'active' || !['owner', 'admin', 'recruiter'].includes(String(recipient.get('role')))) throw new SevenoCompanyNotificationError('notification_assignee_inactive', 409, 'Le responsable du recrutement n’est pas actif.');
   const snapshot = await transaction.get(eventRef);
   if (snapshot.exists) {
     const existing = snapshot.data();
@@ -241,14 +250,14 @@ export async function prepareApplicationSubmittedNotificationEvent(
       || existing?.applicationId !== input.applicationId
       || existing?.offerId !== input.offerId
       || existing?.companyUid !== input.companyUid
-      || existing?.recipientUid !== input.companyUid
+      || existing?.recipientUid !== recipientUid
     ) {
       throw new SevenoCompanyNotificationError('notification_event_conflict', 409, 'L’événement de notification est incohérent.');
     }
     return { eventId, created: false };
   }
 
-  transaction.create(eventRef, buildApplicationSubmittedNotificationEvent(input));
+  transaction.create(eventRef, buildApplicationSubmittedNotificationEvent({ ...input, recipientUid }));
   return { eventId, created: true };
 }
 
@@ -268,6 +277,11 @@ export async function prepareApplicationQuestionnaireCompletedNotificationEvent(
     input.resultId,
   );
   const eventRef = firestore.collection(NOTIFICATION_OUTBOX_COLLECTION).doc(eventId);
+  const offer = await transaction.get(firestore.collection('job_offers').doc(input.offerId));
+  const recipientUid = cleanText(offer.get('assignedToUid'));
+  if (!offer.exists || offer.get('companyUid') !== input.companyUid || !recipientUid) throw new SevenoCompanyNotificationError('notification_assignee_missing', 409, 'Responsable du recrutement introuvable.');
+  const recipient = await transaction.get(firestore.collection('company_memberships').doc(buildCompanyMembershipId(input.companyUid, recipientUid)));
+  if (!recipient.exists || recipient.get('status') !== 'active' || !['owner', 'admin', 'recruiter'].includes(String(recipient.get('role')))) throw new SevenoCompanyNotificationError('notification_assignee_inactive', 409, 'Le responsable du recrutement n’est pas actif.');
   const snapshot = await transaction.get(eventRef);
   if (snapshot.exists) {
     const existing = snapshot.data();
@@ -276,7 +290,7 @@ export async function prepareApplicationQuestionnaireCompletedNotificationEvent(
       || existing?.applicationId !== input.applicationId
       || existing?.offerId !== input.offerId
       || existing?.companyUid !== input.companyUid
-      || existing?.recipientUid !== input.companyUid
+      || existing?.recipientUid !== recipientUid
       || existing?.resultId !== input.resultId
     ) {
       throw new SevenoCompanyNotificationError('notification_event_conflict', 409, 'L’événement de notification est incohérent.');
@@ -284,7 +298,7 @@ export async function prepareApplicationQuestionnaireCompletedNotificationEvent(
     return { eventId, created: false };
   }
 
-  transaction.create(eventRef, buildApplicationQuestionnaireCompletedNotificationEvent(input));
+  transaction.create(eventRef, buildApplicationQuestionnaireCompletedNotificationEvent({ ...input, recipientUid }));
   return { eventId, created: true };
 }
 
@@ -292,14 +306,6 @@ async function ensureCompanyContext(companyUid: string) {
   const actor = await getSevenoUserByUid(companyUid);
   if (!actor || actor.role !== 'company') {
     throw new SevenoCompanyNotificationError('forbidden_role', 403, 'Seules les entreprises peuvent gérer ces notifications.');
-  }
-
-  const profile = await requireDatabase().collection(COMPANY_PROFILES_COLLECTION).doc(companyUid).get();
-  if (!profile.exists || profile.get('uid') !== companyUid) {
-    throw new SevenoCompanyNotificationError('company_profile_missing', 404, 'Profil entreprise introuvable.');
-  }
-  if (profile.get('profileStatus') === 'suspended') {
-    throw new SevenoCompanyNotificationError('company_profile_suspended', 409, 'Le profil entreprise est suspendu.');
   }
 }
 
@@ -483,7 +489,7 @@ function normalizeEvent(id: string, data: unknown): CompanyNotificationEvent | n
   if (
     !status || !createdAt || !updatedAt || !nextAttemptAt
     || cleanText(data.idempotencyKey) !== id
-    || cleanText(data.recipientUid) !== cleanText(data.companyUid)
+    || !cleanText(data.recipientUid)
     || data.recipientRole !== 'company'
   ) {
     return null;
@@ -634,11 +640,11 @@ async function deliverClaimedEvent(
 ) {
   const firestore = requireDatabase();
   const [user, companyProfile, application, offer, subscription, result] = await Promise.all([
-    firestore.collection(USERS_COLLECTION).doc(event.companyUid).get(),
+    firestore.collection(USERS_COLLECTION).doc(event.recipientUid).get(),
     firestore.collection(COMPANY_PROFILES_COLLECTION).doc(event.companyUid).get(),
     firestore.collection(APPLICATIONS_COLLECTION).doc(event.applicationId).get(),
     firestore.collection(OFFERS_COLLECTION).doc(event.offerId).get(),
-    firestore.collection(COMPANY_PUSH_SUBSCRIPTIONS_COLLECTION).doc(event.companyUid).get(),
+    firestore.collection(COMPANY_PUSH_SUBSCRIPTIONS_COLLECTION).doc(event.recipientUid).get(),
     event.eventType === COMPANY_QUESTIONNAIRE_COMPLETED_EVENT_TYPE
       ? firestore.collection(RESULTS_COLLECTION).doc(event.resultId).get()
       : Promise.resolve(null),
@@ -683,7 +689,7 @@ async function deliverClaimedEvent(
     return skipEvent(eventId, processingToken, 'preference_disabled');
   }
 
-  const devices = await loadActiveCompanyDevices(event.companyUid);
+  const devices = await loadActiveCompanyDevices(event.recipientUid);
   if (devices.length === 0) {
     return skipEvent(eventId, processingToken, 'no_active_device');
   }
@@ -728,7 +734,7 @@ async function deliverClaimedEvent(
     const matchingDevices = token ? devicesByToken.get(token) ?? [] : [];
     if (result.success) {
       for (const device of matchingDevices) {
-        batch.set(getCompanyDeviceCollection(event.companyUid).doc(device.deviceId), {
+        batch.set(getCompanyDeviceCollection(event.recipientUid).doc(device.deviceId), {
           lastNotificationAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         }, { merge: true });
@@ -737,7 +743,7 @@ async function deliverClaimedEvent(
     }
     if (isInvalidTokenError(result.error?.code)) {
       for (const device of matchingDevices) {
-        batch.set(getCompanyDeviceCollection(event.companyUid).doc(device.deviceId), {
+        batch.set(getCompanyDeviceCollection(event.recipientUid).doc(device.deviceId), {
           enabled: false,
           revokedAt: Timestamp.now(),
           updatedAt: Timestamp.now(),

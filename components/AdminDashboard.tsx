@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   formatStudyAnswerValue,
@@ -8,6 +8,7 @@ import {
   getProfileLabel,
 } from '@/lib/study-analytics';
 import { getAcquisitionChannelLabel } from '@/lib/study-acquisition';
+import { fetchSevenoAdminApi } from '@/lib/seveno-admin-api';
 import type { IntentBand, StudyBreakdownItem, StudyStats } from '@/lib/study-analytics';
 import type {
   RespondentType,
@@ -84,7 +85,6 @@ interface AdminStudyRespondentsPayload {
   responseTotalPages: number;
 }
 
-const ADMIN_STORAGE_KEY = 'seveno_admin_code';
 const respondentsPageSize = 10;
 
 const profileOptions: Array<{ value: 'all' | RespondentType; label: string }> = [
@@ -428,14 +428,11 @@ function RespondentChip({
 }
 
 export function AdminDashboard() {
-  const [codeInput, setCodeInput] = useState('');
-  const [adminCode, setAdminCode] = useState('');
   const [data, setData] = useState<AdminStudyPayload | null>(null);
   const [respondentsData, setRespondentsData] = useState<AdminStudyRespondentsPayload | null>(null);
   const [respondentsVisible, setRespondentsVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [respondentsLoading, setRespondentsLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [respondentsError, setRespondentsError] = useState('');
   const [respondentFilters, setRespondentFilters] = useState<{
@@ -451,54 +448,12 @@ export function AdminDashboard() {
   });
   const [respondentPage, setRespondentPage] = useState(1);
 
-  const loadDashboard = useCallback(async (code: string) => {
-    const normalizedCode = code.trim();
-    if (!normalizedCode) {
-      setError('Entrez le code admin.');
-      return;
-    }
-
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch('/api/admin/study-responses', {
-        method: 'GET',
-        headers: {
-          'x-admin-code': normalizedCode,
-        },
-        cache: 'no-store',
-      });
-
-      const payload = (await response.json()) as
-        | AdminStudyPayload
-        | {
-            error?: string;
-            message?: string;
-          };
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          if (typeof window !== 'undefined') {
-            window.localStorage.removeItem(ADMIN_STORAGE_KEY);
-          }
-          setAdminCode('');
-          setCodeInput('');
-          setRespondentsVisible(false);
-          setRespondentsData(null);
-        }
-
-        setData(null);
-        const errorPayload = payload as { message?: string };
-        setError(errorPayload.message ?? 'Impossible de charger le dashboard.');
-        return;
-      }
-
-      setAdminCode(normalizedCode);
-      setData(payload as AdminStudyPayload);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(ADMIN_STORAGE_KEY, normalizedCode);
-      }
+      setData(await fetchSevenoAdminApi<AdminStudyPayload>('/api/admin/study-responses', { cache: 'no-store' }));
     } catch (fetchError) {
       setData(null);
       setError(fetchError instanceof Error ? fetchError.message : 'Impossible de charger le dashboard.');
@@ -508,13 +463,7 @@ export function AdminDashboard() {
   }, []);
 
   const loadRespondents = useCallback(
-    async (code: string, page = 1) => {
-      const normalizedCode = code.trim();
-      if (!normalizedCode) {
-        setRespondentsError('Entrez le code admin.');
-        return;
-      }
-
+    async (page = 1) => {
       setRespondentsLoading(true);
       setRespondentsError('');
 
@@ -529,44 +478,14 @@ export function AdminDashboard() {
           beta: respondentFilters.beta,
         });
 
-        const response = await fetch(`/api/admin/study-responses?${params.toString()}`, {
-          method: 'GET',
-          headers: {
-            'x-admin-code': normalizedCode,
-          },
-          cache: 'no-store',
-        });
+        const response = await fetchSevenoAdminApi<AdminStudyRespondentsPayload>(
+          `/api/admin/study-responses?${params.toString()}`,
+          { cache: 'no-store' },
+        );
 
-        const payload = (await response.json()) as
-          | AdminStudyRespondentsPayload
-          | {
-              error?: string;
-              message?: string;
-            };
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            if (typeof window !== 'undefined') {
-              window.localStorage.removeItem(ADMIN_STORAGE_KEY);
-            }
-            setAdminCode('');
-            setCodeInput('');
-            setRespondentsVisible(false);
-            setRespondentsData(null);
-          }
-
-          setRespondentsData(null);
-          const errorPayload = payload as { message?: string };
-          setRespondentsError(errorPayload.message ?? 'Impossible de charger les répondants.');
-          return;
-        }
-
-        const typedPayload = payload as AdminStudyRespondentsPayload;
+        const typedPayload = response;
         setRespondentsData(typedPayload);
         setRespondentPage(typedPayload.responsePage ?? page);
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(ADMIN_STORAGE_KEY, normalizedCode);
-        }
       } catch (fetchError) {
         setRespondentsData(null);
         setRespondentsError(fetchError instanceof Error ? fetchError.message : 'Impossible de charger les répondants.');
@@ -578,60 +497,35 @@ export function AdminDashboard() {
   );
 
   useEffect(() => {
-    const savedCode = window.localStorage.getItem(ADMIN_STORAGE_KEY) ?? '';
-    if (savedCode) {
-      setCodeInput(savedCode);
-      void loadDashboard(savedCode);
-    }
+    void loadDashboard();
   }, [loadDashboard]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    await loadDashboard(codeInput);
-    setSubmitting(false);
-  }
-
   async function handleRefresh() {
-    if (!adminCode) {
-      return;
-    }
-
-    setSubmitting(true);
-    await loadDashboard(adminCode);
+    await loadDashboard();
     if (respondentsVisible) {
-      await loadRespondents(adminCode, respondentPage);
+      await loadRespondents(respondentPage);
     }
-    setSubmitting(false);
   }
 
   async function handleOpenRespondents() {
-    if (!adminCode) {
-      return;
-    }
-
     setRespondentsVisible(true);
     setRespondentPage(1);
-    await loadRespondents(adminCode, 1);
+    await loadRespondents(1);
   }
 
   async function handleApplyRespondentFilters() {
-    if (!adminCode) {
-      return;
-    }
-
     setRespondentsVisible(true);
     setRespondentPage(1);
-    await loadRespondents(adminCode, 1);
+    await loadRespondents(1);
   }
 
   async function handleRespondentPageChange(nextPage: number) {
-    if (!adminCode || nextPage < 1) {
+    if (nextPage < 1) {
       return;
     }
 
     setRespondentsVisible(true);
-    await loadRespondents(adminCode, nextPage);
+    await loadRespondents(nextPage);
   }
 
   const metrics = data?.metrics;
@@ -684,32 +578,16 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input
-                value={codeInput}
-                onChange={(event) => setCodeInput(event.target.value)}
-                type="password"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="Code admin"
-                className="min-w-0 rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 sm:w-44"
-              />
-              <button
-                type="submit"
-                disabled={loading || submitting}
-                className="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-cyan-950/20 transition hover:from-cyan-400 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {adminCode ? 'Ouvrir' : 'Accéder'}
-              </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={handleRefresh}
-                disabled={!adminCode || loading || submitting}
+                disabled={loading}
                 className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Actualiser
               </button>
-            </form>
+            </div>
           </div>
         </header>
 
@@ -721,7 +599,7 @@ export function AdminDashboard() {
 
         {!metrics ? (
           <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300 shadow-[0_24px_80px_-40px_rgba(2,6,23,0.95)]">
-            {loading ? 'Chargement du dashboard...' : 'Entrez le code admin pour afficher les statistiques.'}
+            {loading ? 'Chargement du dashboard...' : 'Impossible de charger les statistiques.'}
           </div>
         ) : (
           <div className="mt-8 space-y-6">
@@ -1103,7 +981,7 @@ export function AdminDashboard() {
                   {respondentsVisible ? (
                     <button
                       type="button"
-                      onClick={() => void loadRespondents(adminCode, respondentPage)}
+                      onClick={() => void loadRespondents(respondentPage)}
                       disabled={respondentsLoading}
                       className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:border-cyan-400/40 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -1113,7 +991,7 @@ export function AdminDashboard() {
                   <button
                     type="button"
                     onClick={() => void handleOpenRespondents()}
-                    disabled={!adminCode || respondentsLoading}
+                    disabled={respondentsLoading}
                     className="rounded-xl bg-gradient-to-r from-slate-100 to-slate-300 px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:from-white hover:to-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {respondentsVisible ? 'Rafraîchir les répondants' : 'Charger les répondants'}

@@ -58,12 +58,12 @@ const testEnv = await initializeTestEnvironment({
   },
 });
 
-type Actor = { uid: string; role: 'candidate' | 'company' | 'admin'; token: string };
+type Actor = { uid: string; role: 'candidate' | 'company' | 'admin'; token: string; email: string };
 const applicationId = 'contact-sharing-integration';
 const now = Timestamp.fromDate(new Date('2026-08-05T10:00:00.000Z'));
 
 async function createActor(uid: string, role: Actor['role']): Promise<Actor> {
-  const email = `${uid}@seveno.test`;
+  const email = `${uid}-${process.pid}@seveno.test`;
   const response = await fetch(
     `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-api-key`,
     {
@@ -88,7 +88,12 @@ async function createActor(uid: string, role: Actor['role']): Promise<Actor> {
     createdAt: now,
     updatedAt: now,
   });
-  return { uid: payload.localId, role, token: payload.idToken };
+  if (role === 'company') {
+    await adminDb.collection('company_profiles').doc(payload.localId).set({ uid: payload.localId, companyName: `Entreprise ${uid}`, profileStatus: 'active', verificationStatus: 'verified', createdAt: now, updatedAt: now });
+    const { buildCompanyMembershipId } = await import('@/lib/seveno-company-memberships-server');
+    await adminDb.collection('company_memberships').doc(buildCompanyMembershipId(payload.localId, payload.localId)).set({ companyId: payload.localId, userUid: payload.localId, role: 'owner', status: 'active', permissions: { canPurchaseCredits: true }, createdAt: now, updatedAt: now });
+  }
+  return { uid: payload.localId, role, token: payload.idToken, email };
 }
 
 const serverPort = 3210;
@@ -166,6 +171,7 @@ try {
     siret: '12345678901234',
     billing: { plan: 'secret' },
     profileStatus: 'active',
+    verificationStatus: 'verified',
     createdAt: now,
     updatedAt: now,
   });
@@ -231,7 +237,7 @@ try {
   assert.equal(payload.candidate.shared, true);
   assert.equal(payload.company.shared, false);
   assert.deepEqual(payload.candidate.contact, {
-    displayName: 'Camille Martin', email: 'candidate-participant@seveno.test', phone: '+33601020304',
+    displayName: 'Camille Martin', email: candidate.email, phone: '+33601020304',
   });
   assert.equal(payload.company.contact, null);
   assertOnlyContactKeys(payload);
@@ -248,7 +254,7 @@ try {
   assert.equal(payload.company.shared, true);
   assert.equal(payload.candidate.contact, null);
   assert.deepEqual(payload.company.contact, {
-    companyName: 'Entreprise Test', contactName: 'Contact company-participant', email: 'company-participant@seveno.test', phone: '+33102030405',
+    companyName: 'Entreprise Test', contactName: 'Contact company-participant', email: company.email, phone: '+33102030405',
   });
   assertOnlyContactKeys(payload);
 

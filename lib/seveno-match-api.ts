@@ -6,10 +6,13 @@ export interface SevenoMatchApiErrorPayload {
 }
 
 function extractErrorMessage(payload: unknown, fallbackMessage: string) {
-  if (payload && typeof payload === 'object' && 'message' in payload) {
-    const message = (payload as { message?: unknown }).message;
+  if (payload && typeof payload === 'object') {
+    const { message, error } = payload as SevenoMatchApiErrorPayload;
     if (typeof message === 'string' && message.trim().length > 0) {
       return message;
+    }
+    if (typeof error === 'string' && error.trim().length > 0) {
+      return error;
     }
   }
 

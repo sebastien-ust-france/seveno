@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
 import {
   changeJobOfferStatus,
+  assertRecruitmentOfferAccess,
+  getJobOffer,
   SevenoJobOfferError,
 } from '@/lib/seveno-job-offers-server';
 import type { JobOfferStatusAction } from '@/types/seveno-job-offers';
@@ -19,6 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const token = await requireSevenoApiToken(request);
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
     const { offerId } = await context.params;
+    assertRecruitmentOfferAccess(await getJobOffer(membership.companyId, offerId), membership, true);
     const body = await readOfferJsonBody(request);
     const action = body?.action;
     if (typeof action !== 'string' || !ACTIONS.includes(action as JobOfferStatusAction)) {

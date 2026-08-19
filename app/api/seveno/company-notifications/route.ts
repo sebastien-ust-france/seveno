@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken, SevenoApiAuthError } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 import {
   disableCompanyNotificationDevice,
   getCompanyNotificationState,
@@ -12,7 +13,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function toErrorResponse(error: unknown) {
-  if (error instanceof SevenoApiAuthError || error instanceof SevenoCompanyNotificationError) {
+  if (error instanceof SevenoApiAuthError || error instanceof SevenoCompanyNotificationError || error instanceof CompanyMembershipError) {
     return NextResponse.json({ error: error.code, message: error.message }, { status: error.status });
   }
   return NextResponse.json(
@@ -24,6 +25,7 @@ function toErrorResponse(error: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const token = await requireSevenoApiToken(request);
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'billing_manager', 'viewer'] });
     const deviceId = request.nextUrl.searchParams.get('deviceId');
     return NextResponse.json(await getCompanyNotificationState(token.uid, deviceId));
   } catch (error) {
@@ -34,6 +36,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = await requireSevenoApiToken(request);
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'billing_manager', 'viewer'] });
     const body = (await request.json().catch(() => null)) as {
       action?: 'register_device' | 'unregister_device' | 'enable' | 'disable';
       notificationType?: 'application_received' | 'questionnaire_completed';

@@ -5,7 +5,7 @@ import {
   saveCompanyQuestionnaire,
   SevenoCompanyQuestionnaireError,
 } from '@/lib/seveno-company-questionnaires-server';
-import { SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
+import { assertRecruitmentOfferAccess, getJobOffer, SevenoJobOfferError } from '@/lib/seveno-job-offers-server';
 import { requireActiveCompanyMembership, CompanyMembershipError } from '@/lib/seveno-company-memberships-server';
 
 export const runtime = 'nodejs';
@@ -23,8 +23,9 @@ function errorResponse(error: unknown) {
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const token = await requireSevenoApiToken(request);
-    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id') });
+    const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'] });
     const { offerId } = await context.params;
+    assertRecruitmentOfferAccess(await getJobOffer(membership.companyId, offerId), membership);
     return NextResponse.json(await getCompanyQuestionnairePromptContext(membership.companyId, offerId));
   } catch (error) {
     return errorResponse(error);
@@ -36,6 +37,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const token = await requireSevenoApiToken(request);
     const membership = await requireActiveCompanyMembership({ userUid: token.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin', 'recruiter'] });
     const { offerId } = await context.params;
+    assertRecruitmentOfferAccess(await getJobOffer(membership.companyId, offerId), membership, true);
     const body = await request.json().catch(() => null) as unknown;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new SevenoCompanyQuestionnaireError('invalid_questionnaire', 400, 'Le questionnaire est invalide.');

@@ -2,8 +2,6 @@
 
 import {
   createUserWithEmailAndPassword,
-  deleteUser,
-  fetchSignInMethodsForEmail,
   connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
@@ -75,12 +73,8 @@ export async function signInWithEmailPassword(email: string, password: string): 
   return result.user;
 }
 
-export async function getEmailSignInMethods(email: string): Promise<string[]> {
-  return fetchSignInMethodsForEmail(getFirebaseAuth(), email);
-}
-
-export async function sendVerificationEmail(authUser: User): Promise<void> {
-  await sendEmailVerification(authUser);
+export async function sendVerificationEmail(authUser: User, continueUrl?: string): Promise<void> {
+  await sendEmailVerification(authUser, continueUrl ? { url: continueUrl, handleCodeInApp: false } : undefined);
 }
 
 export async function refreshAuthUser(authUser: User): Promise<User> {
@@ -91,10 +85,6 @@ export async function refreshAuthUser(authUser: User): Promise<User> {
 
 export async function sendPasswordReset(email: string): Promise<void> {
   await sendPasswordResetEmail(getFirebaseAuth(), email);
-}
-
-export async function deleteAuthUser(authUser: User): Promise<void> {
-  await deleteUser(authUser);
 }
 
 export function isPasswordAuthUser(authUser: User): boolean {

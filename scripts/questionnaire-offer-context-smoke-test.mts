@@ -61,6 +61,6 @@ assert.match(editor, /disabled=\{!aiPrompt \|\| loading \|\| !offer \|\| offer\.
 assert.match(editor, /Les conditions et justificatifs de l’offre ne sont jamais transmis au générateur du questionnaire/);
 
 const route = readFileSync('app/api/seveno/offers/[offerId]/questionnaire/route.ts', 'utf8');
-assert.match(route, /getCompanyQuestionnairePromptContext\(token\.uid, offerId\)/);
+assert.match(route, /getCompanyQuestionnairePromptContext\(membership\.companyId, offerId\)/);
 
 console.log('Questionnaire offer context smoke tests: OK');

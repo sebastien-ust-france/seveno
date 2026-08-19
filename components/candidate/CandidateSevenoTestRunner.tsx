@@ -12,6 +12,11 @@ import {
   startCandidateSevenoTestSessionClient,
   submitCandidateSevenoTestSessionClient,
 } from '@/lib/seveno-tests-client';
+import {
+  buildSevenoAutoTimeoutQuestionKey,
+  shouldArmSevenoAutoTimeoutQuestion,
+  shouldTriggerSevenoAutoTimeoutQuestion,
+} from '@/lib/seveno-test-runner-timeout-guards';
 import type { SevenoAssessmentScores, SevenoTestStartState } from '@/types/seveno';
 
 const SEVENO_TEST_QUESTION_TIME_SECONDS = 30;
@@ -92,7 +97,9 @@ export function CandidateSevenoTestRunner() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [clientNow, setClientNow] = useState(() => Date.now());
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
-  const autoAdvanceHandledRef = useRef<string | null>(null);
+  const autoTimeoutArmedQuestionKeyRef = useRef<string | null>(null);
+  const autoTimeoutConsumedQuestionKeyRef = useRef<string | null>(null);
+  const previousQuestionKeyRef = useRef<string | null>(null);
 
   const activeSession = state?.session ?? null;
   const questionnaireCompleted = state?.assessment?.status === 'completed';
@@ -102,6 +109,9 @@ export function CandidateSevenoTestRunner() {
   const currentQuestionIndex = activeSession?.currentQuestionIndex ?? 0;
   const currentQuestion = activeSession
     ? questionnaire[Math.min(Math.max(currentQuestionIndex, 0), Math.max(questionCount - 1, 0))] ?? null
+    : null;
+  const currentQuestionKey = activeSession && currentQuestion
+    ? buildSevenoAutoTimeoutQuestionKey(activeSession.sessionId, currentQuestion.id, currentQuestionIndex)
     : null;
   const questionTimeSeconds = activeSession?.questionTimeSeconds ?? SEVENO_TEST_QUESTION_TIME_SECONDS;
   const remainingQuestionSeconds = activeSession?.questionExpiresAt
@@ -189,7 +199,7 @@ export function CandidateSevenoTestRunner() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!activeSession || questionnaireCompleted) {
+    if (!activeSession || questionnaireCompleted || submitting) {
       return;
     }
 
@@ -200,35 +210,50 @@ export function CandidateSevenoTestRunner() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [activeSession, questionnaireCompleted]);
+  }, [activeSession, questionnaireCompleted, submitting]);
 
   useEffect(() => {
+    if (previousQuestionKeyRef.current !== currentQuestionKey) {
+      autoTimeoutArmedQuestionKeyRef.current = null;
+      previousQuestionKeyRef.current = currentQuestionKey;
+    }
+
     if (!activeSession) {
-      autoAdvanceHandledRef.current = null;
       return;
     }
-
-    autoAdvanceHandledRef.current = null;
-  }, [activeSession, currentQuestionIndex]);
+  }, [activeSession, currentQuestionKey]);
 
   useEffect(() => {
-    if (!activeSession || questionnaireCompleted || !currentQuestion || remainingQuestionSeconds === null) {
+    if (!shouldArmSevenoAutoTimeoutQuestion({
+      activeSessionPresent: Boolean(activeSession),
+      questionnaireCompleted,
+      submitting,
+      currentQuestionKey,
+      remainingQuestionSeconds,
+    })) {
       return;
     }
 
-    if (remainingQuestionSeconds !== 0) {
+    autoTimeoutArmedQuestionKeyRef.current = currentQuestionKey;
+  }, [activeSession, questionnaireCompleted, submitting, currentQuestionKey, remainingQuestionSeconds]);
+
+  useEffect(() => {
+    if (!shouldTriggerSevenoAutoTimeoutQuestion({
+      activeSessionPresent: Boolean(activeSession),
+      questionnaireCompleted,
+      submitting,
+      currentQuestionKey,
+      remainingQuestionSeconds,
+      armedQuestionKey: autoTimeoutArmedQuestionKeyRef.current,
+      consumedQuestionKey: autoTimeoutConsumedQuestionKeyRef.current,
+    })) {
       return;
     }
 
-    const autoAdvanceKey = `${activeSession.sessionId}:${currentQuestion.id}:${currentQuestionIndex}`;
-    if (autoAdvanceHandledRef.current === autoAdvanceKey) {
-      return;
-    }
-
-    autoAdvanceHandledRef.current = autoAdvanceKey;
+    autoTimeoutConsumedQuestionKeyRef.current = currentQuestionKey;
     void handleAdvanceQuestion(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSession?.sessionId, questionnaireCompleted, currentQuestion?.id, currentQuestionIndex, remainingQuestionSeconds]);
+  }, [activeSession?.sessionId, questionnaireCompleted, submitting, currentQuestionKey, remainingQuestionSeconds]);
 
   async function handleStartSession() {
     if (!authUser) {
@@ -289,6 +314,8 @@ export function CandidateSevenoTestRunner() {
       setState(nextState);
       setCurrentAnswer('');
       setServerOffsetMs(nextState.session ? Date.parse(nextState.session.serverNow) - Date.now() : 0);
+    } catch (thrownError) {
+      setError(thrownError instanceof Error ? thrownError.message : 'La soumission du questionnaire a échoué.');
     } finally {
       setSubmitting(false);
     }

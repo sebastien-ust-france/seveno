@@ -1074,6 +1074,12 @@ service cloud.firestore {
     match /company_invitations/{invitationId} {
       allow read, write: if false;
     }
+    match /company_member_invitations/{invitationId} {
+      allow read, write: if false;
+    }
+    match /company_membership_events/{eventId} {
+      allow read, write: if false;
+    }
 
     match /job_sectors/{sectorCode} {
       allow read: if true;
@@ -1215,8 +1221,17 @@ service cloud.firestore {
       match /credit_ledger/{entryId} {
         allow read, create, update, delete: if false;
       }
+      match /credit_lots/{lotId} {
+        allow read, create, update, delete: if false;
+      }
+    }
+    match /company_sales_terms_acceptances/{acceptanceId} {
+      allow read, create, update, delete: if false;
     }
     match /billing_orders/{orderId} {
+      allow read, create, update, delete: if false;
+    }
+    match /stripe_webhook_events/{eventId} {
       allow read, create, update, delete: if false;
     }
     match /recruitment_campaigns/{campaignId} {

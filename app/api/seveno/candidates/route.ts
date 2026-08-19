@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
 import {
   assertCompanyCanAccessCandidateProfiles,
@@ -126,7 +127,12 @@ export async function GET(request: NextRequest) {
       throw new SevenoMatchRequestError('forbidden_role', 403, 'Seules les entreprises peuvent consulter ces profils.');
     }
 
-    await assertCompanyCanAccessCandidateProfiles(decodedToken.uid);
+    const membership = await requireActiveCompanyMembership({
+      userUid: decodedToken.uid,
+      companyId: request.headers.get('x-seveno-company-id'),
+      allowedRoles: ['owner', 'admin', 'recruiter', 'viewer'],
+    });
+    await assertCompanyCanAccessCandidateProfiles(membership.companyId);
 
     const publicCandidateId = request.nextUrl.searchParams.get('publicCandidateId')?.trim() ?? '';
     if (publicCandidateId) {

@@ -7,6 +7,7 @@ import {
   CONTACT_REASON_OPTIONS,
   CONTACT_RATE_LIMIT_MESSAGE,
   CONTACT_SERVICE_UNAVAILABLE_MESSAGE,
+  isTrustedContactOrigin,
   normalizeContactSubmission,
 } from '@/lib/seveno-contact';
 import {
@@ -71,6 +72,12 @@ function createMockContactEmailTransport(options?: { failAcknowledgement?: boole
 }
 
 async function main() {
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://seveno.eu' })), true);
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://www.seveno.eu' })), false);
+  assert.equal(isTrustedContactOrigin(new Headers({ origin: 'https://example.com' })), false);
+  assert.equal(isTrustedContactOrigin(new Headers({ referer: 'https://seveno.eu/contact' })), true);
+  assert.equal(isTrustedContactOrigin(new Headers()), true);
+
   assert.equal(CONTACT_REASON_OPTIONS.length, 7);
   assert.deepEqual(
     CONTACT_REASON_OPTIONS.map((item) => item.label),
@@ -135,7 +142,7 @@ async function main() {
   assert.equal(headerInjection.fieldErrors?.subject, 'Les retours à la ligne ne sont pas autorisés dans ce champ.');
 
   const mailtoHref = buildContactMailtoHref(validSubmission);
-  assert.match(mailtoHref, /^mailto:contact@ust-france\.com\?/);
+  assert.match(mailtoHref, /^mailto:sebastien@seveno\.eu\?/);
   assert.match(mailtoHref, /subject=/);
 
   const context = {
@@ -156,8 +163,8 @@ async function main() {
   assert.equal(acknowledgementPreview.to, 'marie.dupont@example.com');
   assert.equal(acknowledgementPreview.subject, CONTACT_ACKNOWLEDGEMENT_SUBJECT);
   assert.match(acknowledgementPreview.text, /Votre demande a bien été transmise à Seven’O\./);
-  assert.match(acknowledgementPreview.text, /contact@ust-france.com/);
-  assert.match(acknowledgementPreview.html, /contact@ust-france.com/);
+  assert.match(acknowledgementPreview.text, /sebastien@seveno.eu/);
+  assert.match(acknowledgementPreview.html, /sebastien@seveno.eu/);
 
   const transport = createMockContactEmailTransport();
   const queued = await queueContactEmail(context, { transport });
@@ -269,7 +276,7 @@ async function main() {
   assertContains('components/public/contact/ContactHero.tsx', [
     'CONTACT',
     'Échanger avec Seven’O.',
-    'contact@ust-france.com',
+    'sebastien@seveno.eu',
   ]);
 
   assertContains('components/public/contact/ContactForm.tsx', [
@@ -316,7 +323,10 @@ async function main() {
     'readJsonBody',
     'normalizeContactSubmission',
     'CONTACT_MIN_RENDER_DELAY_MS',
-    'CONTACT_RATE_LIMIT_MESSAGE',
+    'consumeSevenoRateLimits',
+    "error: 'rate_limit_exceeded'",
+    "'Retry-After'",
+    "'rate_limit_unavailable'",
     'CONTACT_SERVICE_UNAVAILABLE_MESSAGE',
     'queueContactEmail',
     'buildContactMailtoHref',

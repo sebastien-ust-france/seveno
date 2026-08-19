@@ -34,8 +34,8 @@ export default function CookiesPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.26em] text-violet-200/85">Options</p>
             <p className="mt-4 text-sm leading-7 text-slate-300">
               Pour toute question sur les réglages, contactez-nous à{' '}
-              <a href="mailto:contact@ust-france.com" className="text-cyan-200 transition hover:text-cyan-100">
-                contact@ust-france.com
+              <a href="mailto:sebastien@seveno.eu" className="text-cyan-200 transition hover:text-cyan-100">
+                sebastien@seveno.eu
               </a>
               .
             </p>

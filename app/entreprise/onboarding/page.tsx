@@ -4,12 +4,13 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS, findSectorLabel } from '@/lib/job-taxonomy';
-import { COMPANY_PROFILE_LIMITS, createOrUpdateCompanyProfile, getCompanyProfile } from '@/lib/seveno-companies';
+import { COMPANY_PROFILE_LIMITS, getCompanyProfile } from '@/lib/seveno-companies';
+import { getCompanyContextClient } from '@/lib/seveno-billing-client';
+import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import {
   acceptSevenoTerms,
   ensureSevenoUser,
   hasSevenoTermsAcceptance,
-  markUserOnboardingCompleted,
   resolveSevenoRedirect,
 } from '@/lib/seveno-users';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
@@ -169,7 +170,13 @@ export default function CompanyOnboardingPage() {
           return;
         }
 
-        const existingProfile = await getCompanyProfile(sevenoUser.uid);
+        const companyContext = sevenoUser.onboardingCompleted ? await getCompanyContextClient(authUser) : null;
+        const activeMembership = companyContext?.companies.find((company) => company.companyId === companyContext.activeCompanyId);
+        if (activeMembership && activeMembership.role !== 'owner') {
+          router.replace('/entreprise');
+          return;
+        }
+        const existingProfile = companyContext?.activeProfile ?? await getCompanyProfile(sevenoUser.uid);
         if (!active) {
           return;
         }
@@ -336,8 +343,11 @@ export default function CompanyOnboardingPage() {
         contactRole,
       };
 
-      await createOrUpdateCompanyProfile(sevenoUser.uid, payload);
-      await markUserOnboardingCompleted(sevenoUser.uid);
+      const created = await fetchSevenoMatchApi<{ companyId: string }>(authUser, '/api/seveno/companies/onboarding', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      window.localStorage.setItem('seveno_active_company_id', created.companyId);
       setSuccessMessage('Profil entreprise enregistré. Redirection en cours vers votre dashboard.');
       window.setTimeout(() => router.replace('/entreprise'), 700);
     } catch {
@@ -597,7 +607,7 @@ export default function CompanyOnboardingPage() {
                 <button
                   type="submit"
                   disabled={saving || (!hasTermsAcceptance && !termsAccepted)}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(139,92,246,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-violet-500 to-cyan-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgb(var(--seveno-brand-blue)/0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {saving ? 'Enregistrement...' : isEditing ? 'Enregistrer mes modifications' : 'Enregistrer mon entreprise'}
                 </button>

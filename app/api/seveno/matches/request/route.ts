@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSevenoApiToken } from '@/lib/seveno-api-auth';
+import { requireActiveCompanyMembership } from '@/lib/seveno-company-memberships-server';
 import { createSevenoMatchRequest, getSevenoUserByUid, SevenoMatchRequestError } from '@/lib/seveno-match-requests';
 import { readJsonBody, toMatchApiErrorResponse } from '../_shared';
 import type { MatchRequestContractType } from '@/types/seveno';
@@ -73,8 +74,9 @@ export async function POST(request: NextRequest) {
         ? (body.contractType as MatchRequestContractType)
         : undefined;
 
+    const membership = await requireActiveCompanyMembership({ userUid: decodedToken.uid, companyId: request.headers.get('x-seveno-company-id'), allowedRoles: ['owner', 'admin'] });
     const payload = await createSevenoMatchRequest({
-      companyUid: decodedToken.uid,
+      companyUid: membership.companyId,
       publicCandidateId,
       proposedJobTitle,
       proposedLocation,

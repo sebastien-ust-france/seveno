@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const token = await requireSevenoApiToken(request);
     const memberships = await listActiveCompanyMemberships(token.uid);
     const requested = request.headers.get('x-seveno-company-id');
-    const active = await requireActiveCompanyMembership({ userUid: token.uid, companyId: requested });
+    const active = await requireActiveCompanyMembership({ userUid: token.uid, companyId: requested, allowUnapproved: true });
     const firestore = adminDb;
     const profileRefs = firestore ? memberships.map((item) => firestore.collection('company_profiles').doc(String(item.companyId))) : [];
     const profiles = firestore && profileRefs.length > 0 ? await firestore.getAll(...profileRefs) : [];
