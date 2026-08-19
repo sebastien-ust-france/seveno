@@ -6,6 +6,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: __dirname,
+  outputFileTracingIncludes: {
+    '/api/seveno/geography': [
+      './node_modules/@countrystatecity/countries/dist/data/**/*.json',
+    ],
+  },
   serverExternalPackages: ['@countrystatecity/countries'],
   poweredByHeader: false,
   async headers() {
