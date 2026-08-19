@@ -13,6 +13,7 @@
     "test:prerequisite-suggestions:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/prerequisite-suggestions-emulator-test.mts",
     "promote:admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/promote-admin-role.mts",
     "migrate:company-ownership": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/migrate-company-ownership.mts",
+    "migrate:historical-company-owner": "node --env-file=.env.local --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/migrate-historical-company-owner.mts",
     "test:commercial-foundation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/commercial-foundation-emulator-test.mts",
     "test:recruitment-assignment:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/recruitment-assignment-emulator-test.mts",
     "test:company-purchase-permissions": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/company-purchase-permissions-smoke-test.mts",
