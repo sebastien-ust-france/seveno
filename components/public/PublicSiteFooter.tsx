@@ -12,6 +12,7 @@ const PUBLIC_FOOTER_LINKS = {
     { href: '/', label: 'Accueil' },
     { href: '/candidats', label: 'Candidats' },
     { href: '/entreprises', label: 'Entreprises' },
+    { href: '/entreprises/tarifs', label: 'Tarifs entreprises' },
     { href: '/observatoire', label: 'Observatoire' },
   ],
   project: [

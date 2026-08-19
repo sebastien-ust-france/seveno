@@ -4,6 +4,7 @@ const publicPages = [
   '/',
   '/candidats',
   '/entreprises',
+  '/entreprises/tarifs',
   '/observatoire',
   '/etude',
   '/a-propos',

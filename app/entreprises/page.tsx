@@ -3,6 +3,7 @@ import { CompanyAfterEvaluation } from '@/components/public/companies/CompanyAft
 import { CompanyEvaluationConsequences } from '@/components/public/companies/CompanyEvaluationConsequences';
 import { CompanyFaq } from '@/components/public/companies/CompanyFaq';
 import { CompanyPublicHero } from '@/components/public/companies/CompanyPublicHero';
+import { CompanyPricingPreview } from '@/components/public/companies/CompanyPricingPreview';
 import { CompanyQuestionnaireCreation } from '@/components/public/companies/CompanyQuestionnaireCreation';
 import { CompanyQuestionnaireDifference } from '@/components/public/companies/CompanyQuestionnaireDifference';
 import { CompanyRecruitmentFinding } from '@/components/public/companies/CompanyRecruitmentFinding';
@@ -30,6 +31,7 @@ export default function EnterprisesPublicPage() {
         <CompanyQuestionnaireDifference />
         <CompanyQuestionnaireCreation />
         <CompanyAfterEvaluation />
+        <CompanyPricingPreview />
         <CompanyValueConclusion />
         <CompanyFaq />
       </div>

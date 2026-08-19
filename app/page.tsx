@@ -356,12 +356,17 @@ export default async function HomePage() {
             <article className="flex flex-col rounded-[26px] border border-seveno-brand-cyan/25 bg-white/[0.04] p-6">
               <h3 className="text-xl font-semibold text-seveno-text-primary">Préparer mon profil</h3>
               <p className="mt-3 flex-1 text-sm leading-7 text-seveno-text-secondary">Les candidats peuvent déjà créer leur compte, préciser leur disponibilité et compléter les informations qui serviront à leurs futures mises en relation.</p>
+              <p className="mt-4 text-sm font-semibold leading-7 text-seveno-brand-cyan-soft">Candidats : Seven’O est entièrement gratuit pour vous.</p>
               <Link href="/connexion" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-seveno-action-primary px-5 py-3 text-sm font-semibold text-seveno-text-on-accent transition hover:bg-seveno-action-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus">Créer mon profil candidat</Link>
             </article>
             <article className="flex flex-col rounded-[26px] border border-seveno-brand-blue/25 bg-white/[0.04] p-6">
               <h3 className="text-xl font-semibold text-seveno-text-primary">Demander un accès pilote</h3>
               <p className="mt-3 flex-1 text-sm leading-7 text-seveno-text-secondary">Les entreprises peuvent demander à découvrir Seven’O et préciser leurs premiers besoins de recrutement.</p>
-              <Link href="/contact" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full border border-seveno-brand-blue/40 bg-seveno-brand-blue/10 px-5 py-3 text-sm font-semibold text-seveno-text-primary transition hover:border-seveno-brand-blue/65 hover:bg-seveno-brand-blue/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus">Demander un accès entreprise</Link>
+              <p className="mt-4 text-sm font-semibold leading-7 text-seveno-brand-cyan-soft">Entreprises : recrutez sans abonnement, à partir de 390 € HT par campagne.</p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Link href="/contact" className="inline-flex min-h-11 items-center justify-center rounded-full border border-seveno-brand-blue/40 bg-seveno-brand-blue/10 px-5 py-3 text-sm font-semibold text-seveno-text-primary transition hover:border-seveno-brand-blue/65 hover:bg-seveno-brand-blue/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus">Demander un accès entreprise</Link>
+                <Link href="/entreprises/tarifs" className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-seveno-text-primary transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seveno-border-focus">Voir les tarifs entreprises</Link>
+              </div>
             </article>
           </div>
           <div className="mt-5 flex flex-col gap-4 border-y border-white/10 py-5 sm:flex-row sm:items-center sm:justify-between">

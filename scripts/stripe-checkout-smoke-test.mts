@@ -225,5 +225,6 @@ assert.match(stripeServer, /stripe_checkout_session:\$\{environment\}:/);
 assert.doesNotMatch(stripeServer, /console\.(?:log|info|warn|error)/);
 assert.match(billingUi, /Paiement sécurisé par Stripe/);
 assert.match(billingUi, /Achat réservé aux responsables de l’entreprise et de la facturation\./);
+assert.doesNotMatch(read('app/entreprises/tarifs/page.tsx'), />\s*(Acheter|Commander|Payer)\s*</i);
 
 console.log('Stripe Checkout smoke test passed.');

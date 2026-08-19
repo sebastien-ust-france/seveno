@@ -3,6 +3,7 @@ import { PublicSiteShell } from '@/components/public/PublicSiteShell';
 import { CandidateAnonymityIntro } from '@/components/public/candidates/CandidateAnonymityIntro';
 import { CandidateControlSection } from '@/components/public/candidates/CandidateControlSection';
 import { CandidateFaq } from '@/components/public/candidates/CandidateFaq';
+import { CandidateFreeService } from '@/components/public/candidates/CandidateFreeService';
 import { CandidateJourney } from '@/components/public/candidates/CandidateJourney';
 import { CandidateLaunchCta } from '@/components/public/candidates/CandidateLaunchCta';
 import { CandidatePublicHero } from '@/components/public/candidates/CandidatePublicHero';
@@ -24,6 +25,7 @@ export default function CandidatesPublicPage() {
         <CandidateAnonymityIntro />
         <CandidateJourney />
         <CandidateControlSection />
+        <CandidateFreeService />
         <CandidateLaunchCta />
         <CandidateFaq />
       </div>
