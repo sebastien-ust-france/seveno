@@ -59,7 +59,7 @@ export function CandidateNavigation() {
             className={
               'group inline-flex min-w-[180px] flex-col rounded-full border px-4 py-3 text-left transition duration-200 ease-out ' +
               (active
-                ? 'border-cyan-300/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(139,92,246,0.10),rgba(249,115,22,0.08))] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.10),0_16px_40px_rgba(2,6,23,0.25)]'
+                ? 'border-cyan-300/30 bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgb(var(--seveno-brand-blue)/0.10),rgba(249,115,22,0.08))] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.10),0_16px_40px_rgba(2,6,23,0.25)]'
                 : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10')
             }
           >

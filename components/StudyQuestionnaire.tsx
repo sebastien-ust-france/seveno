@@ -404,7 +404,7 @@ function DropdownQuestionField({
                       className={
                         'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                         (active
-                          ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
+                          ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-blue-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                           : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                       }
                     >
@@ -589,7 +589,7 @@ function SearchableSingleSelectField({
                 className={
                   'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                   (active
-                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
+                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-blue-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                 }
               >
@@ -709,7 +709,7 @@ export function SearchableMultiSelectField({
                 className={
                   'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                   (active
-                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
+                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-blue-700/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10') +
                   (disabled ? ' cursor-not-allowed opacity-40 hover:translate-y-0 hover:shadow-none' : '')
                 }
@@ -835,7 +835,7 @@ export function MultiSelectQuestionField({
                     className={
                       'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                       (active
-                        ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
+                        ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-blue-700/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                         : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10') +
                       (disabled ? ' cursor-not-allowed opacity-40 hover:translate-y-0 hover:shadow-none' : '')
                     }
@@ -1274,7 +1274,7 @@ export function StudyQuestionnaire() {
                 className={
                   'min-h-14 rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                   (active
-                    ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                    ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-blue-700/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                 }
               >
@@ -1299,7 +1299,7 @@ export function StudyQuestionnaire() {
                 className={
                   'inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition duration-200 touch-manipulation ' +
                   (active
-                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                    ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                     : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                 }
               >
@@ -1413,7 +1413,7 @@ export function StudyQuestionnaire() {
                 ) : null}
                 <Link
                   href="/"
-                  className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(59,130,246,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 sm:w-auto"
                 >
                   Retour à l&apos;accueil
                 </Link>
@@ -1463,7 +1463,7 @@ export function StudyQuestionnaire() {
             </div>
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -1532,7 +1532,7 @@ export function StudyQuestionnaire() {
                           className={
                             'min-h-14 rounded-[20px] border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                             (active
-                              ? 'border-blue-400/60 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                              ? 'border-blue-400/60 bg-gradient-to-br from-blue-500/20 to-blue-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                               : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                           }
                         >
@@ -1655,7 +1655,7 @@ export function StudyQuestionnaire() {
                               className={
                                 'inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition touch-manipulation ' +
                                 (finalState.wantsProjectUpdates
-                                  ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                                  ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-blue-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                   : 'border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10')
                               }
                             >
@@ -1672,7 +1672,7 @@ export function StudyQuestionnaire() {
                               className={
                                 'inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-4 py-3 text-sm font-medium transition touch-manipulation ' +
                                 (!finalState.wantsProjectUpdates
-                                  ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                                  ? 'border-blue-400/70 bg-gradient-to-r from-blue-500 to-blue-500 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                   : 'border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10')
                               }
                             >
@@ -1705,7 +1705,7 @@ export function StudyQuestionnaire() {
                                   className={
                                     'min-h-14 rounded-[18px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.28)] touch-manipulation ' +
                                     (active
-                                      ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
+                                      ? 'border-blue-400/70 bg-gradient-to-br from-blue-500/20 to-blue-500/20 text-white shadow-[0_18px_50px_rgba(59,130,246,0.18)]'
                                       : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10')
                                   }
                                 >
@@ -1823,7 +1823,7 @@ export function StudyQuestionnaire() {
                   <button
                     type="button"
                     onClick={goToQuestions}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 sm:w-auto"
                   >
                     Commencer
                   </button>
@@ -1832,7 +1832,7 @@ export function StudyQuestionnaire() {
                     type="button"
                     onClick={goNext}
                     disabled={!canContinueCurrentQuestion}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     Continuer
                   </button>
@@ -1841,7 +1841,7 @@ export function StudyQuestionnaire() {
                     type="button"
                     onClick={submitStudy}
                     disabled={saving}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     {saving ? 'Envoi en cours...' : 'Envoyer ma réponse'}
                   </button>

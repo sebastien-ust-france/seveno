@@ -203,7 +203,7 @@ export default function CompanyOffersPage() {
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {offer.status !== 'closed' && offer.status !== 'archived' ? <Link href={`/entreprise/offres/${offer.id}/modifier`} className="rounded-full border border-white/10 px-3 py-2 text-xs text-white">Modifier</Link> : null}
-                  <Link href={`/entreprise/offres/${offer.id}/questionnaire`} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs text-violet-100">Questionnaire</Link>
+                  <Link href={`/entreprise/offres/${offer.id}/questionnaire`} className="rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-2 text-xs text-blue-100">Questionnaire</Link>
                   {(membershipRole === 'owner' || membershipRole === 'admin') && offer.assignedToUid ? <button type="button" onClick={() => setReassignment({ offer, targetUid: offer.assignedToUid })} className="rounded-full border border-cyan-300/20 px-3 py-2 text-xs text-cyan-100">Changer de responsable</button> : null}
             {offer.status === 'draft' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'publish')} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 disabled:opacity-40">Publier</button> : null}
             {offer.status === 'published' ? <button type="button" disabled={Boolean(actionId)} onClick={() => void changeStatus(offer.id, 'pause')} className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 disabled:opacity-40">Mettre en pause</button> : null}

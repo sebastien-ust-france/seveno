@@ -696,7 +696,7 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
                           type="button"
                           onClick={() => duplicateQuestion(question)}
                           disabled={questions.length >= COMPANY_QUESTIONNAIRE_QUESTION_COUNT}
-                          className="rounded-full border border-violet-300/20 px-3 py-1 text-xs text-violet-100 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="rounded-full border border-blue-300/20 px-3 py-1 text-xs text-blue-100 disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           Dupliquer
                         </button>
@@ -826,12 +826,12 @@ export default function CompanyQuestionnaireEditor({ offerId }: { offerId: strin
 
             <div className="flex flex-wrap gap-3">
               <button type="button" disabled={saving || (creationMode === 'ai_import' && !aiValidationConfirmed)} onClick={() => void save()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Enregistrer le brouillon</button>
-              <button type="button" onClick={() => setPreview(true)} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">Prévisualiser</button>
+              <button type="button" onClick={() => setPreview(true)} className="rounded-full border border-blue-300/20 bg-blue-400/10 px-5 py-3 text-sm font-semibold text-blue-100">Prévisualiser</button>
               <button
                 type="button"
                 disabled={saving || (creationMode === 'ai_import' && !aiValidationConfirmed) || questions.length !== COMPANY_QUESTIONNAIRE_QUESTION_COUNT}
                 onClick={() => void activate()}
-                className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Activer le questionnaire
               </button>

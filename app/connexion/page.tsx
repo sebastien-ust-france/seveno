@@ -659,7 +659,7 @@ export default function ConnexionPage() {
                   type="button"
                   onClick={() => void handleRefreshVerification()}
                   disabled={busy}
-                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loadingAction === 'refresh' ? 'Vérification...' : 'J’ai vérifié mon email'}
                 </button>
@@ -698,7 +698,7 @@ export default function ConnexionPage() {
                 type="button"
                 onClick={() => void handleGoogleSignIn()}
                 disabled={busy}
-                className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loadingAction === 'google' ? 'Connexion Google...' : 'Continuer avec Google'}
               </button>

@@ -403,7 +403,7 @@ export default function CompanyApplicationDetailPage() {
                         ) : null}
                         <Link
                           href={questionnaireActionHref}
-                          className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs font-semibold text-violet-100 transition hover:bg-violet-400/15"
+                          className="inline-flex rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-100 transition hover:bg-blue-400/15"
                         >
                           {questionnaireActionLabel}
                         </Link>
@@ -452,7 +452,7 @@ export default function CompanyApplicationDetailPage() {
                   <button
                     type="button"
                     disabled
-                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
                   >
                     En attente de la réponse du candidat
                   </button>
@@ -465,7 +465,7 @@ export default function CompanyApplicationDetailPage() {
                     type="button"
                     disabled={decisionLoading !== null}
                     onClick={() => void review('interested')}
-                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {decisionLoading === 'interested' ? 'Validation...' : 'Proposer la mise en relation'}
                   </button>
@@ -483,7 +483,7 @@ export default function CompanyApplicationDetailPage() {
                   <button
                     type="button"
                     disabled
-                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white opacity-50"
                   >
                     Proposer la mise en relation
                   </button>

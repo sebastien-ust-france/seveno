@@ -517,7 +517,7 @@ function RetentionTable() {
   return (
     <div className="overflow-x-auto rounded-[28px] border border-white/10 bg-white/5">
       <table className="min-w-[960px] w-full border-collapse text-left text-sm text-slate-300">
-        <thead className="bg-slate-950/55 text-xs uppercase tracking-[0.22em] text-violet-200/80">
+        <thead className="bg-slate-950/55 text-xs uppercase tracking-[0.22em] text-blue-200/80">
           <tr>
             <th className="px-5 py-4 font-semibold">Catégorie</th>
             <th className="px-5 py-4 font-semibold">Durée de conservation de référence</th>
@@ -646,7 +646,7 @@ export default function ConfidentialitePage() {
                 </p>
               </div>
               <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-violet-200/85">Finalité</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-200/85">Finalité</p>
                 <p className="mt-3 text-sm leading-7 text-slate-300">
                   La politique décrit les traitements réellement réalisés pour le site public, le compte, les profils,
                   les questionnaires, les recommandations et les mises en relation.

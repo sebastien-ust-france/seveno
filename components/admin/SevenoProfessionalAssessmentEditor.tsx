@@ -111,7 +111,7 @@ function formatValidationState(validation: AssessmentValidationResult | null) {
     return { label: 'À corriger', tone: 'orange' as const };
   }
 
-  return { label: 'À vérifier', tone: 'violet' as const };
+  return { label: 'À vérifier', tone: 'blue' as const };
 }
 
 function contributionLabel(value: number | undefined) {
@@ -1803,7 +1803,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                 <button
                   type="button"
                   onClick={() => void handleCreateBlankDraft()}
-                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
                 >
                   Créer un brouillon vide
                 </button>
@@ -1856,7 +1856,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                 type="button"
                 onClick={() => void handleSaveDraft()}
                 disabled={!editable || !isDirty}
-                className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Enregistrer le brouillon
               </button>
@@ -1872,7 +1872,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                 type="button"
                 onClick={() => void handleGeneratePrompt()}
                 disabled={!selectedVersion}
-                className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Générer le prompt IA
               </button>
@@ -2043,7 +2043,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                       draft.questions.push(buildNewQuestionTemplate(draft));
                     });
                   }}
-                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Ajouter une question
                 </button>
@@ -2069,7 +2069,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                 </p>
                 <p className="mt-2 text-sm text-slate-300">Revue humaine : questions acceptées pour pilote.</p>
               </SevenoPanel>
-              <SevenoPanel tone="violet" className="p-5">
+              <SevenoPanel tone="blue" className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Avertissements</p>
                 <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{validationSummary.warnings}</p>
                 <p className="mt-2 text-sm text-slate-300">Points à vérifier avant passage en pilote.</p>
@@ -2108,7 +2108,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                       type="button"
                       onClick={() => void handlePilotVersion()}
                       disabled={!selectedVersion || !editable || validationSummary.errors > 0 || !allQuestionsAcceptedForPilot}
-                      className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Passer en pilote
                     </button>
@@ -2180,7 +2180,7 @@ export default function SevenoProfessionalAssessmentEditor() {
                     <button
                       type="button"
                       onClick={() => void handleAnalyzeImportJson()}
-                      className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                      className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
                     >
                       Analyser
                     </button>

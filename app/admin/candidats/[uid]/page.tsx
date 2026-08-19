@@ -313,7 +313,7 @@ export default function AdminCandidateDetailPage() {
                     type="button"
                     onClick={() => void handleStatusChange('active')}
                     disabled={savingUid === uid || candidate.profileStatus === 'active'}
-                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingUid === uid && candidate.profileStatus !== 'active' ? 'Mise à jour...' : 'Activer'}
                   </button>
@@ -340,7 +340,7 @@ export default function AdminCandidateDetailPage() {
                 </div>
               </SevenoPanel>
 
-              <SevenoPanel tone="violet" className="p-5">
+              <SevenoPanel tone="blue" className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Identité privée</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Compte utilisateur et donnees privees</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-300">

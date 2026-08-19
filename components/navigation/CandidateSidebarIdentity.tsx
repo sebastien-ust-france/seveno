@@ -74,7 +74,7 @@ export function CandidateSidebarIdentity() {
     <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
       <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(139,92,246,0.12),rgba(249,115,22,0.10))]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgb(var(--seveno-brand-blue)/0.12),rgba(249,115,22,0.10))]">
             {state.photoURL ? (
               // Google photo URLs are user-specific and cannot rely on a fixed Next.js image allowlist.
               // eslint-disable-next-line @next/next/no-img-element

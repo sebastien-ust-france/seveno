@@ -366,7 +366,7 @@ export default function AdminPrerequisitesPage() {
           </div>
           <Link
             href="/admin/prerequis/suggestions"
-            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
           >
             Ouvrir la file privee
           </Link>
@@ -418,8 +418,8 @@ export default function AdminPrerequisitesPage() {
             </div>
           </SevenoPanel>
 
-          <SevenoPanel tone="violet" className="p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">Réponse et critère</p>
+          <SevenoPanel tone="blue" className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200/80">Réponse et critère</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <label className="space-y-2 text-sm text-slate-200">Type de réponse
                 <select value={form.answerType} onChange={(event) => setForm({ ...form, answerType: event.target.value as PrerequisiteAnswerType })} className={FIELD_CLASS}>
@@ -515,7 +515,7 @@ export default function AdminPrerequisitesPage() {
             </div>
           </SevenoPanel>
 
-          <button disabled={saving} className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+          <button disabled={saving} className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
             {saving ? 'Enregistrement...' : editingCode ? 'Enregistrer une nouvelle version' : 'Créer la définition'}
           </button>
         </form>
@@ -597,7 +597,7 @@ export default function AdminPrerequisitesPage() {
           <label className="mt-3 flex items-center gap-3 text-sm text-slate-200"><input type="checkbox" checked={updateExisting} onChange={(event) => { setUpdateExisting(event.target.checked); setDryRunSignature(null); setDryRunToken(null); }} className="accent-cyan-400" />Autoriser explicitement la mise a jour des codes existants</label>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => void runImport(true)} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-2 text-sm font-semibold text-cyan-100">Executer le dry-run</button>
-            <button type="button" disabled={!dryRunSignature || Boolean(importReport?.errors.length)} onClick={() => void runImport(false)} className="rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40">Appliquer l import valide</button>
+            <button type="button" disabled={!dryRunSignature || Boolean(importReport?.errors.length)} onClick={() => void runImport(false)} className="rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2 text-sm font-semibold text-white disabled:opacity-40">Appliquer l import valide</button>
           </div>
           {importReport ? (
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">

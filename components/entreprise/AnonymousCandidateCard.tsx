@@ -33,11 +33,11 @@ const CARD_VARIANTS = [
   },
   {
     card:
-      'border-violet-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)] transition-all duration-300 ease-out transform-gpu hover:-translate-y-0.5 hover:border-violet-300/25 hover:shadow-[0_28px_80px_rgba(139,92,246,0.08),0_24px_80px_rgba(2,6,23,0.42)]',
+      'border-blue-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)] transition-all duration-300 ease-out transform-gpu hover:-translate-y-0.5 hover:border-blue-300/25 hover:shadow-[0_28px_80px_rgb(var(--seveno-brand-blue)/0.08),0_24px_80px_rgba(2,6,23,0.42)]',
     score:
-      'border-violet-300/25 bg-violet-400/10 text-violet-100 shadow-[0_0_0_1px_rgba(139,92,246,0.10),0_0_24px_rgba(139,92,246,0.12)]',
-    badge: 'border-violet-300/20 bg-violet-400/10 text-violet-100',
-    line: 'bg-gradient-to-r from-violet-300 via-indigo-300/70 to-transparent',
+      'border-blue-300/25 bg-blue-400/10 text-blue-100 shadow-[0_0_0_1px_rgb(var(--seveno-brand-blue)/0.10),0_0_24px_rgb(var(--seveno-brand-blue)/0.12)]',
+    badge: 'border-blue-300/20 bg-blue-400/10 text-blue-100',
+    line: 'bg-gradient-to-r from-blue-300 via-blue-300/70 to-transparent',
   },
   {
     card:

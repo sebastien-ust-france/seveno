@@ -12,8 +12,8 @@ const controlItems = [
     number: '2',
     title: 'Modifier les réponses proposées',
     text: 'Ajoutez, supprimez ou corrigez les choix proposés au candidat.',
-    accent: 'border-violet-400/15 bg-violet-400/8',
-    numberClassName: 'bg-violet-400/10 text-violet-100',
+    accent: 'border-blue-400/15 bg-blue-400/8',
+    numberClassName: 'bg-blue-400/10 text-blue-100',
   },
   {
     number: '3',

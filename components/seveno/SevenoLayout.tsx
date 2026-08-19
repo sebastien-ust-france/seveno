@@ -2,7 +2,7 @@
 
 import type { HTMLAttributes, ReactNode } from 'react';
 
-export type SevenoTone = 'cyan' | 'violet' | 'orange' | 'neutral';
+export type SevenoTone = 'cyan' | 'blue' | 'orange' | 'neutral';
 
 const SURFACE_CONTAINER_CLASS = 'mx-auto flex min-h-screen w-full items-center justify-center px-5 py-10 sm:px-8';
 const SURFACE_SECTION_CLASS =
@@ -10,8 +10,8 @@ const SURFACE_SECTION_CLASS =
 
 const PANEL_CLASSES: Record<SevenoTone, string> = {
   cyan: 'border-cyan-400/15 bg-[linear-gradient(180deg,rgba(9,17,32,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)]',
-  violet:
-    'border-violet-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)]',
+  blue:
+    'border-blue-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)]',
   orange:
     'border-orange-400/15 bg-[linear-gradient(180deg,rgba(18,15,24,0.96),rgba(8,15,28,0.92))] shadow-[0_20px_60px_rgba(2,6,23,0.22)]',
   neutral:
@@ -45,7 +45,7 @@ export function SevenoSurface({
         <section className={`${SURFACE_SECTION_CLASS} ${sectionClassName}`.trim()}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.10),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.08),transparent_28%)]"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgb(var(--seveno-brand-blue)/0.10),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.08),transparent_28%)]"
           />
           <div
             aria-hidden="true"

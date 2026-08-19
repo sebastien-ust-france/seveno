@@ -221,7 +221,7 @@ export default function AdminCompaniesPage() {
                 <button
                   type="button"
                   onClick={() => setInvitationModalOpen(true)}
-                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
                 >
                   Inviter une entreprise
                 </button>
@@ -389,7 +389,7 @@ export default function AdminCompaniesPage() {
                           type="button"
                           onClick={() => void handleUpdate(company.uid, { profileStatus: 'active' })}
                           disabled={savingUid === company.uid || company.profileStatus === 'active'}
-                          className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {savingUid === company.uid && company.profileStatus !== 'active' ? 'Mise à jour...' : 'Activer'}
                         </button>

@@ -225,7 +225,7 @@ export default function AdminPrerequisiteSuggestionDetailPage() {
             </Link>
             <Link
               href="/admin/prerequis"
-              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
             >
               Bibliotheque des prerequis
             </Link>

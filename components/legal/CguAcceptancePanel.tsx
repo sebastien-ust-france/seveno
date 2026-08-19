@@ -219,7 +219,7 @@ export function CguAcceptancePanel() {
             <button
               type="submit"
               disabled={saving || (!accepted && !acceptance)}
-              className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? 'Enregistrement...' : 'Enregistrer mon acceptation'}
             </button>

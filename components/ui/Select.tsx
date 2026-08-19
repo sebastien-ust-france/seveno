@@ -288,7 +288,7 @@ export function Select({
                     className={
                       'flex min-h-11 w-full items-center justify-between gap-3 rounded-[16px] border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 touch-manipulation ' +
                       (active
-                        ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-violet-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
+                        ? 'border-blue-400/70 bg-gradient-to-r from-blue-500/20 to-blue-500/20 text-white shadow-[0_16px_40px_rgba(59,130,246,0.14)]'
                         : 'border-white/10 bg-white/5 text-white/90 hover:border-white/20 hover:bg-white/10') +
                       (option.disabled ? ' cursor-not-allowed opacity-40 hover:translate-y-0 hover:shadow-none' : '')
                     }

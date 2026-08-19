@@ -161,7 +161,7 @@ export function PrerequisiteLibraryPicker({
               type="button"
               onClick={onOpenNewPrerequisiteForm}
               disabled={newPrerequisiteSaving}
-              className="rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
+              className="rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 disabled:opacity-40"
             >
               Créer un prérequis personnalisé
             </button>
@@ -188,7 +188,7 @@ export function PrerequisiteLibraryPicker({
                 type="button"
                 onClick={onOpenNewPrerequisiteForm}
                 disabled={newPrerequisiteSaving}
-                className="mt-4 inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
+                className="mt-4 inline-flex rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 disabled:opacity-40"
               >
                 Créer « {search.trim()} »
               </button>
@@ -201,7 +201,7 @@ export function PrerequisiteLibraryPicker({
                 type="button"
                 onClick={onOpenNewPrerequisiteForm}
                 disabled={newPrerequisiteSaving}
-                className="mt-4 inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 disabled:opacity-40"
+                className="mt-4 inline-flex rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 disabled:opacity-40"
               >
                 Créer un prérequis personnalisé
               </button>
@@ -259,7 +259,7 @@ export function PrerequisiteLibraryPicker({
                         type="button"
                         disabled={inPreferred || !canPlacePreferred}
                         onClick={() => onAssignPrerequisite(definition, 'preferred')}
-                        className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs text-violet-100 disabled:opacity-40"
+                        className="rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-2 text-xs text-blue-100 disabled:opacity-40"
                       >
                         {selectedImportance === 'preferred' ? 'Déjà en valeur ajoutée' : selectedImportance === 'required' ? 'Déplacer en valeur ajoutée' : 'Ajouter en valeur ajoutée'}
                       </button>
@@ -391,7 +391,7 @@ export function PrerequisiteLibraryPicker({
                   disabled={!canAddPreferred}
                   onClick={() => onNewPrerequisiteImportanceChange('preferred')}
                   className={newPrerequisiteImportance === 'preferred'
-                    ? 'rounded-2xl border border-violet-300/20 bg-violet-400/10 p-4 text-left text-sm text-violet-100 disabled:opacity-40'
+                    ? 'rounded-2xl border border-blue-300/20 bg-blue-400/10 p-4 text-left text-sm text-blue-100 disabled:opacity-40'
                     : 'rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm text-slate-200 disabled:opacity-40'}
                 >
                   <strong className="block text-white">{newPrerequisiteFamily === 'job_skill' ? 'Complémentaire' : 'Souhaité'}</strong>
@@ -417,7 +417,7 @@ export function PrerequisiteLibraryPicker({
                 type="button"
                 disabled={newPrerequisiteSaving}
                 onClick={onSaveNewPrerequisite}
-                className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                   {newPrerequisiteSaving ? 'Ajout...' : 'Créer le prérequis personnalisé'}
                 </button>

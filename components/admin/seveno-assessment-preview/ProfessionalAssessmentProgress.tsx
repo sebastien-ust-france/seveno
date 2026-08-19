@@ -35,7 +35,7 @@ export default function ProfessionalAssessmentProgress({
         className="h-2 rounded-full bg-white/5"
       >
         <div
-          className="h-2 rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500 transition-all"
+          className="h-2 rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-blue-500 transition-all"
           style={{ width: `${percentage}%` }}
         />
       </div>

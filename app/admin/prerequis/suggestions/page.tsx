@@ -127,7 +127,7 @@ function SuggestionCard({ item }: { item: AdminPrerequisiteSuggestionSummary }) 
 
         <Link
           href={`/admin/prerequis/suggestions/${encodeURIComponent(item.suggestionId)}`}
-          className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+          className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
         >
           Voir le detail
         </Link>
@@ -244,7 +244,7 @@ export default function AdminPrerequisiteSuggestionsPage() {
             <button
               type="button"
               onClick={() => void fetchSuggestions()}
-              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
             >
               Recharger
             </button>

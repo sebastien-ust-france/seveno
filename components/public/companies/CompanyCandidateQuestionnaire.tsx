@@ -23,11 +23,11 @@ export function CompanyCandidateQuestionnaire() {
         </div>
 
         <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,17,32,0.96),rgba(7,13,24,0.92))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.24)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.16),transparent_30%),radial-gradient(circle_at_center,rgba(249,115,22,0.08),transparent_24%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgb(var(--seveno-brand-blue)/0.16),transparent_30%),radial-gradient(circle_at_center,rgba(249,115,22,0.08),transparent_24%)]" />
           <div className="relative flex min-h-[260px] flex-col justify-between gap-5">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-100/90">20 QUESTIONS</span>
-              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-violet-100/90">30 SECONDES</span>
+              <span className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-100/90">30 SECONDES</span>
             </div>
 
             <div className="flex flex-1 items-center justify-center">

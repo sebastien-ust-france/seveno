@@ -125,7 +125,7 @@ function ApplicationCard({ application }: { application: SerializedCandidateJobA
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           href={`/entreprise/demandes/${application.id}`}
-          className="rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+          className="rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
         >
           {primaryAction}
         </Link>
@@ -269,7 +269,7 @@ export default function CompanyApplicationsPage() {
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <SevenoPanel tone="violet" className="p-5">
+          <SevenoPanel tone="blue" className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Dossiers totaux</p>
             <p className="mt-3 text-3xl font-semibold text-white">{applications.length}</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">Toutes les relations liées à vos offres.</p>

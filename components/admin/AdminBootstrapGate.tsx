@@ -95,7 +95,7 @@ export default function AdminBootstrapGate() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   href="/connexion"
-                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+                  className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
                 >
                   Aller a la connexion
                 </Link>

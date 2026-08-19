@@ -27,7 +27,7 @@ type OverviewCardProps = {
   label: string;
   value: string | number;
   note: string;
-  tone: 'cyan' | 'violet' | 'orange' | 'neutral';
+  tone: 'cyan' | 'blue' | 'orange' | 'neutral';
 };
 
 function formatSevenoAssessmentStatus(
@@ -192,7 +192,7 @@ export default function AdminOverviewPage() {
                 note={`${counts?.activeCandidates ?? 0} actifs, ${counts?.pausedCandidates ?? 0} en pause.`}
               />
               <OverviewCard
-                tone="violet"
+                tone="blue"
                 label="Profils entreprises"
                 value={counts?.companyProfiles ?? 0}
                 note={`${counts?.verifiedCompanies ?? 0} verifies, ${counts?.pendingCompanies ?? 0} en attente.`}
@@ -231,7 +231,7 @@ export default function AdminOverviewPage() {
                 </div>
               </SevenoPanel>
 
-              <SevenoPanel tone="violet" className="p-5">
+              <SevenoPanel tone="blue" className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Journal</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">Dernieres actions admin</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">

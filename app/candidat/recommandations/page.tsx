@@ -343,7 +343,7 @@ export default function CandidateRecommendationsPage() {
         ) : null}
 
         {CAN_SHOW_PUBLIC_LINK && absolutePublicLink ? (
-          <SevenoPanel tone="violet" className="p-4 text-sm leading-7 text-violet-100">
+          <SevenoPanel tone="blue" className="p-4 text-sm leading-7 text-blue-100">
             <p className="font-semibold text-white">Lien public prêt à partager</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <code className="rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-slate-200">
@@ -359,7 +359,7 @@ export default function CandidateRecommendationsPage() {
             </div>
           </SevenoPanel>
         ) : publicLink ? (
-          <SevenoPanel tone="violet" className="p-4 text-sm leading-7 text-violet-100">
+          <SevenoPanel tone="blue" className="p-4 text-sm leading-7 text-blue-100">
             <p className="font-semibold text-white">Lien public généré</p>
             <p className="mt-2 text-sm leading-7 text-slate-300">
               Le lien sécurisé a été préparé côté serveur, mais il n’est pas affiché dans cette configuration.
@@ -511,7 +511,7 @@ export default function CandidateRecommendationsPage() {
                   <button
                     type="submit"
                     disabled={savingId === 'create'}
-                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingId === 'create' ? 'Création...' : 'Créer l invitation'}
                   </button>

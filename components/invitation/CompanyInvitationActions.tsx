@@ -77,7 +77,7 @@ export function CompanyInvitationActions({
             type="button"
             onClick={() => void handleOpenConnexion(action)}
             disabled={Boolean(loadingAction)}
-            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loadingAction === action ? 'Préparation...' : getInvitationActionLabel(action)}
           </button>

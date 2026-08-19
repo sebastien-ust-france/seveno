@@ -389,12 +389,12 @@ export default function CompanyDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgb(var(--seveno-brand-blue)/0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-[86.4rem] items-center justify-center px-5 py-10 sm:px-8">
-        <section className="w-full max-w-[86.4rem] rounded-[32px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
+        <section className="w-full max-w-[86.4rem] rounded-[32px] border border-blue-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/80">Espace entreprise</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/80">Espace entreprise</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">Votre profil entreprise</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
                 Cet espace ne contient que les informations publiques de l’entreprise. Les profils candidats affichés
@@ -411,15 +411,15 @@ export default function CompanyDashboardPage() {
           ) : (
             <div className="mt-8 space-y-8">
               <div className="flex flex-wrap gap-3">
-                <Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110">
+                <Link href="/entreprise/offres/nouvelle" className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110">
                   Créer une offre
                 </Link>
               </div>
               {recruitmentDashboard ? <section className="rounded-[24px] border border-cyan-400/15 bg-white/[0.04] p-5 sm:p-6"><p className="text-2xl font-semibold text-white">Bonjour {recruitmentDashboard.displayName || 'Membre'}</p><p className="mt-2 text-sm font-medium text-cyan-100">{recruitmentDashboard.roleLabel}</p><div className="mt-6 flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">Mes recrutements</h2>{recruitmentDashboard.canViewAllRecruitments ? <Link href="/entreprise/offres?scope=company" className="text-sm text-cyan-100">Tous les recrutements</Link> : null}</div>{recruitmentDashboard.assignedRecruitments === 0 ? <p className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">Aucun recrutement ne vous est attribué pour le moment.</p> : <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[[recruitmentDashboard.activeRecruitments, 'Recrutements actifs'], [recruitmentDashboard.applicationsToReview, 'Candidatures à traiter'], [recruitmentDashboard.completedQuestionnaires, 'Questionnaires terminés'], [recruitmentDashboard.pendingIntroductions, 'Mises en relation en attente']].map(([count, label]) => <article key={String(label)} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"><p className="text-2xl font-semibold">{count}</p><p className="mt-1 text-sm text-slate-300">{label}</p></article>)}</div>}<Link href="/entreprise/offres" className="mt-5 inline-flex rounded-full border border-cyan-300/20 px-4 py-2 text-sm text-cyan-100">Voir mes recrutements</Link></section> : null}
               {creditPresentation ? <article className={creditPresentation.state === 'empty' ? 'rounded-[24px] border border-rose-400/20 bg-rose-400/10 p-5' : creditPresentation.state === 'low' ? 'rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-5' : 'rounded-[24px] border border-cyan-400/15 bg-cyan-400/10 p-5'}><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">Crédits de recrutement disponibles</p><p className="mt-2 text-3xl font-semibold text-white">{creditPresentation.credits}</p>{creditPresentation.label ? <p className="mt-2 font-semibold text-white">{creditPresentation.label}</p> : null}<p className="mt-2 text-sm text-slate-200">{creditPresentation.message}</p>{billing?.membershipRole === 'admin' && !creditPresentation.canBuy ? <p className="mt-2 text-sm text-slate-300">L’achat de crédits est géré par le propriétaire de l’entreprise.</p> : null}</div>{creditPresentation.canBuy ? <Link href="/entreprise/facturation" className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950">Acheter des crédits</Link> : null}</div></article> : null}
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <article className="rounded-[24px] border border-violet-400/12 bg-[linear-gradient(180deg,rgba(12,14,34,0.94),rgba(8,15,28,0.88))] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">Nom commercial</p>
+                <article className="rounded-[24px] border border-blue-400/12 bg-[linear-gradient(180deg,rgba(12,14,34,0.94),rgba(8,15,28,0.88))] p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200/80">Nom commercial</p>
                   <p className="mt-3 text-lg font-semibold text-white">{profile?.companyName ?? 'Non disponible'}</p>
                 </article>
 
@@ -452,8 +452,8 @@ export default function CompanyDashboardPage() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <article className="rounded-[24px] border border-violet-400/12 bg-white/5 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-200/80">
+                <article className="rounded-[24px] border border-blue-400/12 bg-white/5 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200/80">
                     Zones de recrutement
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -496,7 +496,7 @@ export default function CompanyDashboardPage() {
               </div>
 
               <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/10 bg-[linear-gradient(180deg,rgba(9,17,32,0.96),rgba(8,15,28,0.92))] px-5 py-6 shadow-[0_24px_80px_rgba(2,6,23,0.34)] backdrop-blur sm:px-6 sm:py-8">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.08),transparent_28%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgb(var(--seveno-brand-blue)/0.12),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.08),transparent_28%)]" />
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/35 to-transparent" />
 
                 <div className="relative">
@@ -715,7 +715,7 @@ export default function CompanyDashboardPage() {
                 </div>
               </section>
 
-              <div className="rounded-[24px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.9),rgba(8,15,28,0.86))] p-5 text-sm leading-7 text-slate-300">
+              <div className="rounded-[24px] border border-blue-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.9),rgba(8,15,28,0.86))] p-5 text-sm leading-7 text-slate-300">
                 <p className="font-medium text-white">Prochaine étape</p>
                 <p className="mt-3">
                   La mise en relation explicite viendra ensuite. Pour le moment, vous consultez uniquement des profils

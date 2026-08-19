@@ -144,7 +144,7 @@ export function CandidateSevenoTestRunner() {
           note: questionnaireStatusNote,
         },
         {
-          tone: 'violet' as const,
+          tone: 'blue' as const,
           label: 'Questions',
           value: String(preparation?.totalQuestions ?? 0),
           note: preparation ? `${preparation.questionBankCode} · version ${preparation.questionnaireVersion}` : 'Non renseigné',
@@ -471,7 +471,7 @@ export function CandidateSevenoTestRunner() {
                 note="Score global calculé par le moteur Seven’O."
               />
               <CandidateStatusCard
-                tone="violet"
+                tone="blue"
                 label="Version"
                 value={state.assessment.questionnaireVersion}
                 note={`Terminé le ${formatDateTime(state.assessment.completedAt as unknown as string | null)}`}
@@ -526,7 +526,7 @@ export function CandidateSevenoTestRunner() {
           ))}
         </div>
 
-        <SevenoPanel tone="violet" className="p-5">
+        <SevenoPanel tone="blue" className="p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Session réelle</p>
@@ -545,7 +545,7 @@ export function CandidateSevenoTestRunner() {
                 type="button"
                 onClick={() => void handleStartSession()}
                 disabled={starting || Boolean(state?.session)}
-                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {activeSession ? 'Continuer la session' : starting ? 'Ouverture…' : 'Commencer le questionnaire'}
               </button>
@@ -629,7 +629,7 @@ export function CandidateSevenoTestRunner() {
                 type="button"
                 onClick={() => void handleAdvanceQuestion(false)}
                 disabled={submitting || !currentAnswer}
-                className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {submitting
                   ? 'Soumission…'

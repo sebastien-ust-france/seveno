@@ -31,7 +31,7 @@ export default function CookiesPage() {
           </article>
 
           <article className="rounded-[28px] border border-white/10 bg-white/5 p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.26em] text-violet-200/85">Options</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.26em] text-blue-200/85">Options</p>
             <p className="mt-4 text-sm leading-7 text-slate-300">
               Pour toute question sur les réglages, contactez-nous à{' '}
               <a href="mailto:sebastien@seveno.eu" className="text-cyan-200 transition hover:text-cyan-100">

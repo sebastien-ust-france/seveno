@@ -105,7 +105,7 @@ export default function CandidateAvailabilityPage() {
               type="button"
                 onClick={() => void handleSubmit(action)}
                 disabled={!canSubmit || loading}
-                className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? 'Validation...' : action === 'yes' ? 'Oui, toujours disponible' : 'Non, plus disponible'}
               </button>
@@ -118,7 +118,7 @@ export default function CandidateAvailabilityPage() {
                     void handleSubmit('yes');
                   }}
                   disabled={!requestId || !token || loading}
-                  className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Oui, toujours disponible
                 </button>

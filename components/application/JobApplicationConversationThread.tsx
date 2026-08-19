@@ -218,7 +218,7 @@ export function JobApplicationConversationThread({
             <button
               type="submit"
               disabled={sending || draft.trim().length === 0}
-              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {sending ? 'Envoi...' : 'Envoyer'}
             </button>

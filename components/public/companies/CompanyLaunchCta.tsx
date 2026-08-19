@@ -2,8 +2,8 @@ import Link from 'next/link';
 
 export function CompanyLaunchCta() {
   return (
-    <section className="rounded-[36px] border border-violet-400/12 bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.14),rgba(8,15,28,0.95)_48%)] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.34)] sm:p-8 lg:p-10">
-      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-violet-200/90">OUVERTURE PROGRESSIVE</p>
+    <section className="rounded-[36px] border border-blue-400/12 bg-[radial-gradient(circle_at_top,rgb(var(--seveno-brand-blue)/0.14),rgba(8,15,28,0.95)_48%)] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.34)] sm:p-8 lg:p-10">
+      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-200/90">OUVERTURE PROGRESSIVE</p>
       <h2 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
         Rejoignez les premières entreprises qui utilisent Seven’O.
       </h2>
@@ -20,7 +20,7 @@ export function CompanyLaunchCta() {
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <Link
           href="/contact"
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110"
+          className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(99,102,241,0.35)] transition hover:-translate-y-0.5 hover:brightness-110"
         >
           Demander un accès entreprise
         </Link>

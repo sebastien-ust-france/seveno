@@ -18,7 +18,7 @@ import type {
 } from '@/types/study';
 
 type FilterValue = 'all' | 'yes' | 'no';
-type Tone = 'cyan' | 'violet' | 'green' | 'orange' | 'amber' | 'teal' | 'slate';
+type Tone = 'cyan' | 'blue' | 'green' | 'orange' | 'amber' | 'teal' | 'slate';
 
 interface AdminStudyResponseItem {
   id: string;
@@ -128,16 +128,16 @@ const toneStyles: Record<
     statLabel: 'text-cyan-100/70',
     statValue: 'text-white',
   },
-  violet: {
-    panel: 'border-violet-400/20 bg-violet-400/10',
-    panelSoft: 'bg-violet-400/5',
-    border: 'border-violet-400/20',
-    accent: 'bg-violet-400',
-    badge: 'bg-violet-400/12 text-violet-100 ring-1 ring-inset ring-violet-400/20',
-    chip: 'bg-violet-400/12 text-violet-100 ring-1 ring-inset ring-violet-400/20',
-    tableHead: 'bg-violet-400/10 text-violet-100',
+  blue: {
+    panel: 'border-blue-400/20 bg-blue-400/10',
+    panelSoft: 'bg-blue-400/5',
+    border: 'border-blue-400/20',
+    accent: 'bg-blue-400',
+    badge: 'bg-blue-400/12 text-blue-100 ring-1 ring-inset ring-blue-400/20',
+    chip: 'bg-blue-400/12 text-blue-100 ring-1 ring-inset ring-blue-400/20',
+    tableHead: 'bg-blue-400/10 text-blue-100',
     tableRow: 'odd:bg-slate-900/60 even:bg-slate-950/50',
-    statLabel: 'text-violet-100/70',
+    statLabel: 'text-blue-100/70',
     statValue: 'text-white',
   },
   green: {
@@ -647,7 +647,7 @@ export function AdminDashboard() {
                   detail={`${studyStats?.dailyAvailabilityAcceptanceCount ?? 0} réponses acceptées`}
                 />
                 <KpiCard
-                  tone="violet"
+                  tone="blue"
                   label="Taux d'intérêt questionnaire"
                   value={metrics ? formatPercent(questionnaireInterestRate) : '0 %'}
                   detail={
@@ -722,7 +722,7 @@ export function AdminDashboard() {
 
             <div className="grid gap-6 xl:grid-cols-2">
               <SectionCard
-                tone="violet"
+                tone="blue"
                 eyebrow="Segmentation profils"
                 title="Répartition par profil"
                 description="Lecture des profils répondants pour comparer les segments principaux."
@@ -742,7 +742,7 @@ export function AdminDashboard() {
                       </div>
                       <div className="mt-3 h-2 rounded-full bg-slate-800">
                         <div
-                          className="h-2 rounded-full bg-gradient-to-r from-violet-400 to-fuchsia-400"
+                          className="h-2 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400"
                           style={{ width: `${Math.min(100, Math.max(0, (item.rate ?? 0) * 100))}%` }}
                         />
                       </div>
@@ -1091,7 +1091,7 @@ export function AdminDashboard() {
                       <button
                         type="submit"
                         disabled={respondentsLoading}
-                        className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-medium text-white transition hover:from-cyan-400 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2.5 text-sm font-medium text-white transition hover:from-cyan-400 hover:to-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Appliquer
                       </button>
@@ -1167,7 +1167,7 @@ export function AdminDashboard() {
                                     <RespondentChip
                                       label="Bêta"
                                       value={getBooleanLabel(response.wantsBetaAccess)}
-                                      tone={response.wantsBetaAccess ? 'violet' : 'slate'}
+                                      tone={response.wantsBetaAccess ? 'blue' : 'slate'}
                                     />
                                   </div>
                                 </div>

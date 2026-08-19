@@ -103,15 +103,15 @@ const toneStyles = {
     statLabel: 'text-cyan-100/70',
     statValue: 'text-white',
   },
-  violet: {
-    panel: 'border-violet-400/20 bg-violet-400/10',
-    border: 'border-violet-400/20',
-    accent: 'bg-violet-400',
-    badge: 'bg-violet-400/12 text-violet-100 ring-1 ring-inset ring-violet-400/20',
-    chip: 'bg-violet-400/12 text-violet-100 ring-1 ring-inset ring-violet-400/20',
-    tableHead: 'bg-violet-400/10 text-violet-100',
+  blue: {
+    panel: 'border-blue-400/20 bg-blue-400/10',
+    border: 'border-blue-400/20',
+    accent: 'bg-blue-400',
+    badge: 'bg-blue-400/12 text-blue-100 ring-1 ring-inset ring-blue-400/20',
+    chip: 'bg-blue-400/12 text-blue-100 ring-1 ring-inset ring-blue-400/20',
+    tableHead: 'bg-blue-400/10 text-blue-100',
     tableRow: 'odd:bg-slate-900/60 even:bg-slate-950/50',
-    statLabel: 'text-violet-100/70',
+    statLabel: 'text-blue-100/70',
     statValue: 'text-white',
   },
   green: {
@@ -380,7 +380,7 @@ function ProfileBreakdownList({
           </div>
           <div className="mt-3 h-2 rounded-full bg-slate-800">
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-violet-400 to-fuchsia-400"
+              className="h-2 rounded-full bg-gradient-to-r from-blue-400 to-blue-400"
               style={{ width: `${Math.min(100, Math.max(0, (item.rate ?? 0) * 100))}%` }}
             />
           </div>
@@ -407,7 +407,7 @@ function TabButton({
       className={[
         'inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition',
         active
-          ? 'bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 text-white shadow-[0_18px_40px_rgba(34,211,238,0.18)]'
+          ? 'bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 text-white shadow-[0_18px_40px_rgba(34,211,238,0.18)]'
           : 'border border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10',
       ].join(' ')}
     >
@@ -672,7 +672,7 @@ export default function AdminStudyPage() {
                       detail={`${availabilityNowCounts.yes ?? 0} oui · ${availabilityNowCounts.no ?? 0} non`}
                     />
                     <KpiCard
-                      tone="violet"
+                      tone="blue"
                       label="Confirmation quotidienne"
                       value={studyStats ? formatPercent(studyStats.dailyAvailabilityAcceptanceRate) : '0 %'}
                       detail={`${studyStats?.dailyAvailabilityAcceptanceCount ?? 0} réponses acceptées`}
@@ -788,7 +788,7 @@ export default function AdminStudyPage() {
 
                 <div className="grid gap-6 xl:grid-cols-2">
                   <SectionCard
-                    tone="violet"
+                    tone="blue"
                     eyebrow="Segmentation profils"
                     title="Répartition par profil"
                     description="Lecture des profils répondants pour comparer les segments principaux."
@@ -1088,7 +1088,7 @@ export default function AdminStudyPage() {
                     <button
                       type="submit"
                       disabled={loadingResponses}
-                      className="w-full rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {loadingResponses ? 'Chargement...' : 'Appliquer'}
                     </button>

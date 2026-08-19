@@ -176,7 +176,7 @@ export default function AdminRecommendationsPage() {
                 <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{requests.length}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">Invitations préparées côté candidat.</p>
               </SevenoPanel>
-              <SevenoPanel tone="violet" className="p-5">
+              <SevenoPanel tone="blue" className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">À vérifier</p>
                 <p className="mt-3 text-3xl font-semibold tracking-tight text-white">
                   {recommendations.filter((item) => item.verificationStatus === 'verification_pending').length}
@@ -315,7 +315,7 @@ export default function AdminRecommendationsPage() {
                             type="button"
                             onClick={() => void moderateRecommendation(recommendation.id, 'verify')}
                             disabled={savingId === recommendation.id || recommendation.verificationStatus === 'verified'}
-                            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Vérifier
                           </button>

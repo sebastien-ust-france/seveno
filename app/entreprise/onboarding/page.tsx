@@ -362,12 +362,12 @@ export default function CompanyOnboardingPage() {
     .filter((value) => value.length > 0);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgb(var(--seveno-brand-blue)/0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-[86.4rem] items-center justify-center px-5 py-10 sm:px-8">
-        <section className="w-full max-w-[67.2rem] rounded-[32px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
+        <section className="w-full max-w-[67.2rem] rounded-[32px] border border-blue-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/80">Onboarding entreprise</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/80">Onboarding entreprise</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">
                 {isEditing ? 'Modifier votre profil entreprise' : 'Construire votre profil entreprise'}
               </h1>
@@ -413,7 +413,7 @@ export default function CompanyOnboardingPage() {
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.companyName}
                     placeholder="Seven’O SAS"
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
 
@@ -425,7 +425,7 @@ export default function CompanyOnboardingPage() {
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.companyType}
                     placeholder="Startup, PME, ETI, grand groupe..."
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
               </div>
@@ -439,7 +439,7 @@ export default function CompanyOnboardingPage() {
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.legalName}
                     placeholder="Seven O Recrutement"
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
 
@@ -452,7 +452,7 @@ export default function CompanyOnboardingPage() {
                     inputMode="numeric"
                     maxLength={COMPANY_PROFILE_LIMITS.siret}
                     placeholder="14 chiffres, espaces ignorés"
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                   <p className="text-xs leading-5 text-slate-400">
                     Optionnel. Le chiffre est nettoyé avant stockage, sans vérification externe.
@@ -469,7 +469,7 @@ export default function CompanyOnboardingPage() {
                     type="url"
                     maxLength={COMPANY_PROFILE_LIMITS.website}
                     placeholder="https://www.seveno.fr"
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
 
@@ -511,7 +511,7 @@ export default function CompanyOnboardingPage() {
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.headquartersArea}
                     placeholder="Paris, Lyon, remote..."
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
               </div>
@@ -529,7 +529,7 @@ export default function CompanyOnboardingPage() {
                     type="button"
                     onClick={addRecruitmentArea}
                     disabled={recruitmentAreas.length >= COMPANY_PROFILE_LIMITS.recruitmentAreas}
-                    className="rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-medium text-violet-100 transition hover:border-violet-300/30 hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-medium text-blue-100 transition hover:border-blue-300/30 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Ajouter une zone
                   </button>
@@ -547,7 +547,7 @@ export default function CompanyOnboardingPage() {
                         type="text"
                         maxLength={120}
                         placeholder={`Zone ${index + 1} - Ile-de-France, remote national...`}
-                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                       />
                       <button
                         type="button"
@@ -571,11 +571,11 @@ export default function CompanyOnboardingPage() {
                     type="text"
                     maxLength={COMPANY_PROFILE_LIMITS.contactRole}
                     placeholder="Responsable recrutement, fondateur, RH..."
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                   />
                 </label>
 
-                <div className="rounded-[24px] border border-violet-400/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
+                <div className="rounded-[24px] border border-blue-400/10 bg-white/5 p-4 text-sm leading-7 text-slate-300">
                   <p className="font-medium text-white">Recapitulatif</p>
                   <div className="mt-3 space-y-1">
                     <p>Secteur: {selectedBusinessSectorLabel}</p>
@@ -591,7 +591,7 @@ export default function CompanyOnboardingPage() {
                     type="checkbox"
                     checked={termsAccepted}
                     onChange={(event) => setTermsAccepted(event.target.checked)}
-                    className="mt-1 accent-violet-400"
+                    className="mt-1 accent-blue-400"
                     disabled={hasTermsAcceptance}
                   />
                   <span>
@@ -607,7 +607,7 @@ export default function CompanyOnboardingPage() {
                 <button
                   type="submit"
                   disabled={saving || (!hasTermsAcceptance && !termsAccepted)}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-violet-500 to-cyan-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgb(var(--seveno-brand-blue)/0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-cyan-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgb(var(--seveno-brand-blue)/0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {saving ? 'Enregistrement...' : isEditing ? 'Enregistrer mes modifications' : 'Enregistrer mon entreprise'}
                 </button>

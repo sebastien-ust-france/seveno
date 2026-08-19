@@ -192,7 +192,7 @@ function ApplicationCard({ application }: { application: SerializedCandidateJobA
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           href={`/entreprise/demandes/${application.id}`}
-          className="rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+          className="rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
         >
           {primaryAction}
         </Link>
@@ -428,7 +428,7 @@ export default function CompanyCandidateDetailPage() {
               </div>
             </SevenoPanel>
 
-            <SevenoPanel tone="violet" className="p-5">
+            <SevenoPanel tone="blue" className="p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Présentation professionnelle</p>
@@ -555,7 +555,7 @@ export default function CompanyCandidateDetailPage() {
                       rows={5}
                       maxLength={500}
                       placeholder="Présentez brièvement l opportunité..."
-                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-violet-300/40"
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-blue-300/40"
                     />
                   </label>
 
@@ -563,7 +563,7 @@ export default function CompanyCandidateDetailPage() {
                     <button
                       type="submit"
                       disabled={saving || !selectedOfferId || selectedOfferCapacityReached}
-                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(139,92,246,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-blue-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgb(var(--seveno-brand-blue)/0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {saving
                         ? 'Envoi en cours...'

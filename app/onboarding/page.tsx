@@ -141,12 +141,12 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(139,92,246,0.14),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgb(var(--seveno-brand-blue)/0.14),transparent_30%),linear-gradient(180deg,#020617_0%,#020817_45%,#020617_100%)] text-white">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-5 py-10 sm:px-8">
-        <section className="w-full max-w-2xl rounded-[32px] border border-violet-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
+        <section className="w-full max-w-2xl rounded-[32px] border border-blue-400/10 bg-[linear-gradient(180deg,rgba(12,14,34,0.96),rgba(8,15,28,0.94))] p-6 shadow-[0_24px_90px_rgba(2,6,23,0.42)] backdrop-blur sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/80">Créer votre compte Seven’O</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/80">Créer votre compte Seven’O</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight">Comment souhaitez-vous utiliser Seven’O ?</h1>
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
                 Le rôle est choisi après la première connexion. Le rôle administrateur n’est pas proposé publiquement.

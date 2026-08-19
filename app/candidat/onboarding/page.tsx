@@ -598,7 +598,7 @@ export default function CandidateOnboardingPage() {
               </SevenoPanel>
 
               <div className="md:pt-[20px]">
-                <SevenoPanel tone="violet" className="p-5">
+                <SevenoPanel tone="blue" className="p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Bloc 2</p>
                   <h2 className="mt-2 text-lg font-semibold text-white">Situation et disponibilité</h2>
 
@@ -665,7 +665,7 @@ export default function CandidateOnboardingPage() {
                     note="Sélectionnez les métiers que vous recherchez, sans lier votre historique d’évaluation à un poste."
                   />
                   <CandidateStatusCard
-                    tone="violet"
+                    tone="blue"
                     label="Étape 2"
                     value="Situation"
                     note="Exposez seulement votre zone, votre niveau et votre disponibilité."
@@ -817,7 +817,7 @@ export default function CandidateOnboardingPage() {
             <button
               type="submit"
               disabled={saving || (!hasTermsAcceptance && !termsAccepted)}
-              className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {saving ? 'Enregistrement...' : isEditing ? 'Enregistrer mes modifications' : 'Enregistrer mon profil anonyme'}
             </button>

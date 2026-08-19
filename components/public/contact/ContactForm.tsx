@@ -523,7 +523,7 @@ export function ContactForm({ initialReason = '' }: ContactFormProps) {
             className={[
               'inline-flex min-h-12 items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020817]',
               canSubmit
-                ? 'bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-[0_18px_50px_rgba(34,211,238,0.12)] hover:brightness-110'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-[0_18px_50px_rgba(34,211,238,0.12)] hover:brightness-110'
                 : 'cursor-not-allowed bg-white/10 text-slate-400',
             ].join(' ')}
           >

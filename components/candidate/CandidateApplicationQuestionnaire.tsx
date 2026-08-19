@@ -400,7 +400,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                     type="button"
                     onClick={() => void handleStart()}
                     disabled={starting}
-                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {starting ? 'Demarrage...' : prepButtonLabel}
                   </button>
@@ -425,7 +425,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   type="button"
                   onClick={() => void handleStart()}
                   disabled={starting}
-                  className="mt-5 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-5 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {starting ? 'Reinitialisation...' : 'Recommencer le questionnaire'}
                 </button>
@@ -631,7 +631,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   <button
                     type="submit"
                     disabled={submitting || !canSubmit}
-                    className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex flex-1 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {submitting
                       ? 'Envoi en cours...'
@@ -658,7 +658,7 @@ export default function CandidateApplicationQuestionnaire({ applicationId }: Can
                   note="Le questionnaire appartient a cette candidature uniquement."
                 />
                 <CandidateStatusCard
-                  tone="violet"
+                  tone="blue"
                   label="Score automatique"
                   value={
                     assessment?.automaticScorePercent !== null && assessment?.automaticScorePercent !== undefined

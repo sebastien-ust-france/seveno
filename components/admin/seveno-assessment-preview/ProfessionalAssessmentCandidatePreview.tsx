@@ -535,7 +535,7 @@ export default function ProfessionalAssessmentCandidatePreview({
                         />
 
                         {showTransitionToExtended ? (
-                          <SevenoPanel tone="violet" className="p-4 text-sm leading-7 text-slate-200">
+                          <SevenoPanel tone="blue" className="p-4 text-sm leading-7 text-slate-200">
                             Transition visible entre le parcours essentiel et le parcours approfondi.
                           </SevenoPanel>
                         ) : null}

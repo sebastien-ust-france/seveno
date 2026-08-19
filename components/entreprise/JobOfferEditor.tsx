@@ -239,7 +239,7 @@ function SelectionPanel({
     : [];
   return (
     <div data-prerequisite-family={family} className="h-full">
-    <SevenoPanel tone={importance === 'required' ? 'orange' : 'violet'} className="h-full">
+    <SevenoPanel tone={importance === 'required' ? 'orange' : 'blue'} className="h-full">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white">{title}</h3>
@@ -848,7 +848,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         ) : null}
 
         {step === 1 ? (
-          <SevenoPanel tone="violet">
+          <SevenoPanel tone="blue">
             <h2 className="text-xl font-semibold text-white">Conditions</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
@@ -935,7 +935,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
         ) : null}
 
         {step === 3 ? (
-          <SevenoPanel tone="violet">
+          <SevenoPanel tone="blue">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-white">Questionnaire entreprise</h2>
@@ -954,7 +954,7 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
             {questionnairesLoading ? <p className="mt-2 text-xs text-slate-500">Chargement des questionnaires...</p> : questionnaires.length === 0 ? <p className="mt-2 text-xs text-amber-200">Aucun questionnaire n’est encore enregistré pour cette entreprise.</p> : null}
             <label className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-200"><input type="checkbox" checked={input.questionnaireRequired} onChange={(event) => setInput({ ...input, questionnaireRequired: event.target.checked })} className="mt-1 accent-cyan-400" /><span><strong className="text-white">Questionnaire obligatoire pour cette offre</strong><span className="mt-1 block text-slate-400">Si cette option est activée, un questionnaire associé sera exigé uniquement au moment de publier.</span></span></label>
             <div className="mt-5 flex flex-wrap gap-3">
-              {currentOfferId ? <><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100">{input.questionnaireId ? 'Modifier le questionnaire de cette offre' : 'Créer le questionnaire de cette offre'}</button><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Prévisualiser</button></> : <button type="button" onClick={() => void saveDraft()} disabled={saving} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100">Enregistrer d’abord le brouillon</button>}
+              {currentOfferId ? <><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-blue-300/20 bg-blue-400/10 px-5 py-3 text-sm font-semibold text-blue-100">{input.questionnaireId ? 'Modifier le questionnaire de cette offre' : 'Créer le questionnaire de cette offre'}</button><button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Prévisualiser</button></> : <button type="button" onClick={() => void saveDraft()} disabled={saving} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100">Enregistrer d’abord le brouillon</button>}
               {input.questionnaireId ? <button type="button" onClick={() => void openQuestionnaireEditor()} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">Ouvrir le questionnaire associé</button> : null}
             </div>
           </SevenoPanel>
@@ -1010,13 +1010,13 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
               <p className="text-slate-500">Questionnaire associé</p>
               <p className="mt-1 text-white">{questionnaireSummary}</p>
             </div>
-            <div className="mt-6 grid gap-5 md:grid-cols-2"><div><h3 className="font-semibold text-orange-100">Prérequis obligatoires ({verificationRequiredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationRequiredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.requiredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div><div><h3 className="font-semibold text-violet-100">Valeurs ajoutées ({verificationPreferredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationPreferredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.preferredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div></div>
+            <div className="mt-6 grid gap-5 md:grid-cols-2"><div><h3 className="font-semibold text-orange-100">Prérequis obligatoires ({verificationRequiredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationRequiredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.requiredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div><div><h3 className="font-semibold text-blue-100">Valeurs ajoutées ({verificationPreferredPrerequisites.length})</h3><ul className="mt-3 space-y-2 text-sm text-slate-300">{verificationPreferredPrerequisites.map((item) => <li key={item.prerequisiteId}>- {definitionCache.find((definition) => prerequisiteIdentity(definition) === item.prerequisiteId)?.companyLabel ?? savedOffer?.preferredPrerequisites.find((snapshot) => snapshot.prerequisiteId === item.prerequisiteId)?.companyLabel ?? item.prerequisiteId}</li>)}</ul></div></div>
           </SevenoPanel>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex gap-3"><button type="button" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))} className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200 disabled:opacity-40">Étape précédente</button><button type="button" disabled={step === STEPS.length - 1} onClick={() => setStep((current) => Math.min(STEPS.length - 1, current + 1))} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm text-cyan-100 disabled:opacity-40">Étape suivante</button></div>
-          <div className="flex gap-3"><button type="button" disabled={saving || !authUser} onClick={() => void saveDraft()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement...' : 'Enregistrer le brouillon'}</button><button type="button" disabled={saving || !authUser} onClick={() => void publish()} className="rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Vérifier et publier</button></div>
+          <div className="flex gap-3"><button type="button" disabled={saving || !authUser} onClick={() => void saveDraft()} className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Enregistrement...' : 'Enregistrer le brouillon'}</button><button type="button" disabled={saving || !authUser} onClick={() => void publish()} className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Vérifier et publier</button></div>
         </div>
       </div>
     </SevenoSurface>

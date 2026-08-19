@@ -66,7 +66,7 @@ const PROFILE_STATUS_LABELS: Record<CandidateProfileStatus, string> = {
 };
 
 type CandidateSummaryCard = {
-  tone: 'cyan' | 'violet' | 'orange' | 'neutral';
+  tone: 'cyan' | 'blue' | 'orange' | 'neutral';
   label: string;
   value: string;
   note: string;
@@ -628,7 +628,7 @@ export default function CandidateDashboardPage() {
           ),
         },
         {
-          tone: 'violet',
+          tone: 'blue',
           label: 'Recommandations',
           value: String(recommendationVerifiedCount),
           note:
@@ -638,7 +638,7 @@ export default function CandidateDashboardPage() {
           action: (
             <Link
               href="/candidat/recommandations"
-              className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15"
+              className="inline-flex rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-blue-400/15"
             >
               Gérer mes recommandations
             </Link>
@@ -650,14 +650,14 @@ export default function CandidateDashboardPage() {
   const opportunityCards: CandidateSummaryCard[] = profile
     ? [
         {
-          tone: 'violet',
+          tone: 'blue',
           label: 'Questionnaire général Seven’O',
           value: questionnaireStateLabel,
           note: questionnaireStateNote,
           action: (
             <Link
               href="/candidat/test"
-              className="inline-flex rounded-full border border-violet-300/20 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15"
+              className="inline-flex rounded-full border border-blue-300/20 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-blue-400/15"
             >
               {questionnaireActionLabel}
             </Link>
@@ -774,7 +774,7 @@ export default function CandidateDashboardPage() {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
                     href={profileAction.href}
-                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
                   >
                     {profileAction.label}
                   </Link>
@@ -923,7 +923,7 @@ export default function CandidateDashboardPage() {
                 type="button"
                 onClick={() => void handleAvailabilityConfirmation('confirm_yes')}
                 disabled={availabilityAction !== null}
-                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 Confirmer ma disponibilité 24 h
               </button>
@@ -949,7 +949,7 @@ export default function CandidateDashboardPage() {
                   availabilityNotificationsEnabled ? 'disable_notifications' : 'enable_notifications',
                 )}
                 disabled={availabilityAction !== null}
-                className="inline-flex items-center justify-center rounded-full border border-violet-300/20 bg-violet-400/10 px-5 py-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center rounded-full border border-blue-300/20 bg-blue-400/10 px-5 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {availabilityNotificationsEnabled
                   ? 'Désactiver les confirmations quotidiennes'
@@ -977,7 +977,7 @@ export default function CandidateDashboardPage() {
 
           <CandidateProgress steps={progress.steps} />
 
-          <SevenoPanel tone="violet" className="p-5">
+          <SevenoPanel tone="blue" className="p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-3xl">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Questionnaire général Seven’O</p>
@@ -991,7 +991,7 @@ export default function CandidateDashboardPage() {
               <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <Link
                   href="/candidat/test"
-                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
                 >
                   {questionnaireActionLabel}
                 </Link>
@@ -1064,7 +1064,7 @@ export default function CandidateDashboardPage() {
             </div>
           </SevenoPanel>
 
-          <SevenoPanel tone="violet" className="p-5">
+          <SevenoPanel tone="blue" className="p-5">
             <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Visibilité et confidentialité</p>
@@ -1179,7 +1179,7 @@ export default function CandidateDashboardPage() {
               action={<Link href="/candidat/identite" className="text-sm font-semibold text-cyan-100">{identityComplete ? 'Modifier mon identité privée' : 'Accéder à mon identité privée'}</Link>}
             />
             <CandidateStatusCard
-              tone="violet"
+              tone="blue"
               label="Questionnaire général Seven’O"
               value={questionnaireStateLabel}
               note={questionnaireStateNote}

@@ -56,7 +56,7 @@ export function CompanyThresholdSection() {
               Vous consultez le score, le détail des réponses correctes et incorrectes ainsi que la position du candidat par rapport au seuil défini.
             </p>
           </article>
-          <article className="rounded-[28px] border border-violet-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.98),rgba(8,15,28,0.95))] p-5 shadow-[0_18px_60px_rgba(2,6,23,0.16)] sm:p-6">
+          <article className="rounded-[28px] border border-blue-400/15 bg-[linear-gradient(180deg,rgba(13,14,34,0.98),rgba(8,15,28,0.95))] p-5 shadow-[0_18px_60px_rgba(2,6,23,0.16)] sm:p-6">
             <p className="text-sm leading-7 text-slate-200">
               Seven’O aide à organiser la lecture des candidatures. La décision de poursuivre reste humaine.
             </p>

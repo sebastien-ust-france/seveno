@@ -21,7 +21,7 @@ function statusClass(status: SerializedCandidateMatchRequest['status']) {
     case 'accepted':
       return 'border-emerald-300/20 bg-emerald-400/10 text-emerald-100';
     case 'refused':
-      return 'border-violet-300/20 bg-violet-400/10 text-violet-100';
+      return 'border-blue-300/20 bg-blue-400/10 text-blue-100';
     case 'pending_candidate':
       return 'border-orange-300/20 bg-orange-400/10 text-orange-100';
     default:
@@ -145,7 +145,7 @@ export function CandidateRequestCard({
       ) : null}
 
       {isPending ? (
-        <div className="mt-5 rounded-[22px] border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(139,92,246,0.06),rgba(249,115,22,0.04))] p-4">
+        <div className="mt-5 rounded-[22px] border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgb(var(--seveno-brand-blue)/0.06),rgba(249,115,22,0.04))] p-4">
           <p className="text-sm font-medium text-white">
             Vos coordonnées ne seront transmises qu’après votre accord.
           </p>
@@ -158,7 +158,7 @@ export function CandidateRequestCard({
               type="button"
               onClick={onAccept}
               disabled={loading}
-              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? 'Traitement...' : 'Accepter'}
             </button>

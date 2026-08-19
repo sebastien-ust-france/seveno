@@ -19,7 +19,7 @@ export function CandidateFeatureComingSoon({
 }: CandidateFeatureComingSoonProps) {
   return (
     <CandidateShell title={title} description={description}>
-      <SevenoPanel tone="violet" className="p-5">
+      <SevenoPanel tone="blue" className="p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">Bientôt disponible</p>
         <h2 className="mt-2 text-2xl font-semibold text-white">
           Cette fonctionnalité sera ouverte lors du lancement complet de Seven’O.

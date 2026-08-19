@@ -348,7 +348,7 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                   questionnaireView?.access.status === 'completed' ? (
                     <Link
                       href={`/candidat/candidatures/${applicationId}/questionnaire`}
-                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110"
                     >
                       {questionnaireView?.access.status === 'completed'
                         ? 'Voir le questionnaire'
@@ -368,7 +368,7 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                         type="button"
                         disabled={decisionLoading !== null}
                         onClick={() => void handleInvitationDecision('accepted')}
-                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {decisionLoading === 'accepted' ? 'Validation...' : 'Accepter la mise en relation'}
                       </button>
@@ -387,7 +387,7 @@ export default function CandidateApplicationDetail({ applicationId }: CandidateA
                         type="button"
                         disabled={decisionLoading !== null}
                         onClick={() => void handleInvitationDecision('accepted')}
-                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(34,211,238,0.18)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {decisionLoading === 'accepted' ? 'Validation...' : 'Accepter l invitation'}
                       </button>
