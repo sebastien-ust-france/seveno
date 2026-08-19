@@ -635,6 +635,7 @@ export const JOB_TAXONOMY: JobTaxonomy = {
         createRole('sante-medical-paramedical-paramedical-audioprothesiste', 'Audioprothésiste'),
       ]),
       createFamily('sante-medical-paramedical-medico-social', 'Médico-social', [
+        createRole('sante-medical-paramedical-medico-social-aide-a-domicile', 'Aide à domicile'),
         createRole('sante-medical-paramedical-medico-social-secretaire-medicale', 'Secrétaire médicale'),
         createRole('sante-medical-paramedical-medico-social-auxiliaire-de-puericulture', 'Auxiliaire de puériculture'),
         createRole('sante-medical-paramedical-medico-social-coordinateur-medico-social', 'Coordinateur médico-social'),

@@ -40,6 +40,11 @@ import {
 } from '@/lib/seveno-candidate-offer-notifications-server';
 import { activateCampaignInTransaction } from '@/lib/seveno-billing-server';
 import type { CompanyMembershipRole } from '@/types/seveno-billing';
+import {
+  SevenoGeographyError,
+  normalizeGeographicLocation,
+} from '@/lib/seveno-geography-server';
+import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
@@ -241,7 +246,13 @@ export function validateJobOfferInput(raw: unknown): JobOfferInput & { jobRoleLa
   const jobFamilyId = cleanText(raw.jobFamilyId, 160);
   const jobRoleId = cleanText(raw.jobRoleId, 200);
   const context = resolveJobContext(sectorId, jobFamilyId, jobRoleId);
-  const location = cleanText(raw.location, 180);
+  const location = cleanText(raw.location, 360);
+  const countryCode = cleanText(raw.countryCode, 2);
+  const countryName = cleanText(raw.countryName, 120);
+  const administrativeAreaCode = cleanText(raw.administrativeAreaCode, 20);
+  const administrativeAreaName = cleanText(raw.administrativeAreaName, 160);
+  const city = cleanText(raw.city, 40);
+  const cityName = cleanText(raw.cityName, 160);
   const workMode = raw.workMode === '' || raw.workMode == null
     ? ''
     : WORK_MODES.includes(raw.workMode as JobOfferWorkMode) ? raw.workMode as JobOfferWorkMode : null;
@@ -280,6 +291,12 @@ export function validateJobOfferInput(raw: unknown): JobOfferInput & { jobRoleLa
     jobRoleId: context?.jobRoleId ?? '',
     jobRoleLabel: context?.jobRoleLabel ?? '',
     location,
+    countryCode,
+    countryName,
+    administrativeAreaCode,
+    administrativeAreaName,
+    city,
+    cityName,
     workMode,
     contractType,
     workingTime,
@@ -291,6 +308,17 @@ export function validateJobOfferInput(raw: unknown): JobOfferInput & { jobRoleLa
     requiredPrerequisites,
     preferredPrerequisites,
   };
+}
+
+async function normalizeOfferGeographicLocation(input: JobOfferInput): Promise<GeographicLocation> {
+  try {
+    return await normalizeGeographicLocation(input, { allowEmpty: true });
+  } catch (error) {
+    if (error instanceof SevenoGeographyError) {
+      throw new SevenoJobOfferError(error.code, error.status, error.message);
+    }
+    throw error;
+  }
 }
 
 function toSnapshotSelections(input: JobOfferInput): OfferPrerequisiteSelectionInput[] {
@@ -477,6 +505,12 @@ function serializeOffer(id: string, data: FirestoreRecord): SerializedJobOffer {
     jobRoleId: String(data.jobRoleId ?? ''),
     jobRoleLabel: String(data.jobRoleLabel ?? ''),
     location: String(data.location ?? ''),
+    countryCode: String(data.countryCode ?? ''),
+    countryName: String(data.countryName ?? ''),
+    administrativeAreaCode: String(data.administrativeAreaCode ?? ''),
+    administrativeAreaName: String(data.administrativeAreaName ?? ''),
+    city: String(data.city ?? ''),
+    cityName: String(data.cityName ?? ''),
     workMode: WORK_MODES.includes(data.workMode as JobOfferWorkMode) ? data.workMode as JobOfferWorkMode : '',
     contractType: CONTRACT_TYPES.includes(data.contractType as JobOfferContractType) ? data.contractType as JobOfferContractType : '',
     workingTime: WORKING_TIMES.includes(data.workingTime as JobOfferWorkingTime) ? data.workingTime as JobOfferWorkingTime : '',
@@ -579,6 +613,7 @@ async function buildSnapshots(
 export async function createJobOffer(companyUid: string, raw: unknown, actorUid = companyUid) {
   const context = await loadCompanyContext(companyUid);
   const input = validateJobOfferInput(raw);
+  const structuredLocation = await normalizeOfferGeographicLocation(input);
   const id = randomUUID();
   const snapshots = await buildSnapshots(companyUid, input, null, id);
   const questionnaire = await resolveQuestionnaireAttachment(companyUid, input.questionnaireId, null);
@@ -597,7 +632,8 @@ export async function createJobOffer(companyUid: string, raw: unknown, actorUid 
     jobFamilyId: input.jobFamilyId,
     jobRoleId: input.jobRoleId,
     jobRoleLabel: input.jobRoleLabel,
-    location: input.location,
+    location: structuredLocation.countryCode ? formatGeographicLocation(structuredLocation) : input.location,
+    ...structuredLocation,
     workMode: input.workMode,
     contractType: input.contractType,
     workingTime: input.workingTime,
@@ -654,6 +690,12 @@ export function buildDuplicatedJobOfferData(
     jobRoleId: source.jobRoleId,
     jobRoleLabel: source.jobRoleLabel,
     location: source.location,
+    countryCode: source.countryCode ?? '',
+    countryName: source.countryName ?? '',
+    administrativeAreaCode: source.administrativeAreaCode ?? '',
+    administrativeAreaName: source.administrativeAreaName ?? '',
+    city: source.city ?? '',
+    cityName: source.cityName ?? '',
     workMode: source.workMode,
     contractType: source.contractType,
     workingTime: source.workingTime,
@@ -792,6 +834,7 @@ export async function updateJobOffer(companyUid: string, offerId: string, raw: u
     throw new SevenoJobOfferError('offer_not_editable', 409, 'Une offre fermee ou archivee ne peut plus etre modifiee.');
   }
   const input = validateJobOfferInput(raw);
+  const structuredLocation = await normalizeOfferGeographicLocation(input);
   const snapshots = await buildSnapshots(companyUid, input, existing, existing.id);
   const questionnaire = await resolveQuestionnaireAttachment(companyUid, input.questionnaireId, existing);
   const content = {
@@ -800,7 +843,8 @@ export async function updateJobOffer(companyUid: string, offerId: string, raw: u
     jobFamilyId: input.jobFamilyId,
     jobRoleId: input.jobRoleId,
     jobRoleLabel: input.jobRoleLabel,
-    location: input.location,
+    location: structuredLocation.countryCode ? formatGeographicLocation(structuredLocation) : input.location,
+    ...structuredLocation,
     workMode: input.workMode,
     contractType: input.contractType,
     workingTime: input.workingTime,
@@ -1081,6 +1125,12 @@ export function jobOfferToInput(offer: SerializedJobOffer): JobOfferInput {
     jobFamilyId: offer.jobFamilyId,
     jobRoleId: offer.jobRoleId,
     location: offer.location,
+    countryCode: offer.countryCode ?? '',
+    countryName: offer.countryName ?? '',
+    administrativeAreaCode: offer.administrativeAreaCode ?? '',
+    administrativeAreaName: offer.administrativeAreaName ?? '',
+    city: offer.city ?? '',
+    cityName: offer.cityName ?? '',
     workMode: offer.workMode,
     contractType: offer.contractType,
     workingTime: offer.workingTime,

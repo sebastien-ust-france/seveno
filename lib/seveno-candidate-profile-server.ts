@@ -19,6 +19,11 @@ import type {
   CandidateTargetJob,
 } from '@/types/seveno';
 import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
+import {
+  SevenoGeographyError,
+  normalizeGeographicLocation,
+} from '@/lib/seveno-geography-server';
+import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
 
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
   'immediate',
@@ -241,6 +246,12 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
     availability,
     availabilityAvailableFromAt: cleanText(value.availabilityAvailableFromAt) || null,
     locationArea: requireText(value.locationArea, 'zone geographique', 120),
+    countryCode: cleanText(value.countryCode),
+    countryName: cleanText(value.countryName),
+    administrativeAreaCode: cleanText(value.administrativeAreaCode),
+    administrativeAreaName: cleanText(value.administrativeAreaName),
+    city: cleanText(value.city),
+    cityName: cleanText(value.cityName),
     experienceLevel,
     professionalSelfDescription: normalizeProfessionalDescription(
       readFirstTextField(value, PROFESSIONAL_SELF_DESCRIPTION_KEYS),
@@ -373,6 +384,17 @@ export async function createOrUpdateCandidateProfileServer(
 ) {
   const firestore = requireAdminDatabase();
   const input = normalizeCandidateProfileUpsertInput(rawInput);
+  let structuredLocation: GeographicLocation | null = null;
+  if (input.countryCode) {
+    try {
+      structuredLocation = await normalizeGeographicLocation(input);
+    } catch (error) {
+      if (error instanceof SevenoGeographyError) {
+        throw new SevenoCandidateProfileError(error.code, error.status, error.message);
+      }
+      throw error;
+    }
+  }
   const userRef = firestore.collection('users').doc(uid);
   const profileRef = firestore.collection('candidate_profiles').doc(uid);
 
@@ -470,7 +492,8 @@ export async function createOrUpdateCandidateProfileServer(
       ...(availabilityAvailableFromAt ? { availabilityAvailableFromAt: Timestamp.fromDate(availabilityAvailableFromAt) } : {}),
       ...(availabilityConfirmedAt ? { availabilityConfirmedAt } : {}),
       ...(availabilityValidUntil ? { availabilityValidUntil } : {}),
-      locationArea: input.locationArea,
+      locationArea: structuredLocation ? formatGeographicLocation(structuredLocation) : input.locationArea,
+      ...(structuredLocation ?? {}),
       experienceLevel: input.experienceLevel,
       professionalSelfDescription: input.professionalSelfDescription,
       professionalReputationDescription: input.professionalReputationDescription,

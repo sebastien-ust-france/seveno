@@ -15,6 +15,8 @@
     "migrate:company-ownership": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/migrate-company-ownership.mts",
     "test:commercial-foundation:emulator": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/commercial-foundation-emulator-test.mts",
     "test:offers": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offers-smoke-test.mts",
+    "test:geography-taxonomy": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/geography-taxonomy-smoke-test.mts",
+    "test:geography-rules": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/geography-firestore-rules-emulator-test.mts",
     "test:offer-lifecycle": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-offer-lifecycle-smoke-test.mts",
     "test:applications": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/job-applications-smoke-test.mts",
     "test:contact-sharing": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/contact-sharing-smoke-test.mts",
@@ -38,6 +40,7 @@
     "test:public-account-type": "node --experimental-strip-types ./scripts/public-account-type-smoke-test.mts",
     "test:public-performance-architecture": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/public-performance-architecture.mts",
     "test:seveno-contact": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-contact-smoke-test.mts",
+    "test:nodemailer-compatibility": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/nodemailer-compatibility-smoke-test.mts",
     "test:assessment-decoupling": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/assessment-decoupling-smoke-test.mts",
     "test:seveno-general:sequential": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/seveno-general-sequential-smoke-test.mts",
     "test:study-admin": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/study-admin-smoke-test.mts",
@@ -61,10 +64,11 @@
     "test:text-quality": "node --experimental-strip-types --experimental-loader ./scripts/ts-path-loader.mjs ./scripts/french-text-audit.mts"
   },
   "dependencies": {
+    "@countrystatecity/countries": "1.0.9",
     "firebase": "^12.0.0",
     "firebase-admin": "^14.0.0",
-    "next": "^15.0.0",
-    "nodemailer": "^6.10.1",
+    "next": "15.5.21",
+    "nodemailer": "9.0.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -424,6 +424,12 @@ service cloud.firestore {
         'availabilityPushPermission',
         'hasActiveAvailabilityPushSubscription',
         'locationArea',
+        'countryCode',
+        'countryName',
+        'administrativeAreaCode',
+        'administrativeAreaName',
+        'city',
+        'cityName',
         'experienceLevel',
         'verifiedScore',
         'testPassed',
@@ -907,18 +913,34 @@ service cloud.firestore {
     // Companies receive an explicit anonymous projection from the server API.
     match /candidate_profiles/{uid} {
       allow read: if isAdmin() || isOwner(uid);
-      allow create: if isAdmin()
-        && isValidCandidateProfileData(request.resource.data)
+      allow create: if request.resource.data.keys().hasAny([
+          'countryCode',
+          'countryName',
+          'administrativeAreaCode',
+          'administrativeAreaName',
+          'city',
+          'cityName'
+        ])
+        ? false
+        : (
+          isAdmin()
+          && isValidCandidateProfileData(request.resource.data)
         && request.resource.data.uid == uid
         && request.resource.data.role == 'candidate'
         && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
-      allow update: if isValidCandidateProfileData(request.resource.data)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.publicCandidateId == resource.data.publicCandidateId
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.createdAt == resource.data.createdAt
-        && (
+          && request.resource.data.updatedAt is timestamp
+        );
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'countryCode',
+          'countryName',
+          'administrativeAreaCode',
+          'administrativeAreaName',
+          'city',
+          'cityName'
+        ])
+        ? false
+        : (
+          (
           isAdmin()
           || (
             isCandidate()
@@ -956,6 +978,12 @@ service cloud.firestore {
               'profileStatus'
             ])
           )
+          )
+          && isValidCandidateProfileData(request.resource.data)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.publicCandidateId == resource.data.publicCandidateId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.createdAt == resource.data.createdAt
         );
       allow delete: if isAdmin() || (isCandidate() && isOwner(uid));
     }

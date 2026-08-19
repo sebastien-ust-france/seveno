@@ -8,6 +8,7 @@ import {
   toAvailabilityDate,
 } from '@/lib/seveno-candidate-availability';
 import { normalizeDesiredContractTypeCodes } from '@/lib/seveno-desired-contract-types';
+import { matchesGeographicHierarchy } from '@/lib/seveno-geography';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
@@ -54,6 +55,12 @@ export interface SerializedVisibleCandidateProfile {
   availabilityConfirmedAt: string | null;
   availabilityValidUntil: string | null;
   locationArea: string;
+  countryCode: string;
+  countryName: string;
+  administrativeAreaCode: string;
+  administrativeAreaName: string;
+  city: string;
+  cityName: string;
   experienceLevel: CandidateExperienceLevel;
   desiredContractTypeCodes: CandidateProfile['desiredContractTypeCodes'];
   professionalSelfDescription: string | null;
@@ -112,6 +119,12 @@ function toAnonymousProjection(
     ? targetJobs.find((job) => job.jobRoleId === requestedJobRoleId)
     : targetJobs[0];
   const locationArea = cleanText(data.locationArea);
+  const countryCode = cleanText(data.countryCode);
+  const countryName = cleanText(data.countryName);
+  const administrativeAreaCode = cleanText(data.administrativeAreaCode);
+  const administrativeAreaName = cleanText(data.administrativeAreaName);
+  const city = cleanText(data.city);
+  const cityName = cleanText(data.cityName);
   const availability = data.availability as CandidateAvailability;
   const experienceLevel = data.experienceLevel as CandidateExperienceLevel;
   const desiredContractTypeCodes = normalizeDesiredContractTypeCodes(data.desiredContractTypeCodes);
@@ -153,6 +166,12 @@ function toAnonymousProjection(
     availabilityConfirmedAt: availabilityConfirmedAt?.toDate().toISOString() ?? null,
     availabilityValidUntil: availabilityValidUntil?.toDate().toISOString() ?? null,
     locationArea,
+    countryCode,
+    countryName,
+    administrativeAreaCode,
+    administrativeAreaName,
+    city,
+    cityName,
     experienceLevel,
     desiredContractTypeCodes,
     professionalSelfDescription: professionalSelfDescription || null,
@@ -250,6 +269,7 @@ export async function searchVisibleCandidateProfiles(
         continue;
       }
       if (filters.locationArea && profile.locationArea !== filters.locationArea) continue;
+      if (!matchesGeographicHierarchy(profile, filters)) continue;
       if (filters.availability && filters.availability !== 'immediate' && profile.availability !== filters.availability) continue;
       if (filters.experienceLevel && profile.experienceLevel !== filters.experienceLevel) continue;
 

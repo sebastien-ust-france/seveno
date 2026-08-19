@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { PrerequisiteLibraryPicker } from '@/components/entreprise/PrerequisiteLibraryPicker';
 import { SevenoPanel, SevenoSurface } from '@/components/seveno/SevenoLayout';
+import { GeographicLocationFields } from '@/components/ui/GeographicLocationFields';
 import { Select } from '@/components/ui/Select';
 import { JOB_SECTORS } from '@/lib/job-taxonomy';
+import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
 import {
   PREREQUISITE_CATEGORIES,
   SEVENO_OFFER_PREREQUISITE_LIMITS,
@@ -53,6 +55,12 @@ const EMPTY_INPUT: JobOfferInput = {
   jobFamilyId: '',
   jobRoleId: '',
   location: '',
+  countryCode: '',
+  countryName: '',
+  administrativeAreaCode: '',
+  administrativeAreaName: '',
+  city: '',
+  cityName: '',
   workMode: '',
   contractType: '',
   workingTime: '',
@@ -843,7 +851,24 @@ export default function JobOfferEditor({ offerId }: { offerId?: string }) {
           <SevenoPanel tone="violet">
             <h2 className="text-xl font-semibold text-white">Conditions</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-200">Localisation<input value={input.location} onChange={(event) => setInput({ ...input, location: event.target.value })} className={FIELD} placeholder="Paris, Lyon, France..." /></label>
+              <div className="md:col-span-2">
+                <GeographicLocationFields
+                  value={{
+                    countryCode: input.countryCode ?? '',
+                    countryName: input.countryName ?? '',
+                    administrativeAreaCode: input.administrativeAreaCode ?? '',
+                    administrativeAreaName: input.administrativeAreaName ?? '',
+                    city: input.city ?? '',
+                    cityName: input.cityName ?? '',
+                  }}
+                  onChange={(location: GeographicLocation) => setInput((current) => ({
+                    ...current,
+                    ...location,
+                    location: formatGeographicLocation(location),
+                  }))}
+                  legacyLabel={input.location}
+                />
+              </div>
               <label className="space-y-2 text-sm text-slate-200">Modalité<Select value={input.workMode} onChange={(event) => setInput({ ...input, workMode: event.target.value as JobOfferWorkMode | '' })}><option value="">Sélectionner</option><option value="onsite">Sur site</option><option value="hybrid">Hybride</option><option value="remote">À distance</option></Select></label>
               <label className="space-y-2 text-sm text-slate-200">Contrat<Select value={input.contractType} onChange={(event) => setInput({ ...input, contractType: event.target.value as JobOfferContractType | '' })}><option value="">Sélectionner</option><option value="permanent">CDI</option><option value="fixed_term">CDD</option><option value="temporary">Intérim</option><option value="freelance">Freelance</option><option value="apprenticeship">Alternance</option><option value="internship">Stage</option><option value="other">Autre</option></Select></label>
               <label className="space-y-2 text-sm text-slate-200">Temps de travail<Select value={input.workingTime} onChange={(event) => setInput({ ...input, workingTime: event.target.value as JobOfferWorkingTime | '' })}><option value="">Sélectionner</option><option value="full_time">Temps plein</option><option value="part_time">Temps partiel</option><option value="shift">Horaires postés</option><option value="flexible">Flexible</option><option value="other">Autre</option></Select></label>

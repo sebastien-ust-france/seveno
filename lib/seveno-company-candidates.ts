@@ -71,6 +71,9 @@ export function buildCandidateSearchParams(filters: CandidateSearchFilters) {
   });
 
   if (filters.locationArea) params.set('locationArea', filters.locationArea);
+  if (filters.countryCode) params.set('countryCode', filters.countryCode);
+  if (filters.administrativeAreaCode) params.set('administrativeAreaCode', filters.administrativeAreaCode);
+  if (filters.city) params.set('city', filters.city);
   if (filters.availability) params.set('availability', filters.availability);
   if (filters.experienceLevel) params.set('experienceLevel', filters.experienceLevel);
 

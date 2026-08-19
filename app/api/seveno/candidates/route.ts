@@ -12,6 +12,10 @@ import {
 import { loadCompanyCandidateRecommendationBundleByPublicId, SevenoRecommendationError } from '@/lib/seveno-recommendations-server';
 import { toMatchApiErrorResponse } from '../matches/_shared';
 import type { CandidateAvailability, CandidateExperienceLevel, CandidateSearchFilters } from '@/types/seveno';
+import {
+  SevenoGeographyError,
+  normalizeGeographicLocation,
+} from '@/lib/seveno-geography-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +25,9 @@ const SEARCH_PARAMETERS = new Set([
   'jobFamilyId',
   'jobRoleId',
   'locationArea',
+  'countryCode',
+  'administrativeAreaCode',
+  'city',
   'availability',
   'experienceLevel',
   'cursor',
@@ -48,11 +55,14 @@ function assertOnlyAllowedParameters(request: NextRequest, allowedParameters: Se
   }
 }
 
-function readCandidateSearchFilters(request: NextRequest): CandidateSearchFilters {
+async function readCandidateSearchFilters(request: NextRequest): Promise<CandidateSearchFilters> {
   const sectorId = request.nextUrl.searchParams.get('sectorId')?.trim() ?? '';
   const jobFamilyId = request.nextUrl.searchParams.get('jobFamilyId')?.trim() ?? '';
   const jobRoleId = request.nextUrl.searchParams.get('jobRoleId')?.trim() ?? '';
   const locationArea = request.nextUrl.searchParams.get('locationArea')?.trim() ?? '';
+  const countryCode = request.nextUrl.searchParams.get('countryCode')?.trim() ?? '';
+  const administrativeAreaCode = request.nextUrl.searchParams.get('administrativeAreaCode')?.trim() ?? '';
+  const city = request.nextUrl.searchParams.get('city')?.trim() ?? '';
   const availability = request.nextUrl.searchParams.get('availability')?.trim() ?? '';
   const experienceLevel = request.nextUrl.searchParams.get('experienceLevel')?.trim() ?? '';
 
@@ -79,11 +89,29 @@ function readCandidateSearchFilters(request: NextRequest): CandidateSearchFilter
     throw new SevenoMatchRequestError('invalid_experience_level', 400, 'Le niveau d experience demande est invalide.');
   }
 
+  let geographicFilters = {};
+  if (countryCode || administrativeAreaCode || city) {
+    try {
+      const normalized = await normalizeGeographicLocation({ countryCode, administrativeAreaCode, city });
+      geographicFilters = {
+        countryCode: normalized.countryCode,
+        ...(normalized.administrativeAreaCode ? { administrativeAreaCode: normalized.administrativeAreaCode } : {}),
+        ...(normalized.city ? { city: normalized.city } : {}),
+      };
+    } catch (error) {
+      if (error instanceof SevenoGeographyError) {
+        throw new SevenoMatchRequestError(error.code, error.status, error.message);
+      }
+      throw error;
+    }
+  }
+
   return {
     sectorId,
     jobFamilyId,
     jobRoleId,
     ...(locationArea ? { locationArea } : {}),
+    ...geographicFilters,
     ...(availability ? { availability: availability as CandidateAvailability } : {}),
     ...(experienceLevel ? { experienceLevel: experienceLevel as CandidateExperienceLevel } : {}),
   };
@@ -108,7 +136,7 @@ export async function GET(request: NextRequest) {
     }
 
     assertOnlyAllowedParameters(request, SEARCH_PARAMETERS);
-    const filters = readCandidateSearchFilters(request);
+    const filters = await readCandidateSearchFilters(request);
     const cursor = request.nextUrl.searchParams.get('cursor');
     const page = await searchVisibleCandidateProfiles(filters, cursor);
     return NextResponse.json(page);

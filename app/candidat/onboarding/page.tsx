@@ -22,7 +22,13 @@ import { CandidateShell } from '@/components/candidate/CandidateShell';
 import { CandidateStatusCard } from '@/components/candidate/CandidateStatusCard';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { SevenoPanel } from '@/components/seveno/SevenoLayout';
+import { GeographicLocationFields } from '@/components/ui/GeographicLocationFields';
 import { Select } from '@/components/ui/Select';
+import {
+  EMPTY_GEOGRAPHIC_LOCATION,
+  formatGeographicLocation,
+  type GeographicLocation,
+} from '@/lib/seveno-geography';
 import type {
   CandidateAvailability,
   CandidateExperienceLevel,
@@ -59,7 +65,7 @@ const INITIAL_FAMILY = INITIAL_SECTOR?.families[0] ?? null;
 const INITIAL_ROLE = INITIAL_FAMILY?.roles[0] ?? null;
 
 type FieldErrorState = Partial<Record<
-  'sectorId' | 'jobFamilyId' | 'jobRoleId' | 'desiredContractTypeCodes' | 'locationArea' | 'profileStatus' | 'anonymousVisibilityConsent',
+  'sectorId' | 'jobFamilyId' | 'jobRoleId' | 'desiredContractTypeCodes' | 'countryCode' | 'profileStatus' | 'anonymousVisibilityConsent',
   string
 >>;
 
@@ -119,7 +125,8 @@ export default function CandidateOnboardingPage() {
   const [jobRoleId, setJobRoleId] = useState(INITIAL_ROLE?.code ?? '');
   const [targetJobs, setTargetJobs] = useState<CandidateTargetJob[]>([]);
   const [desiredContractTypeCodes, setDesiredContractTypeCodes] = useState<DesiredContractTypeCode[]>([]);
-  const [locationArea, setLocationArea] = useState('');
+  const [location, setLocation] = useState<GeographicLocation>({ ...EMPTY_GEOGRAPHIC_LOCATION });
+  const [legacyLocationArea, setLegacyLocationArea] = useState('');
   const [experienceLevel, setExperienceLevel] = useState<CandidateExperienceLevel>('intermediate');
   const [availability, setAvailability] = useState<CandidateAvailability>('listening');
   const [professionalSelfDescription, setProfessionalSelfDescription] = useState('');
@@ -207,7 +214,17 @@ export default function CandidateOnboardingPage() {
           }
 
           if (typeof existingProfile.locationArea === 'string') {
-            setLocationArea(existingProfile.locationArea);
+            setLegacyLocationArea(existingProfile.locationArea);
+          }
+          if (existingProfile.countryCode) {
+            setLocation({
+              countryCode: existingProfile.countryCode,
+              countryName: existingProfile.countryName ?? '',
+              administrativeAreaCode: existingProfile.administrativeAreaCode ?? '',
+              administrativeAreaName: existingProfile.administrativeAreaName ?? '',
+              city: existingProfile.city ?? '',
+              cityName: existingProfile.cityName ?? '',
+            });
           }
           if (EXPERIENCE_LEVEL_OPTIONS.some((option) => option.value === existingProfile.experienceLevel)) {
             setExperienceLevel(existingProfile.experienceLevel);
@@ -337,7 +354,7 @@ export default function CandidateOnboardingPage() {
     if (desiredContractTypeCodes.length < 1) {
       nextFieldErrors.desiredContractTypeCodes = 'Sélectionnez au moins un type de contrat recherché.';
     }
-    if (!locationArea.trim()) nextFieldErrors.locationArea = 'Indiquez une zone de recherche.';
+    if (!location.countryCode) nextFieldErrors.countryCode = 'Sélectionnez un pays.';
     if (!profileStatus) nextFieldErrors.profileStatus = 'Sélectionnez un statut de profil.';
     if (profileStatus === 'active' && !anonymousVisibilityConsent) {
       nextFieldErrors.anonymousVisibilityConsent = 'Confirmez la visibilité anonyme de votre profil.';
@@ -381,7 +398,8 @@ export default function CandidateOnboardingPage() {
         targetJobRoleIds: targetJobs.map((job) => job.jobRoleId),
         desiredContractTypeCodes,
         availability,
-        locationArea,
+        locationArea: formatGeographicLocation(location),
+        ...location,
         experienceLevel,
         professionalSelfDescription,
         professionalReputationDescription,
@@ -585,20 +603,19 @@ export default function CandidateOnboardingPage() {
                   <h2 className="mt-2 text-lg font-semibold text-white">Situation et disponibilité</h2>
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2 md:col-span-2">
-                      <span className="text-sm font-medium text-slate-200">Dans quelle zone recherchez-vous ?</span>
-                      <input
-                        value={locationArea}
-                        onChange={(event) => {
-                          setLocationArea(event.target.value);
-                          setFieldErrors((current) => ({ ...current, locationArea: undefined }));
+                    <div className="md:col-span-2">
+                      <p className="mb-3 text-sm font-medium text-slate-200">Dans quelle zone recherchez-vous ?</p>
+                      <GeographicLocationFields
+                        value={location}
+                        onChange={(nextLocation) => {
+                          setLocation(nextLocation);
+                          setFieldErrors((current) => ({ ...current, countryCode: undefined }));
                         }}
-                        type="text"
-                      placeholder="Île-de-France, télétravail, Lille..."
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40"
+                        requiredCountry
+                        legacyLabel={legacyLocationArea}
                       />
-                      {fieldErrors.locationArea ? <p className="text-xs text-rose-300">{fieldErrors.locationArea}</p> : null}
-                    </label>
+                      {fieldErrors.countryCode ? <p className="mt-2 text-xs text-rose-300">{fieldErrors.countryCode}</p> : null}
+                    </div>
 
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-slate-200">Niveau d’expérience</span>
@@ -727,7 +744,7 @@ export default function CandidateOnboardingPage() {
                       <p className="md:col-span-2">
                         Contrats recherchés : {formatDesiredContractTypeLabels(desiredContractTypeCodes)}
                       </p>
-                      <p>Zone : {locationArea || 'Non renseignée'}</p>
+                      <p>Zone : {formatGeographicLocation(location, legacyLocationArea) || 'Non renseignée'}</p>
                       <p>Expérience : {experienceLabel(experienceLevel)}</p>
                       <p>Disponibilité : {availabilityLabel(availability)}</p>
                       <p>Statut : {profileStatusLabel(profileStatus)}</p>

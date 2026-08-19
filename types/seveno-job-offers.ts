@@ -41,6 +41,12 @@ export interface JobOfferInput {
   jobRoleId: string;
   questionnaireId: string;
   location: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaCode?: string;
+  administrativeAreaName?: string;
+  city?: string;
+  cityName?: string;
   workMode: JobOfferWorkMode | '';
   contractType: JobOfferContractType | '';
   workingTime: JobOfferWorkingTime | '';
@@ -67,6 +73,12 @@ export interface JobOffer {
   jobRoleId: string;
   jobRoleLabel: string;
   location: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaCode?: string;
+  administrativeAreaName?: string;
+  city?: string;
+  cityName?: string;
   workMode: JobOfferWorkMode | '';
   contractType: JobOfferContractType | '';
   workingTime: JobOfferWorkingTime | '';

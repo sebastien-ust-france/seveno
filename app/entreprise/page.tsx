@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import AnonymousCandidateCard from '@/components/entreprise/AnonymousCandidateCard';
+import { GeographicLocationFields } from '@/components/ui/GeographicLocationFields';
 import { Select } from '@/components/ui/Select';
 import { getCurrentAuthUser } from '@/lib/auth';
 import { JOB_SECTORS, findSectorLabel, getFamiliesBySector, getRolesByFamily } from '@/lib/job-taxonomy';
@@ -25,6 +26,10 @@ import type {
   VisibleCandidateProfile,
 } from '@/types/seveno';
 import type { User } from 'firebase/auth';
+import {
+  EMPTY_GEOGRAPHIC_LOCATION,
+  type GeographicLocation,
+} from '@/lib/seveno-geography';
 
 const PROFILE_STATUS_LABELS: Record<CompanyProfileStatus, string> = {
   draft: 'Brouillon',
@@ -75,6 +80,9 @@ function parseCandidateSearchFilters(params: URLSearchParams): CandidateSearchFi
   }
 
   const locationArea = params.get('locationArea')?.trim() ?? '';
+  const countryCode = params.get('countryCode')?.trim() ?? '';
+  const administrativeAreaCode = params.get('administrativeAreaCode')?.trim() ?? '';
+  const city = params.get('city')?.trim() ?? '';
   const availabilityValue = params.get('availability')?.trim() ?? '';
   const experienceValue = params.get('experienceLevel')?.trim() ?? '';
   const availability = AVAILABILITY_OPTIONS.some((option) => option.value === availabilityValue)
@@ -89,6 +97,9 @@ function parseCandidateSearchFilters(params: URLSearchParams): CandidateSearchFi
     jobFamilyId,
     jobRoleId,
     ...(locationArea ? { locationArea } : {}),
+    ...(countryCode ? { countryCode } : {}),
+    ...(administrativeAreaCode ? { administrativeAreaCode } : {}),
+    ...(city ? { city } : {}),
     ...(availability ? { availability } : {}),
     ...(experienceLevel ? { experienceLevel } : {}),
   };
@@ -148,7 +159,7 @@ export default function CompanyDashboardPage() {
   const [sectorId, setSectorId] = useState('');
   const [jobFamilyId, setJobFamilyId] = useState('');
   const [jobRoleId, setJobRoleId] = useState('');
-  const [locationArea, setLocationArea] = useState('');
+  const [geographicLocation, setGeographicLocation] = useState<GeographicLocation>({ ...EMPTY_GEOGRAPHIC_LOCATION });
   const [availability, setAvailability] = useState<CandidateAvailability | ''>('');
   const [experienceLevel, setExperienceLevel] = useState<CandidateExperienceLevel | ''>('');
   const [candidateError, setCandidateError] = useState<string | null>(null);
@@ -214,7 +225,12 @@ export default function CompanyDashboardPage() {
           setSectorId(restoredFilters.sectorId);
           setJobFamilyId(restoredFilters.jobFamilyId);
           setJobRoleId(restoredFilters.jobRoleId);
-          setLocationArea(restoredFilters.locationArea ?? '');
+          setGeographicLocation({
+            ...EMPTY_GEOGRAPHIC_LOCATION,
+            countryCode: restoredFilters.countryCode ?? '',
+            administrativeAreaCode: restoredFilters.administrativeAreaCode ?? '',
+            city: restoredFilters.city ?? '',
+          });
           setAvailability(restoredFilters.availability ?? '');
           setExperienceLevel(restoredFilters.experienceLevel ?? '');
           setSearchStarted(true);
@@ -297,7 +313,11 @@ export default function CompanyDashboardPage() {
       sectorId: selectedSector.code,
       jobFamilyId: selectedFamily.code,
       jobRoleId,
-      ...(locationArea ? { locationArea } : {}),
+      ...(geographicLocation.countryCode ? { countryCode: geographicLocation.countryCode } : {}),
+      ...(geographicLocation.administrativeAreaCode
+        ? { administrativeAreaCode: geographicLocation.administrativeAreaCode }
+        : {}),
+      ...(geographicLocation.city ? { city: geographicLocation.city } : {}),
       ...(availability ? { availability } : {}),
       ...(experienceLevel ? { experienceLevel } : {}),
     };
@@ -542,20 +562,13 @@ export default function CompanyDashboardPage() {
                             </Select>
                           </label>
 
-                          <label className="space-y-2 text-sm text-slate-200">
-                            <span className="font-medium text-white">Zone de recrutement</span>
-                            <Select
-                              value={locationArea}
-                              onChange={(event) => setLocationArea(event.target.value)}
-                            >
-                              <option value="">Toutes les zones</option>
-                              {recruitmentAreas.map((area) => (
-                                <option key={area} value={area}>
-                                  {area}
-                                </option>
-                              ))}
-                            </Select>
-                          </label>
+                          <div className="md:col-span-2 xl:col-span-3">
+                            <p className="mb-3 text-sm font-medium text-white">Localisation</p>
+                            <GeographicLocationFields
+                              value={geographicLocation}
+                              onChange={setGeographicLocation}
+                            />
+                          </div>
 
                           <label className="space-y-2 text-sm text-slate-200">
                             <span className="font-medium text-white">Disponibilité</span>

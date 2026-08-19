@@ -191,6 +191,12 @@ export interface CandidateProfile {
   availabilityConfirmedAt?: FirestoreDateValue | null;
   availabilityValidUntil?: FirestoreDateValue | null;
   locationArea: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaCode?: string;
+  administrativeAreaName?: string;
+  city?: string;
+  cityName?: string;
   experienceLevel: CandidateExperienceLevel;
   verifiedScore: number | null;
   testPassed: boolean;
@@ -241,6 +247,12 @@ export interface VisibleCandidateProfile {
   availabilityConfirmedAt?: FirestoreDateValue | null;
   availabilityValidUntil?: FirestoreDateValue | null;
   locationArea: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaCode?: string;
+  administrativeAreaName?: string;
+  city?: string;
+  cityName?: string;
   experienceLevel: CandidateExperienceLevel;
   recommendationVisibleCount?: number | null;
   profileStatus: 'active';
@@ -388,6 +400,9 @@ export interface CandidateSearchFilters {
   jobFamilyId: string;
   jobRoleId: string;
   locationArea?: string;
+  countryCode?: string;
+  administrativeAreaCode?: string;
+  city?: string;
   availability?: CandidateAvailability;
   experienceLevel?: CandidateExperienceLevel;
 }
@@ -403,6 +418,12 @@ export interface CandidateProfileUpsertData {
   availability: CandidateAvailability;
   availabilityAvailableFromAt?: string | null;
   locationArea: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaCode?: string;
+  administrativeAreaName?: string;
+  city?: string;
+  cityName?: string;
   experienceLevel: CandidateExperienceLevel;
   professionalSelfDescription?: string | null;
   professionalReputationDescription?: string | null;
