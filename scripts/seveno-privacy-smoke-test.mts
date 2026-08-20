@@ -16,8 +16,8 @@ function assertMatches(relativePath: string, patterns: RegExp[]) {
 assertMatches('app/confidentialite/page.tsx', [
   /Politique de confidentialit/i,
   /Protection des donn/i,
-  /Version 1\.0/i,
-  /en vigueur\s*:\s*21 juillet 2026/i,
+  /Version 1\.1/i,
+  /en vigueur\s*:\s*20 août 2026/i,
   /Responsable du traitement\s*:\s*UST-WORKFLOW/i,
   /\/cookies/i,
   /CNIL/i,

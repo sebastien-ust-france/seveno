@@ -7,6 +7,7 @@ import { getCurrentAuthUser } from '@/lib/auth';
 import { getCandidateProfile } from '@/lib/seveno-candidates';
 import { ensureSevenoUser, hasSevenoTermsAcceptance, resolveSevenoRedirect } from '@/lib/seveno-users';
 import { shouldAllowCandidateOnboardingWithoutProfile } from '@/lib/seveno-candidate-session-gate';
+import { normalizePublicOfferReturnTo } from '@/lib/seveno-public-offer-return';
 import type { CandidateProfile } from '@/types/seveno';
 
 export function useSevenoCandidateSession() {
@@ -24,7 +25,10 @@ export function useSevenoCandidateSession() {
         const firebaseUser = await getCurrentAuthUser();
         if (!active) return;
         if (!firebaseUser) {
-          router.replace('/connexion');
+          const publicOfferReturnTo = normalizePublicOfferReturnTo(pathname);
+          router.replace(publicOfferReturnTo
+            ? `/connexion?returnTo=${encodeURIComponent(publicOfferReturnTo)}`
+            : '/connexion');
           return;
         }
         const sevenoUser = await ensureSevenoUser(firebaseUser);

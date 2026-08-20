@@ -10,9 +10,18 @@ import {
   isPublicOfferPublicationActive,
   projectPublicCandidate,
   projectPublicOffer,
-  PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
   serializeJsonLd,
 } from '@/lib/seveno-public-discovery';
+import {
+  applyPublicSearchConsentDecision,
+  decidePublicSearchConsentTransition,
+  PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+} from '@/lib/seveno-public-search-consent';
+import {
+  buildPublicOfferCandidateReturnTo,
+  buildPublicOfferLoginHref,
+  normalizePublicOfferReturnTo,
+} from '@/lib/seveno-public-offer-return';
 
 const privateOffer = {
   status: 'published',
@@ -51,7 +60,7 @@ for (const forbidden of ['companyUid', 'companyId', 'createdByUid', 'assignedToU
 for (const status of ['draft', 'paused', 'closed', 'archived']) {
   assert.equal(projectPublicOffer('offer-id', { ...privateOffer, status }), null);
 }
-assert.equal(isPublicOfferPublicationActive(privateOffer, null), true);
+assert.equal(isPublicOfferPublicationActive(privateOffer, null), false);
 assert.equal(isPublicOfferPublicationActive(
   { ...privateOffer, activeCampaignId: 'campaign-id' },
   { status: 'active', endsAt: new Date('2026-08-21T10:00:00.000Z') },
@@ -62,6 +71,13 @@ assert.equal(isPublicOfferPublicationActive(
   { status: 'active', endsAt: new Date('2026-08-19T10:00:00.000Z') },
   new Date('2026-08-20T10:00:00.000Z'),
 ), false);
+for (const status of ['paused', 'expired', 'candidate_limit_reached', 'closed']) {
+  assert.equal(isPublicOfferPublicationActive(
+    { ...privateOffer, activeCampaignId: 'campaign-id' },
+    { status, endsAt: new Date('2026-08-21T10:00:00.000Z') },
+    new Date('2026-08-20T10:00:00.000Z'),
+  ), false);
+}
 assert.equal(isPublicOfferPublicationActive(
   { ...privateOffer, activeCampaignId: 'campaign-id' },
   { status: 'closed', endsAt: new Date('2026-08-21T10:00:00.000Z') },
@@ -77,6 +93,26 @@ assert.equal('directApply' in jobPosting, false);
 assert.equal('baseSalary' in jobPosting, false);
 assert.equal('validThrough' in jobPosting, false);
 assert.equal('jobLocation' in jobPosting, true);
+assert.equal(jobPosting.employmentType, 'FULL_TIME');
+
+const partTimePermanent = projectPublicOffer('part-time-id', { ...privateOffer, contractType: 'permanent', workingTime: 'part_time' });
+assert.ok(partTimePermanent);
+assert.equal(buildJobPostingJsonLd(partTimePermanent).employmentType, 'PART_TIME');
+const fixedTermFullTime = projectPublicOffer('fixed-term-id', { ...privateOffer, contractType: 'fixed_term', workingTime: 'full_time' });
+assert.ok(fixedTermFullTime);
+assert.equal(buildJobPostingJsonLd(fixedTermFullTime).employmentType, 'FULL_TIME');
+const temporaryFullTime = projectPublicOffer('temporary-id', { ...privateOffer, contractType: 'temporary', workingTime: 'full_time' });
+assert.ok(temporaryFullTime);
+assert.deepEqual(buildJobPostingJsonLd(temporaryFullTime).employmentType, ['TEMPORARY', 'FULL_TIME']);
+const freelance = projectPublicOffer('freelance-id', { ...privateOffer, contractType: 'freelance', workingTime: 'flexible' });
+assert.ok(freelance);
+assert.equal(buildJobPostingJsonLd(freelance).employmentType, 'CONTRACTOR');
+const internshipPartTime = projectPublicOffer('internship-id', { ...privateOffer, contractType: 'internship', workingTime: 'part_time' });
+assert.ok(internshipPartTime);
+assert.deepEqual(buildJobPostingJsonLd(internshipPartTime).employmentType, ['INTERN', 'PART_TIME']);
+const apprenticeship = projectPublicOffer('apprenticeship-id', { ...privateOffer, contractType: 'apprenticeship', workingTime: 'full_time' });
+assert.ok(apprenticeship);
+assert.deepEqual(buildJobPostingJsonLd(apprenticeship).employmentType, ['OTHER', 'FULL_TIME']);
 
 const remoteOffer = projectPublicOffer('remote-id', { ...privateOffer, workMode: 'remote', cityName: '', location: 'France' });
 assert.ok(remoteOffer);
@@ -86,11 +122,18 @@ assert.equal('jobLocation' in remoteJobPosting, false);
 assert.equal(remoteJobPosting.applicantLocationRequirements.name, 'FR');
 
 const publicCandidateId = 'SEV-CAND-ABC234';
-const publicSearchSlug = buildPublicCandidateSlug(publicCandidateId, 'Responsable magasin', 'Gironde, France');
+const publicSearchToken = 'd8a7f1c4e9b2067351a8efcb9012d3e4f5a6b7c8';
+const publicSearchSlug = buildPublicCandidateSlug(publicSearchToken, 'Responsable magasin', 'Gironde, France');
+assert.equal(publicSearchSlug.includes(publicCandidateId.toLowerCase()), false);
+assert.equal(publicSearchSlug.endsWith(publicSearchToken), true);
+assert.throws(() => buildPublicCandidateSlug('SEV-CAND-ABC234', 'Responsable magasin', 'Gironde, France'));
 const candidateSource = {
   profileStatus: 'active',
   publicSearchVisibilityEnabled: true,
-  publicSearchVisibilityConsentVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  publicSearchToken,
+  publicSearchVisibilityAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  publicSearchVisibilityAcceptedAt: new Date('2026-08-03T09:00:00.000Z'),
+  publicSearchVisibilityRevokedAt: null,
   publicSearchSlug,
   targetJobs: [{ label: 'Responsable magasin', jobRoleId: 'private-role-id' }],
   desiredContractTypeCodes: ['CDI', 'FREELANCE'],
@@ -116,7 +159,10 @@ const candidateSource = {
 };
 
 assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchVisibilityEnabled: false }), null);
-assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchVisibilityConsentVersion: null }), null);
+assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchVisibilityAcceptedVersion: null }), null);
+assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchVisibilityAcceptedAt: null }), null);
+assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchVisibilityRevokedAt: new Date() }), null);
+assert.equal(projectPublicCandidate({ ...candidateSource, publicSearchToken: 'a'.repeat(40) }), null);
 assert.equal(projectPublicCandidate({ ...candidateSource, profileStatus: 'paused' }), null);
 const candidate = projectPublicCandidate(candidateSource);
 assert.ok(candidate);
@@ -129,6 +175,73 @@ const profilePage = buildCandidateProfileJsonLd(candidate);
 assert.equal(profilePage['@type'], 'ProfilePage');
 assert.equal(profilePage.mainEntity.name, 'Candidat anonyme');
 assert.equal(JSON.stringify(profilePage).includes(publicCandidateId), false);
+
+assert.equal(decidePublicSearchConsentTransition({
+  existingEnabled: false,
+  existingAcceptedVersion: null,
+  requestedEnabled: true,
+  explicitlyAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+}), 'accepted');
+assert.equal(decidePublicSearchConsentTransition({
+  existingEnabled: true,
+  existingAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  requestedEnabled: true,
+  explicitlyAcceptedVersion: null,
+}), 'unchanged');
+assert.equal(decidePublicSearchConsentTransition({
+  existingEnabled: true,
+  existingAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  requestedEnabled: false,
+  explicitlyAcceptedVersion: null,
+}), 'revoked');
+assert.equal(decidePublicSearchConsentTransition({
+  existingEnabled: false,
+  existingAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  requestedEnabled: true,
+  explicitlyAcceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+}), 'accepted');
+assert.equal(decidePublicSearchConsentTransition({
+  existingEnabled: true,
+  existingAcceptedVersion: '0.9',
+  requestedEnabled: true,
+  explicitlyAcceptedVersion: null,
+}), 'explicit_acceptance_required');
+const firstAcceptedAt = '2026-08-20T10:00:00.000Z';
+const unchangedAt = '2026-08-20T11:00:00.000Z';
+const acceptedState = applyPublicSearchConsentDecision({
+  decision: 'accepted',
+  existing: { enabled: false, acceptedVersion: null, acceptedAt: null, revokedAt: null, updatedAt: firstAcceptedAt },
+  now: firstAcceptedAt,
+});
+assert.deepEqual(acceptedState, {
+  enabled: true,
+  acceptedVersion: PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  acceptedAt: firstAcceptedAt,
+  revokedAt: null,
+  updatedAt: firstAcceptedAt,
+});
+assert.equal(applyPublicSearchConsentDecision({ decision: 'unchanged', existing: acceptedState, now: unchangedAt }), acceptedState);
+const revokedState = applyPublicSearchConsentDecision({ decision: 'revoked', existing: acceptedState, now: unchangedAt });
+assert.equal(revokedState.acceptedVersion, PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION);
+assert.equal(revokedState.acceptedAt, firstAcceptedAt);
+assert.equal(revokedState.revokedAt, unchangedAt);
+const reacceptedAt = '2026-08-20T12:00:00.000Z';
+const reacceptedState = applyPublicSearchConsentDecision({ decision: 'accepted', existing: revokedState, now: reacceptedAt });
+assert.equal(reacceptedState.acceptedAt, reacceptedAt);
+assert.equal(reacceptedState.revokedAt, null);
+
+const candidateReturnTo = buildPublicOfferCandidateReturnTo(offer.slug);
+assert.equal(normalizePublicOfferReturnTo(candidateReturnTo), candidateReturnTo);
+assert.equal(buildPublicOfferLoginHref(offer.slug), `/connexion?returnTo=${encodeURIComponent(candidateReturnTo)}`);
+for (const unsafeReturnTo of [
+  'https://evil.example/candidat/offres/public/offre-12345678',
+  '//evil.example/candidat/offres/public/offre-12345678',
+  '/candidat/offres/public/offre-12345678?next=https://evil.example',
+  '/candidat/offres/private-id',
+  '/candidat/offres/public/../../admin',
+]) {
+  assert.equal(normalizePublicOfferReturnTo(unsafeReturnTo), null);
+}
 
 assert.equal(serializeJsonLd({ value: '</script><script>alert(1)</script>' }).includes('</script>'), false);
 
@@ -147,5 +260,15 @@ assert.match(firestoreRulesSource, /match \/candidate_profiles\/\{uid\}[\s\S]*?a
 assert.match(firestoreRulesSource, /match \/job_offers\/\{offerId\}[\s\S]*?allow read: if isAdmin\(\);/);
 assert.doesNotMatch(firestoreRulesSource, /match \/candidate_profiles\/\{uid\}[\s\S]{0,120}allow read: if true/);
 assert.doesNotMatch(firestoreRulesSource, /match \/job_offers\/\{offerId\}[\s\S]{0,120}allow read: if true/);
+assert.match(firestoreRulesSource, /match \/candidate_public_visibility_consents\/\{consentId\}[\s\S]*?allow read, write: if false;/);
+
+const publicOfferPageSource = readFileSync(resolve(process.cwd(), 'app/offres/[slug]/page.tsx'), 'utf8');
+assert.match(publicOfferPageSource, /buildPublicOfferLoginHref\(offer\.slug\)/);
+const publicOfferResolverSource = readFileSync(resolve(process.cwd(), 'lib/seveno-public-offers-server.ts'), 'utf8');
+assert.match(publicOfferResolverSource, /resolvePublicOfferIdBySlugServer/);
+const candidateProfileServerSource = readFileSync(resolve(process.cwd(), 'lib/seveno-candidate-profile-server.ts'), 'utf8');
+assert.match(candidateProfileServerSource, /randomBytes\(20\)\.toString\('hex'\)/);
+assert.match(candidateProfileServerSource, /candidate_public_visibility_consents/);
+assert.doesNotMatch(candidateProfileServerSource, /buildPublicCandidateSlug\(publicCandidateId/);
 
 console.log('Public discovery SEO smoke test: OK');

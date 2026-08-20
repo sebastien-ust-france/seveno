@@ -176,8 +176,10 @@ export interface CandidateProfile {
   publicCandidateId: string;
   anonymousVisibilityConsent?: boolean;
   publicSearchVisibilityEnabled?: boolean;
-  publicSearchVisibilityConsentVersion?: string | null;
-  publicSearchVisibilityEnabledAt?: FirestoreDateValue | null;
+  publicSearchToken?: string | null;
+  publicSearchVisibilityAcceptedVersion?: string | null;
+  publicSearchVisibilityAcceptedAt?: FirestoreDateValue | null;
+  publicSearchVisibilityRevokedAt?: FirestoreDateValue | null;
   publicSearchVisibilityUpdatedAt?: FirestoreDateValue | null;
   publicSearchSlug?: string | null;
   role: 'candidate';
@@ -436,6 +438,7 @@ export interface CandidateProfileUpsertData {
   profileStatus: CandidateProfileStatus;
   anonymousVisibilityConsent: boolean;
   publicSearchVisibilityEnabled: boolean;
+  publicSearchVisibilityAcceptanceVersion?: string | null;
 }
 
 export interface CandidateRecommendationInvitationInput {

@@ -534,8 +534,8 @@ const POLICY_SECTIONS = [
     title: 'Entrée en vigueur',
     content: (
       <>
-        <p>La présente Politique de confidentialité correspond à la version 1.0.</p>
-        <p>Elle entre en vigueur le 21 juillet 2026.</p>
+        <p>La présente Politique de confidentialité correspond à la version 1.1.</p>
+        <p>Elle entre en vigueur le 20 août 2026.</p>
       </>
     ),
   },
@@ -656,8 +656,8 @@ export default function ConfidentialitePage() {
               Protection des données personnelles sur Seven’O
             </h1>
             <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Version 1.0</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Entrée en vigueur : 21 juillet 2026</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Version 1.1</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Entrée en vigueur : 20 août 2026</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Responsable du traitement : UST-WORKFLOW</span>
             </div>
             <div className="mt-5 space-y-4 text-lg leading-8 text-slate-300">

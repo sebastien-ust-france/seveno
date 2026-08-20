@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { randomBytes } from 'node:crypto';
-import { Timestamp, type Transaction } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type Transaction } from 'firebase-admin/firestore';
 import { adminDb, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import {
   DAILY_AVAILABILITY_VALIDITY_HOURS,
@@ -26,9 +26,12 @@ import {
 import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
 import {
   buildPublicCandidateSlug,
-  PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
   resolveBroadCandidateLocation,
 } from '@/lib/seveno-public-discovery';
+import {
+  applyPublicSearchConsentDecision,
+  decidePublicSearchConsentTransition,
+} from '@/lib/seveno-public-search-consent';
 
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
   'immediate',
@@ -229,6 +232,7 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
   const profileStatus = cleanText(value.profileStatus) as CandidateProfileStatus;
   const anonymousVisibilityConsent = value.anonymousVisibilityConsent === true;
   const publicSearchVisibilityEnabled = value.publicSearchVisibilityEnabled === true;
+  const publicSearchVisibilityAcceptanceVersion = cleanText(value.publicSearchVisibilityAcceptanceVersion) || null;
   if (!AVAILABILITY_VALUES.includes(availability)) {
     throw new SevenoCandidateProfileError('invalid_availability', 400, 'La disponibilite selectionnee est invalide.');
   }
@@ -277,6 +281,7 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
     profileStatus,
     anonymousVisibilityConsent,
     publicSearchVisibilityEnabled,
+    publicSearchVisibilityAcceptanceVersion,
   };
 }
 
@@ -304,6 +309,10 @@ function generatePublicCandidateId() {
   const bytes = randomBytes(6);
   const segment = Array.from(bytes, (value) => PUBLIC_CANDIDATE_ALPHABET[value % PUBLIC_CANDIDATE_ALPHABET.length]).join('');
   return `SEV-CAND-${segment}`;
+}
+
+function generatePublicSearchToken() {
+  return randomBytes(20).toString('hex');
 }
 
 function toTimestamp(value: unknown) {
@@ -484,20 +493,61 @@ export async function createOrUpdateCandidateProfileServer(
       );
     const effectiveProfileStatus: CandidateProfileStatus = activationDowngraded ? 'draft' : input.profileStatus;
     const existingPublicSearchVisibilityEnabled = existing?.publicSearchVisibilityEnabled === true;
-    const publicSearchVisibilityEnabled = effectiveProfileStatus === 'active'
+    const requestedPublicSearchVisibilityEnabled = effectiveProfileStatus === 'active'
       && input.anonymousVisibilityConsent
       && input.publicSearchVisibilityEnabled;
-    const publicSearchVisibilityChanged = existingPublicSearchVisibilityEnabled !== publicSearchVisibilityEnabled;
-    const publicSearchVisibilityEnabledAt = publicSearchVisibilityEnabled
-      ? existingPublicSearchVisibilityEnabled && existing?.publicSearchVisibilityEnabledAt instanceof Timestamp
-        ? existing.publicSearchVisibilityEnabledAt
-        : now
+    const existingPublicSearchVisibilityAcceptedVersion = cleanText(existing?.publicSearchVisibilityAcceptedVersion) || null;
+    const consentDecision = decidePublicSearchConsentTransition({
+      existingEnabled: existingPublicSearchVisibilityEnabled,
+      existingAcceptedVersion: existingPublicSearchVisibilityAcceptedVersion,
+      requestedEnabled: requestedPublicSearchVisibilityEnabled,
+      explicitlyAcceptedVersion: input.publicSearchVisibilityAcceptanceVersion ?? null,
+    });
+    if (consentDecision === 'explicit_acceptance_required') {
+      throw new SevenoCandidateProfileError(
+        'public_search_visibility_explicit_acceptance_required',
+        400,
+        'Confirmez explicitement la version actuelle du consentement de visibilité publique.',
+      );
+    }
+    const existingAcceptedAt = existing?.publicSearchVisibilityAcceptedAt instanceof Timestamp
+      ? existing.publicSearchVisibilityAcceptedAt
       : null;
+    const existingRevokedAt = existing?.publicSearchVisibilityRevokedAt instanceof Timestamp
+      ? existing.publicSearchVisibilityRevokedAt
+      : null;
+    const existingPublicSearchVisibilityUpdatedAt = existing?.publicSearchVisibilityUpdatedAt instanceof Timestamp
+      ? existing.publicSearchVisibilityUpdatedAt
+      : now;
+    const consentState = applyPublicSearchConsentDecision({
+      decision: consentDecision,
+      existing: {
+        enabled: existingPublicSearchVisibilityEnabled,
+        acceptedVersion: existingPublicSearchVisibilityAcceptedVersion,
+        acceptedAt: existingAcceptedAt,
+        revokedAt: existingRevokedAt,
+        updatedAt: existingPublicSearchVisibilityUpdatedAt,
+      },
+      now,
+    });
+    const publicSearchVisibilityEnabled = consentState.enabled;
+    const existingPublicSearchToken = cleanText(existing?.publicSearchToken).toLowerCase();
+    const publicSearchToken = /^[a-f0-9]{40}$/.test(existingPublicSearchToken)
+      ? existingPublicSearchToken
+      : publicSearchVisibilityEnabled
+        ? generatePublicSearchToken()
+        : null;
+    const publicSearchVisibilityAcceptedVersion = consentState.acceptedVersion;
+    const publicSearchVisibilityAcceptedAt = consentState.acceptedAt;
+    const publicSearchVisibilityRevokedAt = consentState.revokedAt;
+    const publicSearchVisibilityUpdatedAt = consentState.updatedAt;
     const broadPublicLocation = resolveBroadCandidateLocation(structuredLocation ?? input);
-    const publicSearchSlug = cleanText(existing?.publicSearchSlug)
-      || (publicSearchVisibilityEnabled
-        ? buildPublicCandidateSlug(publicCandidateId, primaryJob.label, broadPublicLocation)
-        : null);
+    const existingPublicSearchSlug = cleanText(existing?.publicSearchSlug);
+    const publicSearchSlug = publicSearchToken
+      ? existingPublicSearchSlug.endsWith(`-${publicSearchToken}`)
+        ? existingPublicSearchSlug
+        : buildPublicCandidateSlug(publicSearchToken, primaryJob.label, broadPublicLocation)
+      : existingPublicSearchSlug || null;
     const legacyAssessmentFields = existing
       ? {}
       : {
@@ -531,11 +581,11 @@ export async function createOrUpdateCandidateProfileServer(
       profileStatus: effectiveProfileStatus,
       anonymousVisibilityConsent: input.anonymousVisibilityConsent,
       publicSearchVisibilityEnabled,
-      publicSearchVisibilityConsentVersion: publicSearchVisibilityEnabled
-        ? PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION
-        : null,
-      publicSearchVisibilityEnabledAt,
-      publicSearchVisibilityUpdatedAt: publicSearchVisibilityChanged || !existing ? now : existing.publicSearchVisibilityUpdatedAt ?? now,
+      publicSearchToken,
+      publicSearchVisibilityAcceptedVersion,
+      publicSearchVisibilityAcceptedAt,
+      publicSearchVisibilityRevokedAt,
+      publicSearchVisibilityUpdatedAt,
       publicSearchSlug,
       dailyAvailabilityConfirmationEnabled,
       ...(nextAvailabilityReminderAt ? { nextAvailabilityReminderAt } : {}),
@@ -550,13 +600,28 @@ export async function createOrUpdateCandidateProfileServer(
     };
 
     if (existing) {
-      transaction.update(profileRef, editableProfileFields);
+      transaction.update(profileRef, {
+        ...editableProfileFields,
+        publicSearchVisibilityConsentVersion: FieldValue.delete(),
+        publicSearchVisibilityEnabledAt: FieldValue.delete(),
+      });
     } else {
       transaction.create(profileRef, {
         uid,
         publicCandidateId,
         role: 'candidate',
         ...editableProfileFields,
+        createdAt: now,
+      });
+    }
+
+    if (consentDecision === 'accepted' || consentDecision === 'revoked') {
+      const evidenceRef = firestore.collection('candidate_public_visibility_consents').doc();
+      transaction.create(evidenceRef, {
+        uid,
+        publicSearchToken,
+        version: publicSearchVisibilityAcceptedVersion,
+        action: consentDecision,
         createdAt: now,
       });
     }

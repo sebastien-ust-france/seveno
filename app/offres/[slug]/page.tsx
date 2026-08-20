@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { PublicSiteShell } from '@/components/public/PublicSiteShell';
 import { buildJobPostingJsonLd, serializeJsonLd } from '@/lib/seveno-public-discovery';
+import { buildPublicOfferLoginHref } from '@/lib/seveno-public-offer-return';
 import { getPublicOfferBySlugServer } from '@/lib/seveno-public-offers-server';
 
 export const dynamic = 'force-dynamic';
@@ -105,7 +106,7 @@ export default async function PublicOfferDetailPage({ params }: PageProps) {
           <p className="mt-3 max-w-3xl leading-7 text-slate-300">
             Connectez-vous à votre espace candidat pour retrouver cette offre et suivre le parcours de candidature Seven’O.
           </p>
-          <Link href="/candidat/offres" className="mt-5 inline-flex rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white">
+          <Link href={buildPublicOfferLoginHref(offer.slug)} className="mt-5 inline-flex rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-white">
             Accéder aux offres et candidater
           </Link>
         </section>

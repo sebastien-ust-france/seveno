@@ -407,8 +407,10 @@ service cloud.firestore {
         'publicCandidateId',
         'anonymousVisibilityConsent',
         'publicSearchVisibilityEnabled',
-        'publicSearchVisibilityConsentVersion',
-        'publicSearchVisibilityEnabledAt',
+        'publicSearchToken',
+        'publicSearchVisibilityAcceptedVersion',
+        'publicSearchVisibilityAcceptedAt',
+        'publicSearchVisibilityRevokedAt',
         'publicSearchVisibilityUpdatedAt',
         'publicSearchSlug',
         'role',
@@ -484,8 +486,10 @@ service cloud.firestore {
       && isValidPublicCandidateId(data.publicCandidateId)
       && (!data.keys().hasAny(['anonymousVisibilityConsent']) || data.anonymousVisibilityConsent is bool)
       && (!data.keys().hasAny(['publicSearchVisibilityEnabled']) || data.publicSearchVisibilityEnabled is bool)
-      && isOptionalStringOrNull(data, 'publicSearchVisibilityConsentVersion', 20)
-      && isOptionalTimestampOrNull(data, 'publicSearchVisibilityEnabledAt')
+      && isOptionalStringOrNull(data, 'publicSearchToken', 40)
+      && isOptionalStringOrNull(data, 'publicSearchVisibilityAcceptedVersion', 20)
+      && isOptionalTimestampOrNull(data, 'publicSearchVisibilityAcceptedAt')
+      && isOptionalTimestampOrNull(data, 'publicSearchVisibilityRevokedAt')
       && isOptionalTimestampOrNull(data, 'publicSearchVisibilityUpdatedAt')
       && isOptionalStringOrNull(data, 'publicSearchSlug', 120)
       && (
@@ -494,11 +498,15 @@ service cloud.firestore {
         || (
           data.profileStatus == 'active'
           && data.anonymousVisibilityConsent == true
-          && data.publicSearchVisibilityConsentVersion == '1.0'
-          && data.publicSearchVisibilityEnabledAt is timestamp
+          && data.publicSearchVisibilityAcceptedVersion == '1.0'
+          && data.publicSearchVisibilityAcceptedAt is timestamp
+          && data.publicSearchVisibilityRevokedAt == null
           && data.publicSearchVisibilityUpdatedAt is timestamp
+          && isNonEmptyString(data.publicSearchToken, 40)
+          && data.publicSearchToken.matches('^[a-f0-9]{40}$')
           && isNonEmptyString(data.publicSearchSlug, 120)
           && data.publicSearchSlug.matches('^[a-z0-9-]+$')
+          && data.publicSearchSlug.matches('^.*-' + data.publicSearchToken + '$')
         )
       )
       && data.role == 'candidate'
@@ -1003,8 +1011,10 @@ service cloud.firestore {
               'profileStatus',
               'anonymousVisibilityConsent',
               'publicSearchVisibilityEnabled',
-              'publicSearchVisibilityConsentVersion',
-              'publicSearchVisibilityEnabledAt',
+              'publicSearchToken',
+              'publicSearchVisibilityAcceptedVersion',
+              'publicSearchVisibilityAcceptedAt',
+              'publicSearchVisibilityRevokedAt',
               'publicSearchVisibilityUpdatedAt',
               'publicSearchSlug'
             ])
@@ -1017,6 +1027,11 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt
         );
       allow delete: if isAdmin() || (isCandidate() && isOwner(uid));
+    }
+
+    // Append-only proof is written by Firebase Admin and is never client-readable.
+    match /candidate_public_visibility_consents/{consentId} {
+      allow read, write: if false;
     }
 
     // Availability confirmations and push subscriptions are server-managed and never client-readable.

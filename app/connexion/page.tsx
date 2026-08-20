@@ -18,6 +18,11 @@ import {
 } from '@/lib/auth';
 import { fetchSevenoMatchApi } from '@/lib/seveno-match-api';
 import { ensureSevenoUser, resolveSevenoRedirect } from '@/lib/seveno-users';
+import {
+  consumePublicOfferReturnTo,
+  persistPublicOfferReturnTo,
+  readPublicOfferReturnTo,
+} from '@/lib/seveno-public-offer-return';
 import type { PublicCompanyInvitationView, PublicUserRole, SevenoUser } from '@/types/seveno';
 
 type AuthMode = 'sign-in' | 'sign-up' | 'reset';
@@ -204,6 +209,14 @@ function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? '';
 }
 
+function takePostAuthenticationDestination(sevenoUser: SevenoUser) {
+  const defaultDestination = resolveSevenoRedirect(sevenoUser);
+  if (sevenoUser.role === 'candidate' && defaultDestination === '/candidat') {
+    return consumePublicOfferReturnTo() ?? defaultDestination;
+  }
+  return defaultDestination;
+}
+
 export default function ConnexionPage() {
   const router = useRouter();
   const [checkingSession, setCheckingSession] = useState(true);
@@ -229,6 +242,7 @@ export default function ConnexionPage() {
     }
 
     const invitationAction = new URLSearchParams(window.location.search).get('companyInvitationAction');
+    persistPublicOfferReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
     if (invitationAction === 'sign-up' || invitationAction === 'sign-in') {
       setMode(invitationAction);
     }
@@ -331,7 +345,7 @@ export default function ConnexionPage() {
         return;
       }
 
-      router.replace(resolveSevenoRedirect(sevenoUser));
+      router.replace(takePostAuthenticationDestination(sevenoUser));
     },
     [acceptCurrentCompanyInvitation, activeCompanyInvitation, invitationEmailNormalized, router],
   );
@@ -407,7 +421,9 @@ export default function ConnexionPage() {
       stage = 'redirect';
       const redirectPath = hasActiveCompanyInvitation()
         ? '/entreprise/onboarding'
-        : resolveSevenoRedirect(sevenoUser);
+        : sevenoUser.role === 'candidate' && resolveSevenoRedirect(sevenoUser) === '/candidat'
+          ? readPublicOfferReturnTo() ?? '/candidat'
+          : resolveSevenoRedirect(sevenoUser);
       console.info('Connexion Google SevenO reussie', {
         stage,
         uid: authUser.uid,
@@ -590,7 +606,7 @@ export default function ConnexionPage() {
         return;
       }
 
-      router.replace(resolveSevenoRedirect(sevenoUser));
+      router.replace(takePostAuthenticationDestination(sevenoUser));
     } catch (thrownError) {
       console.error('Actualisation de la vérification SevenO échouée', {
         code: getFirebaseErrorCode(thrownError),
@@ -676,7 +692,7 @@ export default function ConnexionPage() {
               {!hasActiveCompanyInvitation() ? (
                 <button
                   type="button"
-                  onClick={() => router.replace(resolveSevenoRedirect(pendingVerification.sevenoUser))}
+                  onClick={() => router.replace(takePostAuthenticationDestination(pendingVerification.sevenoUser))}
                   disabled={busy}
                   className="w-full rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >

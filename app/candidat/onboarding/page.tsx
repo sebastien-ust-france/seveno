@@ -12,6 +12,8 @@ import {
   resolveSevenoRedirect,
 } from '@/lib/seveno-users';
 import { completeCandidateOnboarding } from '@/lib/seveno-candidate-onboarding';
+import { consumePublicOfferReturnTo } from '@/lib/seveno-public-offer-return';
+import { PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION } from '@/lib/seveno-public-search-consent';
 import {
   DESIRED_CONTRACT_TYPE_OPTIONS,
   formatDesiredContractTypeLabels,
@@ -134,6 +136,7 @@ export default function CandidateOnboardingPage() {
   const [profileStatus, setProfileStatus] = useState<CandidateProfileStatus>('draft');
   const [anonymousVisibilityConsent, setAnonymousVisibilityConsent] = useState(false);
   const [publicSearchVisibilityEnabled, setPublicSearchVisibilityEnabled] = useState(false);
+  const [publicSearchVisibilityAcceptanceVersion, setPublicSearchVisibilityAcceptanceVersion] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [hasTermsAcceptance, setHasTermsAcceptance] = useState(false);
 
@@ -244,7 +247,14 @@ export default function CandidateOnboardingPage() {
             setAnonymousVisibilityConsent(
               existingProfile.anonymousVisibilityConsent === true || existingProfile.profileStatus === 'active',
             );
-            setPublicSearchVisibilityEnabled(existingProfile.publicSearchVisibilityEnabled === true);
+            const hasCurrentPublicConsent = existingProfile.publicSearchVisibilityEnabled === true
+              && existingProfile.publicSearchVisibilityAcceptedVersion === PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION
+              && Boolean(existingProfile.publicSearchVisibilityAcceptedAt)
+              && existingProfile.publicSearchVisibilityRevokedAt == null;
+            setPublicSearchVisibilityEnabled(hasCurrentPublicConsent);
+            if (existingProfile.publicSearchVisibilityEnabled === true && !hasCurrentPublicConsent) {
+              warnings.push('La visibilité Web publique nécessite une nouvelle confirmation explicite de la politique actuelle.');
+            }
           } else {
             warnings.push('L’ancien statut a été remplacé par brouillon.');
           }
@@ -410,6 +420,9 @@ export default function CandidateOnboardingPage() {
         profileStatus,
         anonymousVisibilityConsent,
         publicSearchVisibilityEnabled,
+        ...(publicSearchVisibilityAcceptanceVersion
+          ? { publicSearchVisibilityAcceptanceVersion }
+          : {}),
       };
 
       const saveResult = await createOrUpdateCandidateProfile(authUser, payload);
@@ -434,7 +447,7 @@ export default function CandidateOnboardingPage() {
       );
 
       window.setTimeout(() => {
-        router.replace('/candidat');
+        router.replace(consumePublicOfferReturnTo() ?? '/candidat');
       }, saveResult.activationDowngraded ? 1600 : 700);
     } catch (caughtError) {
       submissionLockRef.current = false;
@@ -699,7 +712,10 @@ export default function CandidateOnboardingPage() {
                       onChange={(event) => {
                         const nextStatus = event.target.value as CandidateProfileStatus;
                         setProfileStatus(nextStatus);
-                        if (nextStatus !== 'active') setPublicSearchVisibilityEnabled(false);
+                        if (nextStatus !== 'active') {
+                          setPublicSearchVisibilityEnabled(false);
+                          setPublicSearchVisibilityAcceptanceVersion(null);
+                        }
                         setFieldErrors((current) => ({
                           ...current,
                           profileStatus: undefined,
@@ -727,7 +743,10 @@ export default function CandidateOnboardingPage() {
                         checked={anonymousVisibilityConsent}
                         onChange={(event) => {
                           setAnonymousVisibilityConsent(event.target.checked);
-                          if (!event.target.checked) setPublicSearchVisibilityEnabled(false);
+                          if (!event.target.checked) {
+                            setPublicSearchVisibilityEnabled(false);
+                            setPublicSearchVisibilityAcceptanceVersion(null);
+                          }
                           setFieldErrors((current) => ({ ...current, anonymousVisibilityConsent: undefined }));
                         }}
                         className="mt-1 accent-cyan-400"
@@ -746,7 +765,12 @@ export default function CandidateOnboardingPage() {
                       type="checkbox"
                       checked={publicSearchVisibilityEnabled}
                       disabled={profileStatus !== 'active' || !anonymousVisibilityConsent}
-                      onChange={(event) => setPublicSearchVisibilityEnabled(event.target.checked)}
+                      onChange={(event) => {
+                        setPublicSearchVisibilityEnabled(event.target.checked);
+                        setPublicSearchVisibilityAcceptanceVersion(
+                          event.target.checked ? PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION : null,
+                        );
+                      }}
                       className="mt-1 accent-blue-400"
                     />
                     <span>

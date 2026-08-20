@@ -11,8 +11,7 @@ import type {
   JobOfferWorkingTime,
   JobOfferWorkMode,
 } from '@/types/seveno-job-offers';
-
-export const PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION = '1.0';
+import { PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION } from '@/lib/seveno-public-search-consent';
 
 const PUBLIC_OFFER_STATUSES = new Set(['published']);
 const PUBLIC_CANDIDATE_STATUSES = new Set(['active']);
@@ -136,9 +135,12 @@ export function buildPublicOfferSlug(documentId: string, title: string, location
   return `${slugifyPublicLabel(`${title} ${location}`, 'offre')}-${suffix}`;
 }
 
-export function buildPublicCandidateSlug(publicCandidateId: string, jobLabel: string, broadLocation: string) {
-  const suffix = opaqueSuffix(`candidate:${publicCandidateId}`);
-  return `${slugifyPublicLabel(`${jobLabel} ${broadLocation}`, 'talent')}-${suffix}`;
+export function buildPublicCandidateSlug(publicSearchToken: string, jobLabel: string, broadLocation: string) {
+  const normalizedToken = publicSearchToken.trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(normalizedToken)) {
+    throw new Error('Le token public candidat est invalide.');
+  }
+  return `${slugifyPublicLabel(`${jobLabel} ${broadLocation}`, 'talent')}-${normalizedToken}`;
 }
 
 function prerequisiteLabels(value: unknown) {
@@ -197,7 +199,7 @@ export function isPublicOfferPublicationActive(
   now = new Date(),
 ) {
   const campaignId = cleanText(offerData.activeCampaignId, 128);
-  if (!campaignId) return true;
+  if (!campaignId) return false;
   if (!campaignData || cleanText(campaignData.status, 20) !== 'active') return false;
   const endsAt = toIso(campaignData.endsAt);
   return Boolean(endsAt && new Date(endsAt).getTime() > now.getTime());
@@ -221,13 +223,16 @@ export function resolveBroadCandidateLocation(data: { administrativeAreaName?: u
 export function projectPublicCandidate(data: PublicSource): PublicCandidateProjection | null {
   if (!PUBLIC_CANDIDATE_STATUSES.has(cleanText(data.profileStatus, 20))) return null;
   if (data.publicSearchVisibilityEnabled !== true) return null;
-  if (data.publicSearchVisibilityConsentVersion !== PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION) return null;
+  if (data.publicSearchVisibilityAcceptedVersion !== PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION) return null;
+  if (!toIso(data.publicSearchVisibilityAcceptedAt) || data.publicSearchVisibilityRevokedAt != null) return null;
 
   const slug = cleanText(data.publicSearchSlug, 120);
+  const publicSearchToken = cleanText(data.publicSearchToken, 40).toLowerCase();
   const targetJobs = publicTargetJobs(data.targetJobs);
   const broadLocation = resolveBroadCandidateLocation(data);
   const availability = data.availability as CandidateAvailability;
   const experienceLevel = data.experienceLevel as CandidateExperienceLevel;
+  if (!/^[a-f0-9]{40}$/.test(publicSearchToken) || !slug.endsWith(`-${publicSearchToken}`)) return null;
   if (!slug || targetJobs.length === 0 || !broadLocation) return null;
   if (!AVAILABILITIES.has(availability) || !EXPERIENCE_LEVELS.has(experienceLevel)) return null;
 
@@ -256,15 +261,14 @@ export function projectPublicCandidate(data: PublicSource): PublicCandidateProje
 }
 
 export function buildJobPostingJsonLd(offer: PublicOfferProjection) {
-  const employmentType: Partial<Record<JobOfferContractType, string>> = {
-    permanent: offer.workingTime === 'part_time' ? 'PART_TIME' : 'FULL_TIME',
-    fixed_term: 'CONTRACTOR',
-    temporary: 'TEMPORARY',
-    freelance: 'CONTRACTOR',
-    apprenticeship: 'INTERN',
-    internship: 'INTERN',
-    other: 'OTHER',
-  };
+  const employmentTypes: string[] = [];
+  if (offer.contractType === 'temporary') employmentTypes.push('TEMPORARY');
+  if (offer.contractType === 'freelance') employmentTypes.push('CONTRACTOR');
+  if (offer.contractType === 'internship') employmentTypes.push('INTERN');
+  if (offer.contractType === 'apprenticeship' || offer.contractType === 'other') employmentTypes.push('OTHER');
+  if (offer.workingTime === 'full_time') employmentTypes.push('FULL_TIME');
+  if (offer.workingTime === 'part_time') employmentTypes.push('PART_TIME');
+  const employmentType = [...new Set(employmentTypes)];
   const addressCountry = offer.countryCode || offer.countryName || 'FR';
   const base = {
     '@context': 'https://schema.org',
@@ -276,7 +280,11 @@ export function buildJobPostingJsonLd(offer: PublicOfferProjection) {
       '@type': 'Organization',
       name: 'confidential',
     },
-    ...(offer.contractType ? { employmentType: employmentType[offer.contractType] } : {}),
+    ...(employmentType.length === 1
+      ? { employmentType: employmentType[0] }
+      : employmentType.length > 1
+        ? { employmentType }
+        : {}),
   };
 
   if (offer.workMode === 'remote') {
