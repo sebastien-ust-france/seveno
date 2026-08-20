@@ -405,6 +405,12 @@ service cloud.firestore {
       return data.keys().hasOnly([
         'uid',
         'publicCandidateId',
+        'anonymousVisibilityConsent',
+        'publicSearchVisibilityEnabled',
+        'publicSearchVisibilityConsentVersion',
+        'publicSearchVisibilityEnabledAt',
+        'publicSearchVisibilityUpdatedAt',
+        'publicSearchSlug',
         'role',
         'targetJobRoleIds',
         'targetJobs',
@@ -476,6 +482,25 @@ service cloud.firestore {
       ])
       && isNonEmptyString(data.uid, 120)
       && isValidPublicCandidateId(data.publicCandidateId)
+      && (!data.keys().hasAny(['anonymousVisibilityConsent']) || data.anonymousVisibilityConsent is bool)
+      && (!data.keys().hasAny(['publicSearchVisibilityEnabled']) || data.publicSearchVisibilityEnabled is bool)
+      && isOptionalStringOrNull(data, 'publicSearchVisibilityConsentVersion', 20)
+      && isOptionalTimestampOrNull(data, 'publicSearchVisibilityEnabledAt')
+      && isOptionalTimestampOrNull(data, 'publicSearchVisibilityUpdatedAt')
+      && isOptionalStringOrNull(data, 'publicSearchSlug', 120)
+      && (
+        !data.keys().hasAny(['publicSearchVisibilityEnabled'])
+        || data.publicSearchVisibilityEnabled == false
+        || (
+          data.profileStatus == 'active'
+          && data.anonymousVisibilityConsent == true
+          && data.publicSearchVisibilityConsentVersion == '1.0'
+          && data.publicSearchVisibilityEnabledAt is timestamp
+          && data.publicSearchVisibilityUpdatedAt is timestamp
+          && isNonEmptyString(data.publicSearchSlug, 120)
+          && data.publicSearchSlug.matches('^[a-z0-9-]+$')
+        )
+      )
       && data.role == 'candidate'
       && data.targetJobRoleIds is list
       && data.targetJobRoleIds.size() >= 1
@@ -975,7 +1000,13 @@ service cloud.firestore {
               'sevenoAssessmentCompletedAt',
               'sevenoAssessmentSessionId',
               'sevenoAssessmentResultId',
-              'profileStatus'
+              'profileStatus',
+              'anonymousVisibilityConsent',
+              'publicSearchVisibilityEnabled',
+              'publicSearchVisibilityConsentVersion',
+              'publicSearchVisibilityEnabledAt',
+              'publicSearchVisibilityUpdatedAt',
+              'publicSearchSlug'
             ])
           )
           )

@@ -7,6 +7,8 @@ const PUBLIC_NAV_LINKS = [
   { href: '/', label: 'Accueil' },
   { href: '/candidats', label: 'Candidats' },
   { href: '/entreprises', label: 'Entreprises' },
+  { href: '/offres', label: 'Offres' },
+  { href: '/talents', label: 'Talents' },
   { href: '/observatoire', label: 'Observatoire' },
   { href: '/etude', label: 'Étude' },
   { href: '/a-propos', label: 'À propos' },

@@ -174,6 +174,12 @@ export interface CandidateTargetJob {
 export interface CandidateProfile {
   uid: string;
   publicCandidateId: string;
+  anonymousVisibilityConsent?: boolean;
+  publicSearchVisibilityEnabled?: boolean;
+  publicSearchVisibilityConsentVersion?: string | null;
+  publicSearchVisibilityEnabledAt?: FirestoreDateValue | null;
+  publicSearchVisibilityUpdatedAt?: FirestoreDateValue | null;
+  publicSearchSlug?: string | null;
   role: 'candidate';
   targetJobRoleIds: string[];
   targetJobs: CandidateTargetJob[];
@@ -429,6 +435,7 @@ export interface CandidateProfileUpsertData {
   professionalReputationDescription?: string | null;
   profileStatus: CandidateProfileStatus;
   anonymousVisibilityConsent: boolean;
+  publicSearchVisibilityEnabled: boolean;
 }
 
 export interface CandidateRecommendationInvitationInput {

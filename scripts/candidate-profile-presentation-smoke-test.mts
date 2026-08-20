@@ -12,6 +12,7 @@ const BASE_INPUT = {
   experienceLevel: 'intermediate',
   profileStatus: 'draft',
   anonymousVisibilityConsent: false,
+  publicSearchVisibilityEnabled: false,
 };
 
 function buildInput(overrides: Record<string, unknown> = {}) {
@@ -34,6 +35,23 @@ assert.equal(emptyResult.professionalSelfDescription, null);
 assert.equal(emptyResult.professionalReputationDescription, null);
 assert.equal(Object.prototype.hasOwnProperty.call(emptyResult, 'professionalSelfDescription'), true);
 assert.equal(Object.prototype.hasOwnProperty.call(emptyResult, 'professionalReputationDescription'), true);
+assert.equal(emptyResult.publicSearchVisibilityEnabled, false);
+
+const publicVisibilityResult = normalizeCandidateProfileUpsertInput(buildInput({
+  profileStatus: 'active',
+  anonymousVisibilityConsent: true,
+  publicSearchVisibilityEnabled: true,
+}));
+assert.equal(publicVisibilityResult.publicSearchVisibilityEnabled, true);
+
+assert.throws(
+  () => normalizeCandidateProfileUpsertInput(buildInput({
+    profileStatus: 'draft',
+    publicSearchVisibilityEnabled: true,
+  })),
+  (error: unknown) => error instanceof SevenoCandidateProfileError
+    && error.code === 'public_search_visibility_requires_active_profile',
+);
 
 const contractResult = normalizeCandidateProfileUpsertInput(buildInput({
   desiredContractTypeCodes: ['cdi', ' freelance ', 'CDD'],

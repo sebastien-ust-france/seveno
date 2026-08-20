@@ -93,6 +93,8 @@ const serialized: SerializedJobOffer = {
 };
 const publicOffer = toPublicJobOffer(serialized);
 assert.equal('companyUid' in publicOffer, false);
-assert.equal(publicOffer.companyPublicId, serialized.companyPublicId);
+assert.equal('companyPublicId' in publicOffer, false);
+assert.equal('id' in publicOffer, false);
+assert.equal('questionnaireId' in publicOffer, false);
 
 console.log('Job offer validation smoke tests: OK');

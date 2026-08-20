@@ -60,6 +60,7 @@ export interface JobOfferInput {
 
 export interface JobOffer {
   id: string;
+  publicSlug?: string | null;
   companyUid: string;
   companyId: string;
   createdByUid: string;
@@ -117,5 +118,24 @@ export interface JobOfferListPage {
   nextCursor: string | null;
 }
 
-/** Future public projection. Internal company ownership is intentionally excluded. */
-export type PublicJobOffer = Omit<SerializedJobOffer, 'companyUid' | 'companyId' | 'createdByUid' | 'updatedByUid' | 'assignedToUid' | 'assignedAt' | 'assignedByUid'>;
+/** Minimal public projection. Internal IDs, ownership, questionnaires and scoring data are excluded. */
+export interface PublicJobOffer {
+  publicSlug: string | null;
+  title: string;
+  jobRoleLabel: string;
+  location: string;
+  countryCode?: string;
+  countryName?: string;
+  administrativeAreaName?: string;
+  cityName?: string;
+  workMode: JobOfferWorkMode | '';
+  contractType: JobOfferContractType | '';
+  workingTime: JobOfferWorkingTime | '';
+  description: string;
+  missions: string;
+  profileSummary: string;
+  requiredPrerequisites: string[];
+  preferredPrerequisites: string[];
+  publishedAt: string | null;
+  updatedAt: string;
+}

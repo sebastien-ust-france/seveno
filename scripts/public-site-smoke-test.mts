@@ -144,7 +144,15 @@ assertPageContains('app/sitemap.ts', [
   "'/cgu'",
   "'/confidentialite'",
   "'/cookies'",
+  "'/offres'",
+  "'/talents'",
+  'listPublicOffersServer',
+  'listPublicCandidatesServer',
 ]);
+assertPageContains('app/offres/page.tsx', ['PublicSiteShell', 'listPublicOffersServer', "canonical: '/offres'"]);
+assertPageContains('app/offres/[slug]/page.tsx', ['JobPosting', 'notFound', 'buildJobPostingJsonLd', 'Accéder aux offres et candidater']);
+assertPageContains('app/talents/page.tsx', ['PublicSiteShell', 'listPublicCandidatesServer', "canonical: '/talents'"]);
+assertPageContains('app/talents/[slug]/page.tsx', ['buildCandidateProfileJsonLd', 'notFound', 'Candidat anonyme', 'Se connecter ou créer un compte']);
 assertPageContains('components/public/PublicSiteHeader.tsx', [
   'PublicAccountActions',
   'PublicMobileNavigation',

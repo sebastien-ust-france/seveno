@@ -48,6 +48,11 @@ const RETENTION_ROWS: RetentionRow[] = [
     note: 'La projection anonyme reste distincte de l’identité privée.',
   },
   {
+    category: 'Profil professionnel anonyme visible sur le Web public',
+    duration: 'Uniquement tant que le Candidat maintient son consentement public séparé, puis retrait immédiat des pages et listes Seven’O après révocation.',
+    note: 'Les caches des moteurs de recherche et services de recherche IA peuvent conserver temporairement une copie après le retrait.',
+  },
+  {
     category: 'Étude Seven’O',
     duration: 'Le temps nécessaire à l’exploitation de l’étude, à son analyse et à la conservation de la preuve associée.',
     note: 'Les réponses publiques ne servent pas à exposer une identité privée aux entreprises.',
@@ -300,6 +305,39 @@ const POLICY_SECTIONS = [
     ),
   },
   {
+    id: 'visibilite-web-publique',
+    number: '8 bis.',
+    title: 'Visibilité publique Web, moteurs de recherche et recherche IA',
+    content: (
+      <>
+        <p>
+          Le profil candidat privé, la visibilité anonyme auprès des entreprises inscrites sur Seven’O et la visibilité
+          sur le Web public constituent trois niveaux distincts. L’activation du profil anonyme pour les entreprises
+          n’active jamais, à elle seule, une page publique.
+        </p>
+        <p>
+          La visibilité publique repose sur un consentement séparé, explicite, facultatif et non précoché. Le Candidat
+          peut le retirer à tout moment sans désactiver son profil anonyme auprès des entreprises Seven’O.
+        </p>
+        <p>
+          La page publique est minimisée : elle exclut l’identité, les coordonnées, l’adresse précise, la photo, les
+          employeurs et dates exacts, les identifiants internes, les réponses aux questionnaires et la logique
+          d’évaluation. Seules des informations professionnelles structurées et une zone géographique large peuvent y
+          figurer afin de limiter les risques de réidentification.
+        </p>
+        <p>
+          Après révocation, Seven’O retire le profil des listes et du sitemap publics et ne le sert plus comme page
+          indexable. Les moteurs de recherche et services de recherche IA peuvent toutefois mettre un certain temps à
+          actualiser leurs caches indépendants.
+        </p>
+        <p>
+          Les données de l’Observatoire restent agrégées ou anonymisées. Elles ne correspondent pas à ces pages
+          individuelles publiques et ne permettent pas d’activer la visibilité d’un Candidat.
+        </p>
+      </>
+    ),
+  },
+  {
     id: 'entreprises',
     number: '9.',
     title: 'Entreprises, offres, questionnaires et candidatures',
@@ -547,6 +585,7 @@ const TOC = [
   ['identite-privee', 'Identité privée du Candidat'],
   ['etude', 'Étude Seven’O'],
   ['profil-anonyme', 'Profil professionnel anonyme'],
+  ['visibilite-web-publique', 'Visibilité publique Web et recherche IA'],
   ['entreprises', 'Entreprises et questionnaires'],
   ['recommandations', 'Recommandations'],
   ['mises-en-relation', 'Mises en relation et notifications'],

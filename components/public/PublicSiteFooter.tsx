@@ -13,6 +13,8 @@ const PUBLIC_FOOTER_LINKS = {
     { href: '/candidats', label: 'Candidats' },
     { href: '/entreprises', label: 'Entreprises' },
     { href: '/entreprises/tarifs', label: 'Tarifs entreprises' },
+    { href: '/offres', label: 'Offres publiées' },
+    { href: '/talents', label: 'Talents publics' },
     { href: '/observatoire', label: 'Observatoire' },
   ],
   project: [

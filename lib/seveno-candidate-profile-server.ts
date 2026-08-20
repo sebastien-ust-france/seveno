@@ -24,6 +24,11 @@ import {
   normalizeGeographicLocation,
 } from '@/lib/seveno-geography-server';
 import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
+import {
+  buildPublicCandidateSlug,
+  PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION,
+  resolveBroadCandidateLocation,
+} from '@/lib/seveno-public-discovery';
 
 const AVAILABILITY_VALUES: CandidateAvailability[] = [
   'immediate',
@@ -223,6 +228,7 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
   const experienceLevel = cleanText(value.experienceLevel) as CandidateExperienceLevel;
   const profileStatus = cleanText(value.profileStatus) as CandidateProfileStatus;
   const anonymousVisibilityConsent = value.anonymousVisibilityConsent === true;
+  const publicSearchVisibilityEnabled = value.publicSearchVisibilityEnabled === true;
   if (!AVAILABILITY_VALUES.includes(availability)) {
     throw new SevenoCandidateProfileError('invalid_availability', 400, 'La disponibilite selectionnee est invalide.');
   }
@@ -237,6 +243,13 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
       'anonymous_visibility_consent_required',
       400,
       'Confirmez la visibilite anonyme avant d activer votre profil.',
+    );
+  }
+  if (publicSearchVisibilityEnabled && (profileStatus !== 'active' || !anonymousVisibilityConsent)) {
+    throw new SevenoCandidateProfileError(
+      'public_search_visibility_requires_active_profile',
+      400,
+      'La visibilite publique necessite un profil actif et visible anonymement par les entreprises.',
     );
   }
 
@@ -263,6 +276,7 @@ export function normalizeCandidateProfileUpsertInput(value: unknown): CandidateP
     ),
     profileStatus,
     anonymousVisibilityConsent,
+    publicSearchVisibilityEnabled,
   };
 }
 
@@ -469,6 +483,21 @@ export async function createOrUpdateCandidateProfileServer(
         || identityMissingFields.length > 0
       );
     const effectiveProfileStatus: CandidateProfileStatus = activationDowngraded ? 'draft' : input.profileStatus;
+    const existingPublicSearchVisibilityEnabled = existing?.publicSearchVisibilityEnabled === true;
+    const publicSearchVisibilityEnabled = effectiveProfileStatus === 'active'
+      && input.anonymousVisibilityConsent
+      && input.publicSearchVisibilityEnabled;
+    const publicSearchVisibilityChanged = existingPublicSearchVisibilityEnabled !== publicSearchVisibilityEnabled;
+    const publicSearchVisibilityEnabledAt = publicSearchVisibilityEnabled
+      ? existingPublicSearchVisibilityEnabled && existing?.publicSearchVisibilityEnabledAt instanceof Timestamp
+        ? existing.publicSearchVisibilityEnabledAt
+        : now
+      : null;
+    const broadPublicLocation = resolveBroadCandidateLocation(structuredLocation ?? input);
+    const publicSearchSlug = cleanText(existing?.publicSearchSlug)
+      || (publicSearchVisibilityEnabled
+        ? buildPublicCandidateSlug(publicCandidateId, primaryJob.label, broadPublicLocation)
+        : null);
     const legacyAssessmentFields = existing
       ? {}
       : {
@@ -500,6 +529,14 @@ export async function createOrUpdateCandidateProfileServer(
       ...verification,
       ...legacyAssessmentFields,
       profileStatus: effectiveProfileStatus,
+      anonymousVisibilityConsent: input.anonymousVisibilityConsent,
+      publicSearchVisibilityEnabled,
+      publicSearchVisibilityConsentVersion: publicSearchVisibilityEnabled
+        ? PUBLIC_SEARCH_VISIBILITY_CONSENT_VERSION
+        : null,
+      publicSearchVisibilityEnabledAt,
+      publicSearchVisibilityUpdatedAt: publicSearchVisibilityChanged || !existing ? now : existing.publicSearchVisibilityUpdatedAt ?? now,
+      publicSearchSlug,
       dailyAvailabilityConfirmationEnabled,
       ...(nextAvailabilityReminderAt ? { nextAvailabilityReminderAt } : {}),
       ...(existingLastAvailabilityNotificationAt

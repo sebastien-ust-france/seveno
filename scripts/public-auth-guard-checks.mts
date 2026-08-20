@@ -29,6 +29,10 @@ const PUBLIC_PURE_PAGES = [
   'app/cgu/page.tsx',
   'app/confidentialite/page.tsx',
   'app/cookies/page.tsx',
+  'app/offres/page.tsx',
+  'app/offres/[slug]/page.tsx',
+  'app/talents/page.tsx',
+  'app/talents/[slug]/page.tsx',
 ] as const;
 
 function readSource(relativePath: string) {

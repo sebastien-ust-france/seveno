@@ -22,6 +22,10 @@ assertMatches('app/confidentialite/page.tsx', [
   /\/cookies/i,
   /CNIL/i,
   /ne prend aucune.*cision finale de recrutement exclusivement.*automat/i,
+  /visibilit.*publique Web, moteurs de recherche et recherche IA/i,
+  /consentement s.par., explicite, facultatif et non pr.coch./i,
+  /caches ind.pendants/i,
+  /Observatoire restent agr.g.es ou anonymis.es/i,
 ]);
 
 assert.doesNotMatch(

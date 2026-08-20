@@ -133,6 +133,7 @@ export default function CandidateOnboardingPage() {
   const [professionalReputationDescription, setProfessionalReputationDescription] = useState('');
   const [profileStatus, setProfileStatus] = useState<CandidateProfileStatus>('draft');
   const [anonymousVisibilityConsent, setAnonymousVisibilityConsent] = useState(false);
+  const [publicSearchVisibilityEnabled, setPublicSearchVisibilityEnabled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [hasTermsAcceptance, setHasTermsAcceptance] = useState(false);
 
@@ -240,7 +241,10 @@ export default function CandidateOnboardingPage() {
           }
           if (PROFILE_STATUS_OPTIONS.some((option) => option.value === existingProfile.profileStatus)) {
             setProfileStatus(existingProfile.profileStatus);
-            setAnonymousVisibilityConsent(existingProfile.profileStatus === 'active');
+            setAnonymousVisibilityConsent(
+              existingProfile.anonymousVisibilityConsent === true || existingProfile.profileStatus === 'active',
+            );
+            setPublicSearchVisibilityEnabled(existingProfile.publicSearchVisibilityEnabled === true);
           } else {
             warnings.push('L’ancien statut a été remplacé par brouillon.');
           }
@@ -405,6 +409,7 @@ export default function CandidateOnboardingPage() {
         professionalReputationDescription,
         profileStatus,
         anonymousVisibilityConsent,
+        publicSearchVisibilityEnabled,
       };
 
       const saveResult = await createOrUpdateCandidateProfile(authUser, payload);
@@ -692,7 +697,9 @@ export default function CandidateOnboardingPage() {
                     <Select
                       value={profileStatus}
                       onChange={(event) => {
-                        setProfileStatus(event.target.value as CandidateProfileStatus);
+                        const nextStatus = event.target.value as CandidateProfileStatus;
+                        setProfileStatus(nextStatus);
+                        if (nextStatus !== 'active') setPublicSearchVisibilityEnabled(false);
                         setFieldErrors((current) => ({
                           ...current,
                           profileStatus: undefined,
@@ -720,6 +727,7 @@ export default function CandidateOnboardingPage() {
                         checked={anonymousVisibilityConsent}
                         onChange={(event) => {
                           setAnonymousVisibilityConsent(event.target.checked);
+                          if (!event.target.checked) setPublicSearchVisibilityEnabled(false);
                           setFieldErrors((current) => ({ ...current, anonymousVisibilityConsent: undefined }));
                         }}
                         className="mt-1 accent-cyan-400"
@@ -732,6 +740,25 @@ export default function CandidateOnboardingPage() {
                       </span>
                     </label>
                   ) : null}
+
+                  <label className={`flex items-start gap-3 rounded-[20px] border p-4 text-sm leading-6 ${profileStatus === 'active' && anonymousVisibilityConsent ? 'cursor-pointer border-blue-300/20 bg-blue-400/5 text-slate-300' : 'cursor-not-allowed border-white/10 bg-white/[0.03] text-slate-500'}`}>
+                    <input
+                      type="checkbox"
+                      checked={publicSearchVisibilityEnabled}
+                      disabled={profileStatus !== 'active' || !anonymousVisibilityConsent}
+                      onChange={(event) => setPublicSearchVisibilityEnabled(event.target.checked)}
+                      className="mt-1 accent-blue-400"
+                    />
+                    <span>
+                      <span className="block font-medium text-white">Rendre mon profil professionnel visible publiquement</span>
+                      <span className="mt-1 block">
+                        Permettre aux entreprises de découvrir mon profil anonyme depuis Seven’O, les moteurs de recherche et les services de recherche IA.
+                      </span>
+                      <span className="mt-2 block text-xs leading-5 text-slate-400">
+                        Cette option est facultative et distincte de la visibilité auprès des entreprises Seven’O. Vous pouvez la désactiver à tout moment. Le retrait des caches des moteurs de recherche peut prendre un certain temps.
+                      </span>
+                    </span>
+                  </label>
 
                   </div>
 

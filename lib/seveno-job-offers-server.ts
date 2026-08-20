@@ -46,6 +46,7 @@ import {
   normalizeGeographicLocation,
 } from '@/lib/seveno-geography-server';
 import { formatGeographicLocation, type GeographicLocation } from '@/lib/seveno-geography';
+import { buildPublicOfferSlug } from '@/lib/seveno-public-discovery';
 
 const COLLECTION = 'job_offers';
 const COMPANY_PROFILES_COLLECTION = 'company_profiles';
@@ -493,6 +494,7 @@ function serializeOffer(id: string, data: FirestoreRecord): SerializedJobOffer {
     : [];
   return {
     id,
+    publicSlug: typeof data.publicSlug === 'string' && data.publicSlug ? data.publicSlug : null,
     companyUid: String(data.companyUid ?? ''),
     companyId: String(data.companyId ?? data.companyUid ?? ''),
     createdByUid: String(data.createdByUid ?? data.createdBy ?? data.companyUid ?? ''),
@@ -624,6 +626,7 @@ export async function createJobOffer(companyUid: string, raw: unknown, actorUid 
   const now = Timestamp.now();
   const stored: FirestoreRecord = {
     id,
+    publicSlug: null,
     companyUid,
     companyId: companyUid,
     createdByUid: actorUid,
@@ -743,6 +746,7 @@ export async function duplicateJobOffer(companyUid: string, offerId: string, act
   });
   const stored: FirestoreRecord = {
     id,
+    publicSlug: null,
     ...content,
     duplicatedFromOfferId: source.id,
     createdBy: actorUid,
@@ -1111,7 +1115,16 @@ export async function changeJobOfferStatus(companyUid: string, offerId: string, 
       status,
       updatedAt: now,
       ...(status === 'published'
-        ? { publishedAt: snapshot.get('publishedAt') instanceof Timestamp ? snapshot.get('publishedAt') : now, closedAt: null }
+        ? {
+            publishedAt: snapshot.get('publishedAt') instanceof Timestamp ? snapshot.get('publishedAt') : now,
+            closedAt: null,
+            publicSlug: current.publicSlug || buildPublicOfferSlug(
+              current.id,
+              current.title,
+              current.location,
+              !current.publishedAt,
+            ),
+          }
         : {}),
       ...(status === 'closed' ? { closedAt: now } : {}),
       ...(action === 'restore' ? { publishedAt: null, closedAt: null } : {}),
@@ -1185,12 +1198,26 @@ export function resolveJobOfferStatus(status: JobOfferStatus, action: JobOfferSt
 }
 
 export function toPublicJobOffer(offer: SerializedJobOffer): PublicJobOffer {
-  const publicOffer: Partial<SerializedJobOffer> = { ...offer };
-  delete publicOffer.companyUid;
-  delete publicOffer.companyId;
-  delete publicOffer.createdByUid;
-  delete publicOffer.updatedByUid;
-  return publicOffer as PublicJobOffer;
+  return {
+    publicSlug: offer.publicSlug ?? null,
+    title: offer.title,
+    jobRoleLabel: offer.jobRoleLabel,
+    location: offer.location,
+    countryCode: offer.countryCode,
+    countryName: offer.countryName,
+    administrativeAreaName: offer.administrativeAreaName,
+    cityName: offer.cityName,
+    workMode: offer.workMode,
+    contractType: offer.contractType,
+    workingTime: offer.workingTime,
+    description: offer.description,
+    missions: offer.missions,
+    profileSummary: offer.profileSummary,
+    requiredPrerequisites: offer.requiredPrerequisites.map((item) => item.companyLabel).filter(Boolean),
+    preferredPrerequisites: offer.preferredPrerequisites.map((item) => item.companyLabel).filter(Boolean),
+    publishedAt: offer.publishedAt,
+    updatedAt: offer.updatedAt,
+  };
 }
 
 export function jobOfferToInput(offer: SerializedJobOffer): JobOfferInput {
