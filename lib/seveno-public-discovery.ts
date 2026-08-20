@@ -71,6 +71,7 @@ export type PublicOfferProjection = {
   requiredPrerequisites: string[];
   preferredPrerequisites: string[];
   publishedAt: string;
+  validThrough: string;
   updatedAt: string | null;
 };
 
@@ -151,13 +152,18 @@ function prerequisiteLabels(value: unknown) {
   return [...new Set(labels)].slice(0, 30);
 }
 
-export function projectPublicOffer(documentId: string, data: PublicSource): PublicOfferProjection | null {
+export function projectPublicOffer(
+  documentId: string,
+  data: PublicSource,
+  campaignData: PublicSource | null,
+): PublicOfferProjection | null {
   if (!PUBLIC_OFFER_STATUSES.has(cleanText(data.status, 20))) return null;
   const title = cleanText(data.title, 160);
   const jobRoleLabel = cleanText(data.jobRoleLabel, 200);
   const description = cleanText(data.description);
   const publishedAt = toIso(data.publishedAt);
-  if (!documentId || !title || !jobRoleLabel || !description || !publishedAt) return null;
+  const validThrough = toIso(campaignData?.endsAt);
+  if (!documentId || !title || !jobRoleLabel || !description || !publishedAt || !validThrough) return null;
 
   const location = cleanText(data.location, 360);
   const storedSlug = cleanText(data.publicSlug, 120);
@@ -189,6 +195,7 @@ export function projectPublicOffer(documentId: string, data: PublicSource): Publ
     requiredPrerequisites: prerequisiteLabels(data.requiredPrerequisites),
     preferredPrerequisites: prerequisiteLabels(data.preferredPrerequisites),
     publishedAt,
+    validThrough,
     updatedAt: toIso(data.updatedAt),
   };
 }
@@ -276,6 +283,7 @@ export function buildJobPostingJsonLd(offer: PublicOfferProjection) {
     title: offer.title,
     description: [offer.description, offer.missions, offer.profileSummary].filter(Boolean).join('\n\n'),
     datePosted: offer.publishedAt,
+    validThrough: offer.validThrough,
     hiringOrganization: {
       '@type': 'Organization',
       name: 'confidential',

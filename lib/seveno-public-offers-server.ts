@@ -24,8 +24,9 @@ export async function listPublicOffersServer(): Promise<PublicOfferProjection[]>
     .map((document) => {
       const data = document.data();
       const campaignId = typeof data.activeCampaignId === 'string' ? data.activeCampaignId : '';
-      if (!isPublicOfferPublicationActive(data, campaignId ? campaigns.get(campaignId) ?? null : null)) return null;
-      return projectPublicOffer(document.id, data);
+      const campaignData = campaignId ? campaigns.get(campaignId) ?? null : null;
+      if (!isPublicOfferPublicationActive(data, campaignData)) return null;
+      return projectPublicOffer(document.id, data, campaignData);
     })
     .filter((offer): offer is PublicOfferProjection => Boolean(offer))
     .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
@@ -44,8 +45,9 @@ export async function getPublicOfferBySlugServer(slug: string): Promise<PublicOf
     const campaign = campaignId
       ? await adminDb.collection('recruitment_campaigns').doc(campaignId).get()
       : null;
-    if (!isPublicOfferPublicationActive(data, campaign?.exists ? campaign.data() ?? null : null)) return null;
-    return projectPublicOffer(document.id, data);
+    const campaignData = campaign?.exists ? campaign.data() ?? null : null;
+    if (!isPublicOfferPublicationActive(data, campaignData)) return null;
+    return projectPublicOffer(document.id, data, campaignData);
   }
 
   const legacyOffers = await listPublicOffersServer();
@@ -65,8 +67,9 @@ export async function resolvePublicOfferIdBySlugServer(slug: string): Promise<st
     const campaign = campaignId
       ? await adminDb.collection('recruitment_campaigns').doc(campaignId).get()
       : null;
-    if (!isPublicOfferPublicationActive(data, campaign?.exists ? campaign.data() ?? null : null)) return null;
-    return projectPublicOffer(document.id, data)?.slug === normalizedSlug ? document.id : null;
+    const campaignData = campaign?.exists ? campaign.data() ?? null : null;
+    if (!isPublicOfferPublicationActive(data, campaignData)) return null;
+    return projectPublicOffer(document.id, data, campaignData)?.slug === normalizedSlug ? document.id : null;
   }
 
   const snapshot = await adminDb.collection(COLLECTION).where('status', '==', 'published').get();
@@ -81,8 +84,9 @@ export async function resolvePublicOfferIdBySlugServer(slug: string): Promise<st
   for (const document of snapshot.docs) {
     const data = document.data();
     const campaignId = typeof data.activeCampaignId === 'string' ? data.activeCampaignId : '';
-    if (!isPublicOfferPublicationActive(data, campaignId ? campaigns.get(campaignId) ?? null : null)) continue;
-    if (projectPublicOffer(document.id, data)?.slug === normalizedSlug) return document.id;
+    const campaignData = campaignId ? campaigns.get(campaignId) ?? null : null;
+    if (!isPublicOfferPublicationActive(data, campaignData)) continue;
+    if (projectPublicOffer(document.id, data, campaignData)?.slug === normalizedSlug) return document.id;
   }
 
   return null;

@@ -47,10 +47,17 @@ const privateOffer = {
   createdByUid: 'private-creator-uid',
   assignedToUid: 'private-assignee-uid',
   questionnaireId: 'private-questionnaire-id',
+  activeCampaignId: 'campaign-id',
 };
 
-const offer = projectPublicOffer('private-firestore-id', privateOffer);
+const activeCampaign = {
+  status: 'active',
+  endsAt: new Date('2026-08-21T10:00:00.000Z'),
+};
+
+const offer = projectPublicOffer('private-firestore-id', privateOffer, activeCampaign);
 assert.ok(offer);
+assert.equal(offer.validThrough, '2026-08-21T10:00:00.000Z');
 assert.deepEqual(offer.requiredPrerequisites, ['Permis B']);
 assert.deepEqual(offer.preferredPrerequisites, ['Premiers secours']);
 const offerJson = JSON.stringify(offer);
@@ -58,12 +65,14 @@ for (const forbidden of ['companyUid', 'companyId', 'createdByUid', 'assignedToU
   assert.equal(offerJson.includes(forbidden), false, `Forbidden offer field leaked: ${forbidden}`);
 }
 for (const status of ['draft', 'paused', 'closed', 'archived']) {
-  assert.equal(projectPublicOffer('offer-id', { ...privateOffer, status }), null);
+  assert.equal(projectPublicOffer('offer-id', { ...privateOffer, status }, activeCampaign), null);
 }
+assert.equal(projectPublicOffer('offer-id', privateOffer, null), null);
+assert.equal(projectPublicOffer('offer-id', privateOffer, { status: 'active', endsAt: null }), null);
 assert.equal(isPublicOfferPublicationActive(privateOffer, null), false);
 assert.equal(isPublicOfferPublicationActive(
   { ...privateOffer, activeCampaignId: 'campaign-id' },
-  { status: 'active', endsAt: new Date('2026-08-21T10:00:00.000Z') },
+  activeCampaign,
   new Date('2026-08-20T10:00:00.000Z'),
 ), true);
 assert.equal(isPublicOfferPublicationActive(
@@ -91,30 +100,42 @@ assert.equal(jobPosting['@type'], 'JobPosting');
 assert.equal(jobPosting.hiringOrganization.name, 'confidential');
 assert.equal('directApply' in jobPosting, false);
 assert.equal('baseSalary' in jobPosting, false);
-assert.equal('validThrough' in jobPosting, false);
+assert.equal(jobPosting.validThrough, activeCampaign.endsAt.toISOString());
 assert.equal('jobLocation' in jobPosting, true);
 assert.equal(jobPosting.employmentType, 'FULL_TIME');
 
-const partTimePermanent = projectPublicOffer('part-time-id', { ...privateOffer, contractType: 'permanent', workingTime: 'part_time' });
+const prolongedCampaign = { status: 'active', endsAt: new Date('2026-09-20T10:00:00.000Z') };
+const prolongedOffer = projectPublicOffer('private-firestore-id', privateOffer, prolongedCampaign);
+assert.ok(prolongedOffer);
+assert.equal(prolongedOffer.validThrough, prolongedCampaign.endsAt.toISOString());
+assert.equal(buildJobPostingJsonLd(prolongedOffer).validThrough, prolongedCampaign.endsAt.toISOString());
+assert.notEqual(prolongedOffer.validThrough, offer.validThrough);
+assert.equal(isPublicOfferPublicationActive(
+  privateOffer,
+  { status: 'active', endsAt: new Date('2026-08-19T10:00:00.000Z') },
+  new Date('2026-08-20T10:00:00.000Z'),
+), false);
+
+const partTimePermanent = projectPublicOffer('part-time-id', { ...privateOffer, contractType: 'permanent', workingTime: 'part_time' }, activeCampaign);
 assert.ok(partTimePermanent);
 assert.equal(buildJobPostingJsonLd(partTimePermanent).employmentType, 'PART_TIME');
-const fixedTermFullTime = projectPublicOffer('fixed-term-id', { ...privateOffer, contractType: 'fixed_term', workingTime: 'full_time' });
+const fixedTermFullTime = projectPublicOffer('fixed-term-id', { ...privateOffer, contractType: 'fixed_term', workingTime: 'full_time' }, activeCampaign);
 assert.ok(fixedTermFullTime);
 assert.equal(buildJobPostingJsonLd(fixedTermFullTime).employmentType, 'FULL_TIME');
-const temporaryFullTime = projectPublicOffer('temporary-id', { ...privateOffer, contractType: 'temporary', workingTime: 'full_time' });
+const temporaryFullTime = projectPublicOffer('temporary-id', { ...privateOffer, contractType: 'temporary', workingTime: 'full_time' }, activeCampaign);
 assert.ok(temporaryFullTime);
 assert.deepEqual(buildJobPostingJsonLd(temporaryFullTime).employmentType, ['TEMPORARY', 'FULL_TIME']);
-const freelance = projectPublicOffer('freelance-id', { ...privateOffer, contractType: 'freelance', workingTime: 'flexible' });
+const freelance = projectPublicOffer('freelance-id', { ...privateOffer, contractType: 'freelance', workingTime: 'flexible' }, activeCampaign);
 assert.ok(freelance);
 assert.equal(buildJobPostingJsonLd(freelance).employmentType, 'CONTRACTOR');
-const internshipPartTime = projectPublicOffer('internship-id', { ...privateOffer, contractType: 'internship', workingTime: 'part_time' });
+const internshipPartTime = projectPublicOffer('internship-id', { ...privateOffer, contractType: 'internship', workingTime: 'part_time' }, activeCampaign);
 assert.ok(internshipPartTime);
 assert.deepEqual(buildJobPostingJsonLd(internshipPartTime).employmentType, ['INTERN', 'PART_TIME']);
-const apprenticeship = projectPublicOffer('apprenticeship-id', { ...privateOffer, contractType: 'apprenticeship', workingTime: 'full_time' });
+const apprenticeship = projectPublicOffer('apprenticeship-id', { ...privateOffer, contractType: 'apprenticeship', workingTime: 'full_time' }, activeCampaign);
 assert.ok(apprenticeship);
 assert.deepEqual(buildJobPostingJsonLd(apprenticeship).employmentType, ['OTHER', 'FULL_TIME']);
 
-const remoteOffer = projectPublicOffer('remote-id', { ...privateOffer, workMode: 'remote', cityName: '', location: 'France' });
+const remoteOffer = projectPublicOffer('remote-id', { ...privateOffer, workMode: 'remote', cityName: '', location: 'France' }, activeCampaign);
 assert.ok(remoteOffer);
 const remoteJobPosting = buildJobPostingJsonLd(remoteOffer);
 assert.equal(remoteJobPosting.jobLocationType, 'TELECOMMUTE');
